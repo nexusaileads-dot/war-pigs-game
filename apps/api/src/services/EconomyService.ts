@@ -4,14 +4,14 @@ import { getSolanaService } from '@war-pigs/solana';
 export class EconomyService {
   private solana = getSolanaService();
 
-  async grantRewards(userId: string, wpigsAmount: number, xpAmount: number, runId: string): Promise<void> {
+  async grantRewards(userId: string, pigsAmount: number, xpAmount: number, runId: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
       // Update profile
       const profile = await tx.profile.update({
         where: { userId },
         data: {
-          currentWpigs: { increment: wpigsAmount },
-          totalWpigsEarned: { increment: wpigsAmount },
+          currentPigs: { increment: pigsAmount },
+          totalPigsEarned: { increment: pigsAmount },
           xp: { increment: xpAmount }
         }
       });
@@ -24,7 +24,7 @@ export class EconomyService {
         data: {
           userId,
           type: 'EARN',
-          amount: wpigsAmount,
+          amount: pigsAmount,
           description: `Mission rewards`,
           referenceId: runId
         }
@@ -35,7 +35,7 @@ export class EconomyService {
       if (wallet?.solanaAddress) {
         await tx.wallet.update({
           where: { userId },
-          data: { pendingRewards: { increment: wpigsAmount } }
+          data: { pendingRewards: { increment: pigsAmount } }
         });
       }
     });
@@ -98,4 +98,5 @@ export class EconomyService {
 
     return result;
   }
-                                                }
+        }
+          
