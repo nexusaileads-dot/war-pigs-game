@@ -30,7 +30,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      <HUD health={100} maxHealth={100} wpigs={0} />
+      <HUD health={100} maxHealth={100} pigs={0} />
       
       <button onClick={onExit} style={{ position: 'absolute', top: 10, right: 10, background: 'red', color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '5px', cursor: 'pointer' }}>Exit</button>
       
