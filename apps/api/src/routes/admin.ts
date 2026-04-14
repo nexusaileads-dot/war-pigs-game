@@ -36,8 +36,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       prisma.profile.update({
         where: { userId: user.id },
         data: {
-          currentWpigs: { increment: amount },
-          totalWpigsEarned: { increment: amount }
+          currentPigs: { increment: amount },
+          totalPigsEarned: { increment: amount }
         }
       }),
       prisma.transaction.create({
@@ -68,7 +68,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return {
       totalUsers,
       totalRuns,
-      totalWpigsDistributed: totalEarned._sum.amount || 0
+      totalPigsDistributed: totalEarned._sum.amount || 0
     };
   });
-              }
+}
