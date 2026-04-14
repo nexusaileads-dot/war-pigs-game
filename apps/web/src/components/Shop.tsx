@@ -31,7 +31,7 @@ export const Shop: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         {items.weapons.map(w => (
           <div key={w.weaponId} style={{ background: '#222', padding: '10px', borderRadius: '8px' }}>
             <h4>{w.name}</h4>
-            <p>Damage: {w.damage} | Cost: {w.priceWpigs} WPIGS</p>
+            <p>Damage: {w.damage} | Cost: {w.pricePigs} PIGS</p>
             {w.owned ? <span style={{ color: '#4caf50' }}>Owned</span> : 
               <button disabled={!w.canAfford} onClick={() => handleBuy('WEAPON', w.weaponId)} style={{ padding: '5px 10px', background: w.canAfford ? '#ff6b35' : '#555', color: '#fff', border: 'none' }}>Buy</button>
             }
