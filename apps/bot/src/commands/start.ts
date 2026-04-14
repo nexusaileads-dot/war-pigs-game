@@ -8,12 +8,12 @@ export function setupStartCommand(bot: Telegraf) {
 
 The Swine Corps needs you, soldier!
 
-Humanoid battle pigs fighting for glory, bacon, and $WPIGS tokens.
+Humanoid battle pigs fighting for glory, bacon, and $PIGS tokens.
 
 *What you can do:*
 • Battle through 12 intense missions
 • Fight legendary bosses
-• Earn $WPIGS tokens
+• Earn $PIGS tokens
 • Unlock elite pig warriors
 • Upgrade your arsenal
 
@@ -39,7 +39,7 @@ Humanoid battle pigs fighting for glory, bacon, and $WPIGS tokens.
 /help - Show this help
 
 *In-Game Tips:*
-• Complete missions to earn $WPIGS
+• Complete missions to earn $PIGS
 • Save up for legendary weapons
 • Bosses appear every 4 levels
 • Daily rewards coming soon!
