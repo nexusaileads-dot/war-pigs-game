@@ -193,7 +193,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
   fastify.get('/leaderboard', async () => {
     const topPlayers = await prisma.profile.findMany({
       take: 100,
-      orderBy: { totalWpigsEarned: 'desc' },
+      orderBy: { totalPigsEarned: 'desc' },
       include: { user: { select: { username: true, firstName: true, photoUrl: true } } }
     });
 
@@ -202,7 +202,8 @@ export async function gameRoutes(fastify: FastifyInstance) {
       username: p.user.username || p.user.firstName || 'Anonymous',
       photoUrl: p.user.photoUrl,
       level: p.level,
-      totalEarned: p.totalWpigsEarned
+      totalEarned: p.totalPigsEarned
     }));
   });
-}
+      }
+        
