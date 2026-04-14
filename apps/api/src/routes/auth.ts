@@ -37,8 +37,8 @@ export async function authRoutes(fastify: FastifyInstance) {
             create: {
               level: 1,
               xp: 0,
-              totalWpigsEarned: 0,
-              currentWpigs: 0,
+              totalPigsEarned: 0,
+              currentPigs: 0,
               equippedCharacterId: 'grunt_bacon',
               equippedWeaponId: 'oink_pistol'
             }
@@ -109,5 +109,4 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     return { user };
   });
-        }
-    
+}
