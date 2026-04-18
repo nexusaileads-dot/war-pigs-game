@@ -1,5 +1,4 @@
 import { Telegraf, Markup } from 'telegraf';
-import { getWebAppUrl } from '../utils/webApp';
 
 export function setupStartCommand(bot: Telegraf) {
   bot.start((ctx) => {
@@ -23,7 +22,7 @@ Humanoid battle pigs fighting for glory, bacon, and $PIGS tokens.
     ctx.reply(welcomeText, {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
-        [Markup.button.webApp('🎮 PLAY NOW', getWebAppUrl())],
+        [Markup.button.webApp('🎮 PLAY NOW', 'https://war-pigs-game.vercel.app')],
         [Markup.button.callback('📊 Profile', 'profile')],
         [Markup.button.callback('ℹ️ Help', 'help')]
       ])
