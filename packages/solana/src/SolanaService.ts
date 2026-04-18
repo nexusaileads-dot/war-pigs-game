@@ -1,3 +1,4 @@
+import bs58 from 'bs58';
 import { 
   Connection, 
   Keypair, 
@@ -42,7 +43,7 @@ export class SolanaService implements SolanaServiceInterface {
     const privateKey = process.env.SOLANA_PRIVATE_KEY;
     if (privateKey) {
       try {
-        const decoded = Buffer.from(privateKey, 'base58');
+        const decoded = bs58.decode(privateKey);
         this.senderKeypair = Keypair.fromSecretKey(decoded);
       } catch (e) {
         console.error('Failed to decode SOLANA_PRIVATE_KEY');
@@ -156,4 +157,4 @@ export class SolanaService implements SolanaServiceInterface {
       return false;
     }
   }
-    }
+}
