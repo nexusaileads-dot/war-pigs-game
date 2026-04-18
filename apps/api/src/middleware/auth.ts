@@ -1,8 +1,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import '@fastify/jwt';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: {
+      userId: string;
+      telegramId: string;
+    };
+    user: {
       userId: string;
       telegramId: string;
     };
