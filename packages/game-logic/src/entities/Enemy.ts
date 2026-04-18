@@ -41,7 +41,7 @@ export class Enemy {
     this.speed = template.speed;
     this.behavior = template.behavior;
     
-    if (behavior === 'EXPLODER') {
+    if (this.behavior === 'EXPLODER') {
       this.attackCooldown = 2000; // Give player time to react
     }
   }
