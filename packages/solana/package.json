@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "type": "commonjs",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,6 +15,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "^1.91.0",
+    "@solana/spl-token": "^0.4.1",
     "bs58": "^5.0.0"
   },
   "devDependencies": {
