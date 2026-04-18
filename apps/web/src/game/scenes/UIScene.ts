@@ -6,6 +6,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   create() {
-    // UI elements managed by React overlay (HUD.tsx)
+    // The UI elements (Health bar, $PIGS counter) are handled 
+    // by the React overlay (HUD.tsx) instead of Phaser text.
+    // This scene runs in parallel to keep the architecture clean.
   }
 }
