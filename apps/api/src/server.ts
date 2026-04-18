@@ -16,23 +16,23 @@ const server = Fastify({
   trustProxy: true
 });
 
-// Configure Redis with fallback to prevent startup crash
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
-});
-
-redis.on('error', (err) => {
-  server.log.warn('Redis connection failed. Rate limiting may be affected.');
-  server.log.error(err);
-});
+// 🚨 EMERGENCY REDIS BYPASS: Only connect if Railway provides a URL, otherwise use RAM.
+let redisClient: any = undefined;
+if (process.env.REDIS_URL) {
+  redisClient = new Redis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: null,
+    retryStrategy: () => null // Stop retrying immediately if it fails
+  });
+  redisClient.on('error', () => {
+    server.log.warn('Redis unavailable. Falling back to local memory cache.');
+  });
+}
 
 async function start() {
   try {
     // Plugins
     await server.register(cors, {
-      origin: process.env.FRONTEND_URL || '*', // Allow all in emergency, restrict later
+      origin: process.env.FRONTEND_URL || '*',
       credentials: true
     });
 
@@ -40,18 +40,17 @@ async function start() {
       secret: process.env.JWT_SECRET || 'dev-secret-key-change-in-production'
     });
 
-    // Rate Limiting (Uses Redis if available, falls back to memory)
+    // Rate Limiting (Automatically uses RAM because redisClient is undefined)
     await server.register(rateLimit, {
       max: 100,
       timeWindow: '1 minute',
-      redis: redis.status === 'ready' ? redis : undefined
+      redis: redisClient
     });
 
-    // Health check for Railway
+    // Health check
     server.get('/health', async () => ({ 
       status: 'ok', 
-      timestamp: new Date().toISOString(),
-      service: 'war-pigs-api' 
+      timestamp: new Date().toISOString() 
     }));
 
     // Routes
@@ -64,20 +63,16 @@ async function start() {
     // Error handler
     server.setErrorHandler((error, request, reply) => {
       server.log.error(error);
-      reply.status(500).send({ 
-        error: 'Internal server error', 
-        message: error.message 
-      });
+      reply.status(500).send({ error: 'Internal server error', message: error.message });
     });
 
-    // RAILWAY CONFIGURATION: Use process.env.PORT
+    // RAILWAY REQUIRED PORT BINDING
     const port = Number(process.env.PORT) || 8080;
     const host = '0.0.0.0';
 
     await server.listen({ port, host });
     console.log(`✅ API server successfully listening on ${host}:${port}`);
   } catch (err) {
-    server.log.error('❌ Server failed to start:');
     server.log.error(err);
     process.exit(1);
   }
