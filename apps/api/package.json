@@ -15,7 +15,6 @@
     "@war-pigs/game-logic": "*",
     "@war-pigs/solana": "*",
     "fastify": "^4.26.0",
-    "ioredis": "^5.3.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
