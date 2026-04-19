@@ -2,17 +2,20 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '@war-pigs/database';
 import { authenticate } from '../middleware/auth';
 
-// Simple admin check - in production, use proper admin roles
-const ADMIN_TELEGRAM_IDS = process.env.ADMIN_TELEGRAM_IDS?.split(',') || [];
+const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
 
 export async function adminRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', authenticate);
+
   fastify.addHook('preHandler', async (request, reply) => {
-    if (!request.user) {
-      return reply.status(401).send({ error: 'Unauthorized' });
-    }
-    
     const user = await prisma.user.findUnique({
-      where: { id: request.user.userId }
+      where: { id: request.user.userId },
+      select: {
+        telegramId: true
+      }
     });
 
     if (!user || !ADMIN_TELEGRAM_IDS.includes(user.telegramId)) {
@@ -20,12 +23,22 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Grant currency (for testing/emergencies)
   fastify.post('/grant', async (request, reply) => {
-    const { telegramId, amount, reason } = request.body as any;
-    
+    const { telegramId, amount, reason } = request.body as {
+      telegramId?: string;
+      amount?: number;
+      reason?: string;
+    };
+
+    if (!telegramId || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return reply.status(400).send({ error: 'Invalid grant payload' });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { telegramId }
+      where: { telegramId },
+      select: {
+        id: true
+      }
     });
 
     if (!user) {
@@ -54,7 +67,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  // Get stats
   fastify.get('/stats', async () => {
     const [totalUsers, totalRuns, totalEarned] = await Promise.all([
       prisma.user.count(),
@@ -71,4 +83,4 @@ export async function adminRoutes(fastify: FastifyInstance) {
       totalPigsDistributed: totalEarned._sum.amount || 0
     };
   });
-}
+    }
