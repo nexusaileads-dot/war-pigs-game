@@ -39,6 +39,8 @@ interface GameState {
   logout: () => void;
 }
 
+const DEV_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
+
 export const useGameStore = create<GameState>((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
@@ -68,6 +70,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           user: data.user,
           token: existingToken,
+          isLoading: false
+        });
+        return;
+      }
+
+      if (DEV_LOGIN_ENABLED) {
+        const { data } = await apiClient.post('/api/auth/dev-login');
+
+        localStorage.setItem('token', data.token);
+        set({
+          user: data.user,
+          token: data.token,
           isLoading: false
         });
         return;
