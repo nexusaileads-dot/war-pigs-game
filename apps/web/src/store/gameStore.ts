@@ -1,13 +1,12 @@
 import { create } from 'zustand';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { apiClient } from '../api/client';
 
 interface User {
   id: string;
   telegramId: string;
   username?: string;
   firstName?: string;
+  lastName?: string;
   photoUrl?: string;
   profile: {
     level: number;
@@ -17,6 +16,17 @@ interface User {
     equippedCharacterId: string | null;
     equippedWeaponId: string | null;
   };
+  wallet?: {
+    solanaAddress?: string | null;
+    pendingRewards: number;
+    claimedRewards: number;
+    lastClaimAt?: string | null;
+  } | null;
+  stats?: {
+    totalKills: number;
+    totalRuns: number;
+    totalBossKills: number;
+  } | null;
 }
 
 interface GameState {
@@ -26,51 +36,65 @@ interface GameState {
   initAuth: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   equipItem: (type: 'character' | 'weapon', id: string) => Promise<void>;
+  logout: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
   user: null,
-  token: null,
+  token: localStorage.getItem('token'),
   isLoading: true,
 
   initAuth: async () => {
     try {
       const tg = window.Telegram?.WebApp;
-      if (!tg?.initData) {
-        // Dev mode - use mock
-        if (import.meta.env.DEV) {
-          // Create mock session
-          const mockToken = localStorage.getItem('dev_token');
-          if (mockToken) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${mockToken}`;
-            const { data } = await axios.get(`${API_URL}/api/auth/me`);
-            set({ user: data.user, token: mockToken, isLoading: false });
-            return;
-          }
-        }
-        set({ isLoading: false });
+      const existingToken = localStorage.getItem('token');
+
+      if (tg?.initData) {
+        const { data } = await apiClient.post('/api/auth/telegram', {
+          initData: tg.initData
+        });
+
+        localStorage.setItem('token', data.token);
+        set({
+          user: data.user,
+          token: data.token,
+          isLoading: false
+        });
         return;
       }
 
-      const { data } = await axios.post(`${API_URL}/api/auth/telegram`, {
-        initData: tg.initData
-      });
+      if (existingToken) {
+        const { data } = await apiClient.get('/api/auth/me');
+        set({
+          user: data.user,
+          token: existingToken,
+          isLoading: false
+        });
+        return;
+      }
 
-      localStorage.setItem('token', data.token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-      set({ user: data.user, token: data.token, isLoading: false });
+      set({
+        user: null,
+        token: null,
+        isLoading: false
+      });
     } catch (error) {
       console.error('Auth failed:', error);
-      set({ isLoading: false });
+      localStorage.removeItem('token');
+      set({
+        user: null,
+        token: null,
+        isLoading: false
+      });
     }
   },
 
   refreshProfile: async () => {
-    const { token } = get();
+    const token = get().token;
     if (!token) return;
 
     try {
-      const { data } = await axios.get(`${API_URL}/api/auth/me`);
+      const { data } = await apiClient.get('/api/auth/me');
       set({ user: data.user });
     } catch (error) {
       console.error('Failed to refresh profile:', error);
@@ -78,17 +102,26 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   equipItem: async (type, id) => {
-    const { token } = get();
+    const token = get().token;
     if (!token) return;
 
     try {
-      await axios.post(`${API_URL}/api/inventory/equip`, {
+      await apiClient.post('/api/inventory/equip', {
         [type === 'character' ? 'characterId' : 'weaponId']: id
       });
+
       await get().refreshProfile();
     } catch (error) {
       console.error('Failed to equip item:', error);
     }
+  },
+
+  logout: () => {
+    localStorage.removeItem('token');
+    set({
+      user: null,
+      token: null,
+      isLoading: false
+    });
   }
 }));
-  
