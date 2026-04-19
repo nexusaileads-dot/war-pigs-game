@@ -1,5 +1,3 @@
-import Redis from 'ioredis';
-
 interface GameSession {
   userId: string;
   levelId: string;
@@ -11,12 +9,8 @@ interface GameSession {
 }
 
 export class GameSessionService {
-  private redis: Redis;
-  private readonly SESSION_TTL = 3600; // 1 hour
-
-  constructor() {
-    this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-  }
+  private sessions = new Map<string, GameSession>();
+  private readonly SESSION_TTL = 3600 * 1000; // 1 hour in ms
 
   async createSession(runId: string, data: Omit<GameSession, 'createdAt'>): Promise<string> {
     const session: GameSession = {
@@ -25,22 +19,29 @@ export class GameSessionService {
     };
 
     const token = `session_${runId}_${Date.now()}`;
-    await this.redis.setex(
-      token,
-      this.SESSION_TTL,
-      JSON.stringify(session)
-    );
+    this.sessions.set(token, session);
+
+    setTimeout(() => {
+      this.sessions.delete(token);
+    }, this.SESSION_TTL);
 
     return token;
   }
 
   async getSession(token: string): Promise<GameSession | null> {
-    const data = await this.redis.get(token);
-    if (!data) return null;
-    return JSON.parse(data);
+    const session = this.sessions.get(token);
+    if (!session) return null;
+
+    const expired = Date.now() - session.createdAt > this.SESSION_TTL;
+    if (expired) {
+      this.sessions.delete(token);
+      return null;
+    }
+
+    return session;
   }
 
   async endSession(token: string): Promise<void> {
-    await this.redis.del(token);
+    this.sessions.delete(token);
   }
 }
