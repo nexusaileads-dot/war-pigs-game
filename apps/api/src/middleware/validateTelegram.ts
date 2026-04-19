@@ -16,51 +16,69 @@ interface TelegramUser {
  */
 export function validateTelegramData(initData: string, botToken: string): TelegramUser | null {
   try {
+    if (!initData || !botToken) {
+      return null;
+    }
+
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
-    
-    if (!hash) return null;
 
-    // Remove hash from data check
+    if (!hash) {
+      return null;
+    }
+
     urlParams.delete('hash');
-    
-    // Sort params alphabetically
-    const params = Array.from(urlParams.entries());
-    params.sort((a, b) => a[0].localeCompare(b[0]));
-    
+
+    const params = Array.from(urlParams.entries()).sort(([a], [b]) => a.localeCompare(b));
     const dataCheckString = params.map(([key, value]) => `${key}=${value}`).join('\n');
-    
-    // Create HMAC
-    const secretKey = crypto.createHmac('sha256', 'WebAppData')
+
+    const secretKey = crypto
+      .createHmac('sha256', 'WebAppData')
       .update(botToken)
       .digest();
-    
-    const checkHash = crypto.createHmac('sha256', secretKey)
+
+    const computedHash = crypto
+      .createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex');
-    
-    if (checkHash !== hash) {
+
+    const hashBuffer = Buffer.from(hash, 'hex');
+    const computedHashBuffer = Buffer.from(computedHash, 'hex');
+
+    if (
+      hashBuffer.length !== computedHashBuffer.length ||
+      !crypto.timingSafeEqual(hashBuffer, computedHashBuffer)
+    ) {
       return null;
     }
 
-    // Check auth_date is recent (within 24 hours)
-    const authDate = parseInt(urlParams.get('auth_date') || '0');
-    if (Date.now() / 1000 - authDate > 86400) {
+    const authDate = Number(urlParams.get('auth_date') || 0);
+    if (!Number.isFinite(authDate) || authDate <= 0) {
       return null;
     }
 
-    // Parse user data
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    if (nowInSeconds - authDate > 86400) {
+      return null;
+    }
+
     const userJson = urlParams.get('user');
-    if (!userJson) return null;
+    if (!userJson) {
+      return null;
+    }
 
-    const user = JSON.parse(userJson);
+    const user = JSON.parse(userJson) as Omit<TelegramUser, 'auth_date' | 'hash'>;
+
+    if (!user || typeof user.id !== 'number' || !user.first_name) {
+      return null;
+    }
+
     return {
       ...user,
       auth_date: authDate,
       hash
     };
-  } catch (error) {
-    console.error('Telegram validation error:', error);
+  } catch {
     return null;
   }
-    }
+  }
