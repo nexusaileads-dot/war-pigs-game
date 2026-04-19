@@ -1,26 +1,34 @@
 export interface ProjectileConfig {
   speed: number;
   damage: number;
-  piercing?: boolean;
-  explosive?: boolean;
-  explosiveRadius?: number;
-  homing?: boolean;
-  specialEffect?: string;
+  maxRange: number;
+  radius?: number;
+  penetration?: number;
+  explosionRadius?: number;
+  explosionDamage?: number;
+  lifetimeMs?: number;
 }
 
 export class Projectile {
   id: string;
   x: number;
   y: number;
-  velocityX: number;
-  velocityY: number;
+  startX: number;
+  startY: number;
+  directionX: number;
+  directionY: number;
+  speed: number;
   damage: number;
-  ownerId: string; // player or enemy id
+  maxRange: number;
+  radius: number;
+  penetration: number;
+  explosionRadius?: number;
+  explosionDamage?: number;
+  lifetimeMs: number;
+  createdAt: number;
   isPlayerProjectile: boolean;
-  config: ProjectileConfig;
   isActive: boolean = true;
-  distanceTraveled: number = 0;
-  maxDistance: number = 1000;
+  hitsRemaining: number;
 
   constructor(
     id: string,
@@ -28,75 +36,99 @@ export class Projectile {
     y: number,
     directionX: number,
     directionY: number,
-    ownerId: string,
-    isPlayer: boolean,
+    isPlayerProjectile: boolean,
     config: ProjectileConfig
   ) {
+    const magnitude = Math.sqrt(directionX * directionX + directionY * directionY) || 1;
+
     this.id = id;
     this.x = x;
     this.y = y;
-    this.ownerId = ownerId;
-    this.isPlayerProjectile = isPlayer;
-    this.config = config;
+    this.startX = x;
+    this.startY = y;
+    this.directionX = directionX / magnitude;
+    this.directionY = directionY / magnitude;
+    this.speed = config.speed;
     this.damage = config.damage;
-    
-    const length = Math.sqrt(directionX * directionX + directionY * directionY);
-    this.velocityX = (directionX / length) * config.speed;
-    this.velocityY = (directionY / length) * config.speed;
+    this.maxRange = config.maxRange;
+    this.radius = config.radius ?? 8;
+    this.penetration = config.penetration ?? 1;
+    this.explosionRadius = config.explosionRadius;
+    this.explosionDamage = config.explosionDamage;
+    this.lifetimeMs = config.lifetimeMs ?? 5000;
+    this.createdAt = Date.now();
+    this.isPlayerProjectile = isPlayerProjectile;
+    this.hitsRemaining = this.penetration;
   }
 
-  update(deltaTime: number, targetX?: number, targetY?: number): { type: string; data?: any } | null {
-    if (!this.isActive) return null;
+  update(deltaTime: number, currentTime: number = Date.now()): void {
+    if (!this.isActive) return;
 
-    // Homing logic
-    if (this.config.homing && targetX !== undefined && targetY !== undefined) {
-      const dx = targetX - this.x;
-      const dy = targetY - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0) {
-        const homingStrength = 0.1;
-        this.velocityX += (dx / dist * this.config.speed - this.velocityX) * homingStrength;
-        this.velocityY += (dy / dist * this.config.speed - this.velocityY) * homingStrength;
-      }
-    }
+    const deltaSeconds = deltaTime / 1000;
+    this.x += this.directionX * this.speed * deltaSeconds;
+    this.y += this.directionY * this.speed * deltaSeconds;
 
-    const moveX = this.velocityX * (deltaTime / 1000);
-    const moveY = this.velocityY * (deltaTime / 1000);
-    
-    this.x += moveX;
-    this.y += moveY;
-    this.distanceTraveled += Math.sqrt(moveX * moveX + moveY * moveY);
-
-    if (this.distanceTraveled > this.maxDistance) {
+    if (this.hasExceededRange() || currentTime - this.createdAt > this.lifetimeMs) {
       this.isActive = false;
     }
-
-    return null;
   }
 
   checkCollision(targetX: number, targetY: number, targetRadius: number): boolean {
     if (!this.isActive) return false;
-    
+
     const dx = this.x - targetX;
     const dy = this.y - targetY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    return distance < targetRadius;
+
+    return distance <= this.radius + targetRadius;
   }
 
-  onHit(): { shouldDestroy: boolean; explosion?: { radius: number; damage: number } } {
-    if (this.config.explosive) {
+  onHit(): {
+    shouldDestroy: boolean;
+    explosion?: {
+      radius: number;
+      damage: number;
+    };
+  } {
+    if (!this.isActive) {
+      return { shouldDestroy: false };
+    }
+
+    this.hitsRemaining -= 1;
+
+    const shouldDestroy = this.hitsRemaining <= 0;
+    if (shouldDestroy) {
+      this.isActive = false;
+    }
+
+    if (this.explosionRadius && this.explosionDamage) {
       return {
-        shouldDestroy: true,
+        shouldDestroy,
         explosion: {
-          radius: this.config.explosiveRadius || 50,
-          damage: this.damage * 0.5
+          radius: this.explosionRadius,
+          damage: this.explosionDamage
         }
       };
     }
-    
-    return {
-      shouldDestroy: !this.config.piercing
-    };
+
+    return { shouldDestroy };
   }
-}
+
+  getDistanceTraveled(): number {
+    const dx = this.x - this.startX;
+    const dy = this.y - this.startY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  hasExceededRange(): boolean {
+    return this.getDistanceTraveled() >= this.maxRange;
+  }
+
+  deactivate(): void {
+    this.isActive = false;
+  }
+
+  getPosition(): { x: number; y: number } {
+    return { x: this.x, y: this.y };
+  }
+  }
