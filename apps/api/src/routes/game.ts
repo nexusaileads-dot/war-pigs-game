@@ -1,3 +1,5 @@
+// apps/api/src/routes/game.ts
+
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@war-pigs/database';
 import { RewardCalculator } from '@war-pigs/game-logic';
@@ -17,7 +19,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       weaponId: string;
     };
 
-    // Validate ownership
     const [charOwnership, weaponOwnership, level] = await Promise.all([
       prisma.inventoryItem.findFirst({
         where: { userId: request.user!.userId, characterId }
@@ -25,7 +26,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       prisma.inventoryItem.findFirst({
         where: { userId: request.user!.userId, weaponId }
       }),
-      prisma.level.findUnique({ where: { id: levelId } })
+      prisma.level.findUnique({
+        where: { id: levelId }
+      })
     ]);
 
     if (!charOwnership || !weaponOwnership) {
@@ -36,7 +39,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Level not found' });
     }
 
-    // Check level unlock
     const profile = await prisma.profile.findUnique({
       where: { userId: request.user!.userId }
     });
@@ -45,7 +47,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Level not unlocked' });
     }
 
-    // Create run
     const run = await prisma.gameRun.create({
       data: {
         userId: request.user!.userId,
@@ -56,7 +57,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       }
     });
 
-    // Initialize server-side session for anti-cheat
     const sessionToken = await gameSession.createSession(run.id, {
       userId: request.user!.userId,
       levelId,
@@ -69,7 +69,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { run, sessionToken };
   });
 
-  // Submit run results (anti-cheat protected)
+  // Submit run results
   fastify.post('/complete', { preHandler: authenticate }, async (request, reply) => {
     const { runId, stats, sessionToken, clientHash } = request.body as {
       runId: string;
@@ -86,49 +86,52 @@ export async function gameRoutes(fastify: FastifyInstance) {
       clientHash: string;
     };
 
-    // Validate session
     const session = await gameSession.getSession(sessionToken);
     if (!session || session.userId !== request.user!.userId) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
     const run = await prisma.gameRun.findFirst({
-      where: { id: runId, userId: request.user!.userId },
-      include: { level: true }
+      where: {
+        id: runId,
+        userId: request.user!.userId
+      },
+      include: {
+        level: true
+      }
     });
 
     if (!run || run.status !== 'ACTIVE') {
       return reply.status(400).send({ error: 'Invalid run' });
     }
 
-    // Anti-cheat validation
     const calculator = new RewardCalculator();
-    const maxPossibleKills = run.level.waves * 5; // Approximate max enemies
-    
+    const maxPossibleKills = run.level.waves * 5;
+
     const validation = calculator.validateRunStats(
-      { ...stats, difficulty: run.level.difficulty, isPerfectRun: stats.damageTaken === 0 },
+      {
+        ...stats,
+        difficulty: run.level.difficulty,
+        isPerfectRun: stats.damageTaken === 0
+      },
       maxPossibleKills
     );
 
     if (!validation.valid) {
-      // Flag for review but don't reject immediately (could be edge case)
       fastify.log.warn(`Potential cheat detected: ${validation.reason}, User: ${request.user!.userId}`);
     }
 
-    // Calculate rewards server-side
     const rewards = calculator.calculateRewards({
       ...stats,
       difficulty: run.level.difficulty,
       isPerfectRun: stats.damageTaken === 0
     });
 
-    // Verify rewards aren't inflated
-    const maxPossibleReward = run.level.baseReward * 5; // generous cap
+    const maxPossibleReward = run.level.baseReward * 5;
     if (rewards.total > maxPossibleReward) {
       return reply.status(400).send({ error: 'Reward calculation error' });
     }
 
-    // Update run
     await prisma.gameRun.update({
       where: { id: runId },
       data: {
@@ -146,23 +149,22 @@ export async function gameRoutes(fastify: FastifyInstance) {
       }
     });
 
-    // Grant rewards
-    await economy.grantRewards(request.user!.userId, rewards.total, rewards.xpEarned, runId);
+    await economy.grantRewards(
+      request.user!.userId,
+      rewards.total,
+      rewards.xpEarned,
+      runId
+    );
 
-    // Update stats
     await prisma.playerStats.update({
       where: { userId: request.user!.userId },
       data: {
         totalKills: { increment: stats.kills },
         totalRuns: { increment: 1 },
-        totalBossKills: { increment: stats.bossKilled ? 1 : 0 },
-        accuracy: {
-          set: prisma.$queryRaw`SELECT ((accuracy * total_runs) + ${stats.accuracy}) / (total_runs + 1) FROM "PlayerStats" WHERE "userId" = ${request.user!.userId}`
-        }
+        totalBossKills: { increment: stats.bossKilled ? 1 : 0 }
       }
     });
 
-    // Clean up session
     await gameSession.endSession(sessionToken);
 
     return {
@@ -182,10 +184,10 @@ export async function gameRoutes(fastify: FastifyInstance) {
       orderBy: { levelNumber: 'asc' }
     });
 
-    return levels.map(level => ({
+    return levels.map((level) => ({
       ...level,
       unlocked: profile ? profile.level >= level.unlockRequirement : level.unlockRequirement === 0,
-      completed: false // Could track completed runs
+      completed: false
     }));
   });
 
@@ -194,7 +196,15 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const topPlayers = await prisma.profile.findMany({
       take: 100,
       orderBy: { totalPigsEarned: 'desc' },
-      include: { user: { select: { username: true, firstName: true, photoUrl: true } } }
+      include: {
+        user: {
+          select: {
+            username: true,
+            firstName: true,
+            photoUrl: true
+          }
+        }
+      }
     });
 
     return topPlayers.map((p, index) => ({
@@ -205,5 +215,4 @@ export async function gameRoutes(fastify: FastifyInstance) {
       totalEarned: p.totalPigsEarned
     }));
   });
-      }
-        
+}
