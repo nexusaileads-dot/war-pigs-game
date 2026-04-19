@@ -3,7 +3,6 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 
-import { prisma } from '@war-pigs/database';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { shopRoutes } from './routes/shop';
@@ -18,15 +17,21 @@ const server = Fastify({
 async function start() {
   try {
     await server.register(cors, {
-      origin: process.env.FRONTEND_URL || '*',
+      origin: process.env.FRONTEND_URL || true,
       credentials: true
     });
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      server.log.warn('JWT_SECRET is not set. Using development fallback secret.');
+    }
+
     await server.register(jwt, {
-      secret: process.env.JWT_SECRET || 'dev-secret-key-change-in-production'
+      secret: jwtSecret || 'dev-secret-key-change-in-production'
     });
 
     await server.register(rateLimit, {
+      global: true,
       max: 100,
       timeWindow: '1 minute'
     });
@@ -43,18 +48,28 @@ async function start() {
     await server.register(adminRoutes, { prefix: '/api/admin' });
 
     server.setErrorHandler((error, request, reply) => {
-      server.log.error(error);
-      reply.status(500).send({
-        error: 'Internal server error',
+      request.log.error(error);
+
+      if (reply.sent) {
+        return;
+      }
+
+      const statusCode =
+        typeof (error as { statusCode?: unknown }).statusCode === 'number'
+          ? ((error as { statusCode: number }).statusCode)
+          : 500;
+
+      reply.status(statusCode).send({
+        error: statusCode >= 500 ? 'Internal server error' : error.name || 'Request error',
         message: error.message
       });
     });
 
     const port = Number(process.env.PORT) || 8080;
-    const host = '0.0.0.0';
+    const host = process.env.HOST || '0.0.0.0';
 
     await server.listen({ port, host });
-    console.log(`✅ API server successfully listening on ${host}:${port}`);
+    server.log.info(`API server listening on ${host}:${port}`);
   } catch (err) {
     server.log.error(err);
     process.exit(1);
