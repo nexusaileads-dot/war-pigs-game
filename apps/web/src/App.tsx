@@ -1,23 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from './store/gameStore';
+import { TelegramProvider } from './components/TelegramProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
+import { LevelSelect } from './components/LevelSelect';
 import { Shop } from './components/Shop';
 import { Profile } from './components/Profile';
 import { GameCanvas } from './game/GameCanvas';
 
+type Screen =
+  | 'MENU'
+  | 'CHAR_SELECT'
+  | 'WEAPON_SELECT'
+  | 'LEVEL_SELECT'
+  | 'SHOP'
+  | 'PROFILE'
+  | 'GAME';
+
 export default function App() {
-  const { initAuth, isLoading, user } = useGameStore();
-  const [currentScreen, setCurrentScreen] = useState('MENU');
+  const { initAuth, isLoading, user, refreshProfile } = useGameStore();
+  const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
 
   useEffect(() => {
-    initAuth();
+    void initAuth();
   }, [initAuth]);
+
+  const handleGameExit = async () => {
+    await refreshProfile();
+    setCurrentScreen('MENU');
+  };
 
   if (isLoading) {
     return (
-      <div style={{ width: '100%', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: '#0a0a0a',
+          color: '#ff6b35',
+          fontFamily: 'monospace'
+        }}
+      >
         LOADING SWINE CORPS DATA...
       </div>
     );
@@ -25,26 +52,70 @@ export default function App() {
 
   if (!user) {
     return (
-      <div style={{ width: '100%', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: '#0a0a0a',
+          color: '#ff6b35',
+          fontFamily: 'monospace',
+          textAlign: 'center',
+          padding: '24px'
+        }}
+      >
         AUTH FAILED. LAUNCH VIA TELEGRAM.
       </div>
     );
   }
 
+  let screen: React.ReactNode;
+
   switch (currentScreen) {
     case 'MENU':
-      return <MenuScene onNavigate={setCurrentScreen} />;
+      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
+      break;
+
     case 'CHAR_SELECT':
-      return <CharacterSelect onBack={() => setCurrentScreen('MENU')} onStart={() => setCurrentScreen('GAME')} />;
+      screen = (
+        <CharacterSelect
+          onBack={() => setCurrentScreen('MENU')}
+          onStart={() => setCurrentScreen('LEVEL_SELECT')}
+        />
+      );
+      break;
+
     case 'WEAPON_SELECT':
-      return <WeaponSelect onBack={() => setCurrentScreen('MENU')} />;
+      screen = <WeaponSelect onBack={() => setCurrentScreen('MENU')} />;
+      break;
+
+    case 'LEVEL_SELECT':
+      screen = (
+        <LevelSelect
+          onBack={() => setCurrentScreen('CHAR_SELECT')}
+          onStart={() => setCurrentScreen('GAME')}
+        />
+      );
+      break;
+
     case 'SHOP':
-      return <Shop onBack={() => setCurrentScreen('MENU')} />;
+      screen = <Shop onBack={() => setCurrentScreen('MENU')} />;
+      break;
+
     case 'PROFILE':
-      return <Profile onBack={() => setCurrentScreen('MENU')} />;
+      screen = <Profile onBack={() => setCurrentScreen('MENU')} />;
+      break;
+
     case 'GAME':
-      return <GameCanvas onExit={() => setCurrentScreen('MENU')} />;
+      screen = <GameCanvas onExit={handleGameExit} />;
+      break;
+
     default:
-      return <MenuScene onNavigate={setCurrentScreen} />;
+      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
+      break;
   }
-}
+
+  return <TelegramProvider>{screen}</TelegramProvider>;
+          }
