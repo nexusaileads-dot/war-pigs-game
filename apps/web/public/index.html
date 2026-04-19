@@ -1,35 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>WAR PIGS - Tactical Swine Warfare</title>
-  <meta name="description" content="WAR PIGS - The ultimate Telegram shooting game.">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background: #1a1a1a; 
-      overflow: hidden; 
-      font-family: 'Arial Black', Arial, sans-serif;
-      touch-action: none;
-    }
-    #root { width: 100vw; height: 100vh; }
-    .loading {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #ff6b35;
-      font-size: 24px;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <div id="root">
-    <div class="loading">🐷 Loading WAR PIGS...</div>
-  </div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>WAR PIGS</title>
+    <meta
+      name="description"
+      content="WAR PIGS - Tactical Swine Warfare on Telegram Mini Apps."
+    />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #1a1a1a;
+        overflow: hidden;
+        font-family: 'Arial Black', Arial, sans-serif;
+        touch-action: none;
+      }
+
+      #root {
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .loading {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #ff6b35;
+        font-size: 24px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading">🐷 Loading WAR PIGS...</div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
