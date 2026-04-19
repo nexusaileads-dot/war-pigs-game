@@ -6,7 +6,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // Characters
     this.load.image('grunt_bacon', '/assets/sprites/Grunt-Bacon.png');
     this.load.image('iron_tusk', '/assets/sprites/Iron-Tusk.png');
     this.load.image('swift_hoof', '/assets/sprites/Swift-Hoof.png');
@@ -14,7 +13,6 @@ export class BootScene extends Phaser.Scene {
     this.load.image('blast_ham', '/assets/sprites/Blast-Ham.png');
     this.load.image('general_goldsnout', '/assets/sprites/General-Goldsnout.png');
 
-    // Enemies
     this.load.image('wolf_grunt', '/assets/sprites/Wolf-Conscript.png');
     this.load.image('wolf_soldier', '/assets/sprites/Wolf-Regular.png');
     this.load.image('wolf_heavy', '/assets/sprites/Wolf-Heavy-Gunner.png');
@@ -22,12 +20,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('drone_bomber', '/assets/sprites/Kamikaze-Crow.png');
     this.load.image('bear_commando', '/assets/sprites/Ursine-Commando.png');
 
-    // Bosses
     this.load.image('alpha_wolfgang', '/assets/sprites/Wolfgang-the-Ravager.png');
     this.load.image('mecha_bruin', '/assets/sprites/Bruin-Mech-7.png');
     this.load.image('shadow_fox_prime', '/assets/sprites/Vixen-Prime.png');
 
-    // Weapons
     this.load.image('oink_pistol', '/assets/sprites/Oink-9-Pistol.png');
     this.load.image('sow_machinegun', '/assets/sprites/Sow-MP5.png');
     this.load.image('boar_rifle', '/assets/sprites/Boar-AR15.png');
@@ -37,18 +33,15 @@ export class BootScene extends Phaser.Scene {
     this.load.image('plasma_porker', '/assets/sprites/Plasma-Porker-X.png');
     this.load.image('bacon_blaster', '/assets/sprites/Bacon-Blaster-9000.png');
 
-    // Projectiles
     this.load.image('bullet', '/assets/sprites/Standard-Bullet.png');
     this.load.image('sniper_bullet', '/assets/sprites/Sniper-Caliber-Bullet.png');
     this.load.image('plasma_globule', '/assets/sprites/Plasma-Globule.png');
     this.load.image('rocket', '/assets/sprites/Explosive-Projectile.png');
     this.load.image('explosion', '/assets/sprites/Explosion-Effect.png');
 
-    // Background and UI
     this.load.image('background', '/assets/sprites/map.png');
-    this.load.image('pig_token', '/assets/sprites/pig-Token.png');
+    this.load.image('pig_token', '/assets/sprites/pig-token.png');
 
-    // Safety Fallbacks
     this.load.image('player', '/assets/sprites/Grunt-Bacon.png');
     this.load.image('enemy', '/assets/sprites/Wolf-Conscript.png');
     this.load.image('boss', '/assets/sprites/Wolfgang-the-Ravager.png');
@@ -57,4 +50,4 @@ export class BootScene extends Phaser.Scene {
   create() {
     this.scene.start('GameScene');
   }
-}
+  }
