@@ -432,4 +432,4 @@ export class GameScene extends Phaser.Scene {
     this.input.off('pointerdown');
     this.spawnTimer?.remove(false);
   }
-  }
+                                 }
