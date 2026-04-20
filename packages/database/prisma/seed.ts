@@ -18,8 +18,7 @@ async function main() {
     {
       characterId: 'iron_tusk',
       name: 'Iron Tusk',
-      description:
-        'Heavy armor, slow but devastating. The wall that protects the sty.',
+      description: 'Heavy armor, slow but devastating. The wall that protects the sty.',
       classType: 'TANK',
       pricePigs: 500,
       unlockLevel: 2
@@ -27,8 +26,7 @@ async function main() {
     {
       characterId: 'swift_hoof',
       name: 'Swift Hoof',
-      description:
-        'Fast-moving recon specialist built for rapid flanking and survival.',
+      description: 'Fast-moving recon specialist built for rapid flanking and survival.',
       classType: 'SCOUT',
       pricePigs: 900,
       unlockLevel: 3
@@ -36,8 +34,7 @@ async function main() {
     {
       characterId: 'precision_squeal',
       name: 'Precision Squeal',
-      description:
-        'Long-range specialist with a deadly eye and steady nerves.',
+      description: 'Long-range specialist with a deadly eye and steady nerves.',
       classType: 'SNIPER',
       pricePigs: 1200,
       unlockLevel: 4
@@ -45,8 +42,7 @@ async function main() {
     {
       characterId: 'blast_ham',
       name: 'Blast Ham',
-      description:
-        'Explosives expert who clears groups and softens heavy targets.',
+      description: 'Explosives expert who clears groups and softens heavy targets.',
       classType: 'DEMOLITION',
       pricePigs: 1600,
       unlockLevel: 5
@@ -54,8 +50,7 @@ async function main() {
     {
       characterId: 'general_goldsnout',
       name: 'General Goldsnout',
-      description:
-        'Veteran commander with elite battlefield discipline and firepower.',
+      description: 'Veteran commander with elite battlefield discipline and firepower.',
       classType: 'ELITE',
       pricePigs: 2500,
       unlockLevel: 7
@@ -204,6 +199,84 @@ async function main() {
       baseReward: 420,
       xpReward: 220,
       unlockRequirement: 3,
+      isBossLevel: true
+    },
+    {
+      levelNumber: 5,
+      name: 'Ash Trenches',
+      description: 'Push through scorched trenches under sustained enemy fire.',
+      difficulty: 5,
+      enemyTypes: ['wolf_soldier', 'wolf_heavy', 'drone_bomber'],
+      waves: 5,
+      bossId: null,
+      baseReward: 560,
+      xpReward: 300,
+      unlockRequirement: 4,
+      isBossLevel: false
+    },
+    {
+      levelNumber: 6,
+      name: 'Vermin Crossroads',
+      description: 'Intercept mechanized patrols before they split the front line.',
+      difficulty: 6,
+      enemyTypes: ['wolf_heavy', 'cyber_fox', 'drone_bomber'],
+      waves: 6,
+      bossId: null,
+      baseReward: 720,
+      xpReward: 380,
+      unlockRequirement: 5,
+      isBossLevel: false
+    },
+    {
+      levelNumber: 7,
+      name: 'Steel Fang Bastion',
+      description: 'Enemy fortifications harden. Break the line and keep moving.',
+      difficulty: 7,
+      enemyTypes: ['wolf_heavy', 'cyber_fox', 'bear_commando'],
+      waves: 6,
+      bossId: null,
+      baseReward: 900,
+      xpReward: 470,
+      unlockRequirement: 6,
+      isBossLevel: false
+    },
+    {
+      levelNumber: 8,
+      name: 'Bruin Siege',
+      description: 'A heavy mechanized unit leads the assault. Destroy it.',
+      difficulty: 8,
+      enemyTypes: ['wolf_heavy', 'drone_bomber', 'bear_commando'],
+      waves: 7,
+      bossId: 'mecha_bruin',
+      baseReward: 1200,
+      xpReward: 650,
+      unlockRequirement: 7,
+      isBossLevel: true
+    },
+    {
+      levelNumber: 9,
+      name: 'Ghost Orchard',
+      description: 'Fast infiltration teams strike from cover in ruined fields.',
+      difficulty: 9,
+      enemyTypes: ['cyber_fox', 'drone_bomber', 'bear_commando'],
+      waves: 7,
+      bossId: null,
+      baseReward: 1450,
+      xpReward: 760,
+      unlockRequirement: 8,
+      isBossLevel: false
+    },
+    {
+      levelNumber: 10,
+      name: 'Vixen Protocol',
+      description: 'Terminate the apex assassin before the warfront collapses.',
+      difficulty: 10,
+      enemyTypes: ['cyber_fox', 'drone_bomber', 'bear_commando'],
+      waves: 8,
+      bossId: 'shadow_fox_prime',
+      baseReward: 1800,
+      xpReward: 950,
+      unlockRequirement: 9,
       isBossLevel: true
     }
   ];
