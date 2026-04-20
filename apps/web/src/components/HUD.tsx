@@ -1,65 +1,137 @@
 import React from 'react';
 
-export const HUD: React.FC<{ health: number; maxHealth: number; pigs: number }> = ({
+type HUDProps = {
+  health: number;
+  maxHealth: number;
+  pigs: number;
+  kills?: number;
+};
+
+export const HUD: React.FC<HUDProps> = ({
   health,
   maxHealth,
-  pigs
+  pigs,
+  kills = 0
 }) => {
   const safeMaxHealth = Math.max(1, maxHealth);
-  const healthPercent = Math.max(0, Math.min(100, (health / safeMaxHealth) * 100));
+  const safeHealth = Math.max(0, Math.min(health, safeMaxHealth));
+  const healthPercent = Math.max(0, Math.min(100, (safeHealth / safeMaxHealth) * 100));
+
+  const healthColor =
+    healthPercent > 60 ? '#4caf50' : healthPercent > 30 ? '#ff9800' : '#f44336';
 
   return (
     <div
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
+        inset: 0,
         padding: '15px',
         display: 'flex',
         justifyContent: 'space-between',
-        pointerEvents: 'none'
+        alignItems: 'flex-start',
+        pointerEvents: 'none',
+        boxSizing: 'border-box'
       }}
     >
       <div
         style={{
-          width: '200px',
-          height: '24px',
-          background: 'rgba(0,0,0,0.7)',
-          borderRadius: '12px',
-          border: '2px solid #444',
-          overflow: 'hidden'
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
         }}
       >
         <div
           style={{
-            width: `${healthPercent}%`,
-            height: '100%',
-            background: healthPercent > 50 ? '#4caf50' : '#f44336',
-            transition: 'width 0.2s'
+            background: 'rgba(0,0,0,0.78)',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            border: '2px solid #444',
+            minWidth: '240px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
           }}
-        />
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '14px',
+              marginBottom: '8px'
+            }}
+          >
+            <span>HEALTH</span>
+            <span>
+              {safeHealth}/{safeMaxHealth}
+            </span>
+          </div>
+
+          <div
+            style={{
+              width: '100%',
+              height: '22px',
+              background: 'rgba(255,255,255,0.08)',
+              borderRadius: '11px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              style={{
+                width: `${healthPercent}%`,
+                height: '100%',
+                background: healthColor,
+                transition: 'width 0.2s ease, background 0.2s ease'
+              }}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: 'rgba(0,0,0,0.78)',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            border: '2px solid #444',
+            color: '#ffffff',
+            fontWeight: 700,
+            fontSize: '14px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            width: 'fit-content'
+          }}
+        >
+          <span>KILLS</span>
+          <span style={{ color: '#ff6b35' }}>{kills}</span>
+        </div>
       </div>
 
       <div
         style={{
-          background: 'rgba(0,0,0,0.8)',
-          padding: '5px 15px',
+          background: 'rgba(0,0,0,0.85)',
+          padding: '8px 14px',
           borderRadius: '12px',
           color: '#ffd700',
-          fontWeight: 'bold',
+          fontWeight: 700,
           border: '2px solid #ffd700',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px'
+          gap: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
         }}
       >
         <img
           src="/assets/sprites/pig-token.png"
           alt="PIGS"
-          style={{ width: '24px', height: '24px' }}
+          style={{ width: '22px', height: '22px', objectFit: 'contain' }}
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.style.display = 'none';
+          }}
         />
-        {pigs}
+        <span>{pigs}</span>
       </div>
     </div>
   );
