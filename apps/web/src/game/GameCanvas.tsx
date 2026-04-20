@@ -5,14 +5,36 @@ import { GameScene } from './scenes/GameScene';
 import { HUD } from '../components/HUD';
 import { useGameStore } from '../store/gameStore';
 
+type WarPigsEventDetail =
+  | {
+      type: 'STATE_CHANGE';
+      state?: 'victory' | 'defeat';
+    }
+  | {
+      type: 'PLAYER_HIT';
+      damage?: number;
+    };
+
 export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const isMountedRef = useRef(true);
+
   const [health, setHealth] = useState(100);
+  const [kills, setKills] = useState(0);
+
   const { user, refreshProfile } = useGameStore();
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!containerRef.current) return;
+    if (gameRef.current) return;
 
     const runDataRaw = sessionStorage.getItem('currentRun');
     if (!runDataRaw) {
@@ -21,12 +43,32 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       return;
     }
 
+    try {
+      JSON.parse(runDataRaw);
+    } catch (error) {
+      console.error('[GameCanvas] Invalid currentRun JSON:', error);
+      alert('Mission session is corrupted.');
+      sessionStorage.removeItem('currentRun');
+      void onExit();
+      return;
+    }
+
+    setHealth(100);
+    setKills(0);
+
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       width: 800,
       height: 600,
       parent: containerRef.current,
       backgroundColor: '#000000',
+      pixelArt: false,
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 800,
+        height: 600
+      },
       physics: {
         default: 'arcade',
         arcade: {
@@ -36,50 +78,49 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       scene: [BootScene, GameScene]
     };
 
-    gameRef.current = new Phaser.Game(config);
+    try {
+      gameRef.current = new Phaser.Game(config);
+    } catch (error) {
+      console.error('[GameCanvas] Failed to create Phaser game:', error);
+      alert('Game failed to start.');
+      void onExit();
+      return;
+    }
 
     const handleGameEvent = async (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        type: 'STATE_CHANGE' | 'PLAYER_HIT';
-        state?: 'victory' | 'defeat';
-        damage?: number;
-      }>;
+      const customEvent = event as CustomEvent<WarPigsEventDetail>;
+      const detail = customEvent.detail;
 
-      if (customEvent.detail.type === 'STATE_CHANGE') {
-        if (customEvent.detail.state === 'victory') {
-          await refreshProfile();
-          alert('MISSION ACCOMPLISHED! +$PIGS added to armory.');
+      if (!detail) return;
+
+      if (detail.type === 'STATE_CHANGE') {
+        if (detail.state === 'victory') {
+          try {
+            await refreshProfile();
+          } catch (error) {
+            console.error('[GameCanvas] Failed to refresh profile after victory:', error);
+          }
+
           sessionStorage.removeItem('currentRun');
+
+          if (!isMountedRef.current) return;
+          alert('MISSION ACCOMPLISHED! +$PIGS added to armory.');
           await onExit();
           return;
         }
 
-        if (customEvent.detail.state === 'defeat') {
+        if (detail.state === 'defeat') {
           sessionStorage.removeItem('currentRun');
+
+          if (!isMountedRef.current) return;
           alert('KIA. Mission Failed.');
           await onExit();
           return;
         }
       }
 
-      if (customEvent.detail.type === 'PLAYER_HIT') {
-        setHealth((prev) => {
-          const damage = customEvent.detail.damage ?? 10;
-          const nextHealth = Math.max(0, prev - damage);
-
-          if (nextHealth <= 0) {
-            window.dispatchEvent(
-              new CustomEvent('WAR_PIGS_EVENT', {
-                detail: {
-                  type: 'STATE_CHANGE',
-                  state: 'defeat'
-                }
-              })
-            );
-          }
-
-          return nextHealth;
-        });
+      if (detail.type === 'PLAYER_HIT') {
+        setHealth((prev) => Math.max(0, prev - (detail.damage ?? 10)));
       }
     };
 
@@ -87,9 +128,16 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     return () => {
       window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-      setHealth(100);
+
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
+
+      if (isMountedRef.current) {
+        setHealth(100);
+        setKills(0);
+      }
     };
   }, [onExit, refreshProfile]);
 
@@ -98,11 +146,13 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       style={{
         position: 'relative',
         width: '100%',
-        height: '100%',
+        minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: '#000'
+        background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
+        padding: '16px',
+        boxSizing: 'border-box'
       }}
     >
       <div
@@ -110,11 +160,20 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         style={{
           width: '800px',
           height: '600px',
+          maxWidth: '100%',
           overflow: 'hidden',
-          border: '2px solid #ff6b35'
+          border: '2px solid #ff6b35',
+          boxShadow: '0 0 24px rgba(255, 107, 53, 0.35)',
+          borderRadius: '8px',
+          background: '#000'
         }}
       />
-      <HUD health={health} maxHealth={100} pigs={user?.profile.currentPigs || 0} />
+      <HUD
+        health={health}
+        maxHealth={100}
+        pigs={user?.profile.currentPigs || 0}
+        kills={kills}
+      />
     </div>
   );
 };
