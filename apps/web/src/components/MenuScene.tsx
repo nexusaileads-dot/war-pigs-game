@@ -15,7 +15,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const handleNavigate = (
     screen: 'MENU' | 'CHAR_SELECT' | 'WEAPON_SELECT' | 'LEVEL_SELECT' | 'SHOP' | 'PROFILE' | 'GAME'
   ) => {
-    hapticFeedback('medium');
+    try {
+      hapticFeedback('medium');
+    } catch (error) {
+      console.error('[MenuScene] Haptic feedback failed:', error);
+    }
+
     onNavigate(screen);
   };
 
@@ -23,13 +28,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
     <div
       style={{
         width: '100%',
-        height: '100%',
+        minHeight: '100vh',
         background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1810 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: '20px',
-        color: '#fff'
+        color: '#fff',
+        boxSizing: 'border-box'
       }}
     >
       <div
@@ -83,10 +89,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           background: 'rgba(0,0,0,0.5)',
           padding: '15px 25px',
           borderRadius: '12px',
-          border: '2px solid #ff6b35'
+          border: '2px solid #ff6b35',
+          flexWrap: 'wrap',
+          justifyContent: 'center'
         }}
       >
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', minWidth: '90px' }}>
           <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>LEVEL</div>
           <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffd700' }}>
             {user?.profile.level || 1}
@@ -100,7 +108,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center'
+            alignItems: 'center',
+            minWidth: '110px'
           }}
         >
           <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>$PIGS</div>
@@ -118,8 +127,20 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               src="/assets/sprites/pig-token.png"
               style={{ width: '20px', height: '20px' }}
               alt="$PIGS"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
             />
             {user?.profile.currentPigs || 0}
+          </div>
+        </div>
+
+        <div style={{ width: '1px', background: '#444' }} />
+
+        <div style={{ textAlign: 'center', minWidth: '90px' }}>
+          <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>XP</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4a90d9' }}>
+            {user?.profile.xp || 0}
           </div>
         </div>
       </div>
@@ -130,7 +151,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column',
           gap: '15px',
           width: '100%',
-          maxWidth: '300px'
+          maxWidth: '320px'
         }}
       >
         <MenuButton
@@ -196,10 +217,21 @@ const MenuButton: React.FC<{
       cursor: 'pointer',
       transition: 'all 0.2s',
       textTransform: 'uppercase',
-      letterSpacing: '1px'
+      letterSpacing: '1px',
+      width: '100%',
+      justifyContent: 'flex-start',
+      boxShadow: '0 6px 16px rgba(0,0,0,0.2)'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-2px)';
+      e.currentTarget.style.boxShadow = `0 10px 22px ${color}33`;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
     }}
   >
-    <span style={{ fontSize: '24px' }}>{icon}</span>
+    <span style={{ fontSize: '24px', width: '28px', textAlign: 'center' }}>{icon}</span>
     {label}
   </button>
 );
