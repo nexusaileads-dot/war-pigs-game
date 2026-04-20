@@ -9,41 +9,40 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  telegramId String   @unique
-  username   String?
-  firstName  String?
-  lastName   String?
-  photoUrl   String?
+  id           String          @id @default(uuid())
+  telegramId   String          @unique
+  username     String?
+  firstName    String?
+  lastName     String?
+  photoUrl     String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  profile    Profile?
-  wallet     Wallet?
-  stats      PlayerStats?
-  inventory  InventoryItem[]
-  runs       GameRun[]
+  profile      Profile?
+  wallet       Wallet?
+  stats        PlayerStats?
+  inventory    InventoryItem[]
+  runs         GameRun[]
   transactions Transaction[]
 }
 
 model Profile {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(uuid())
+  userId              String     @unique
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  level               Int      @default(1)
-  xp                  Int      @default(0)
-  totalPigsEarned     Int      @default(0)
-  currentPigs         Int      @default(0)
+  level               Int        @default(1)
+  xp                  Int        @default(0)
+  totalPigsEarned     Int        @default(0)
+  currentPigs         Int        @default(0)
   equippedCharacterId String?
   equippedWeaponId    String?
 
   equippedCharacter   Character? @relation("EquippedCharacter", fields: [equippedCharacterId], references: [characterId], onDelete: SetNull)
   equippedWeapon      Weapon?    @relation("EquippedWeapon", fields: [equippedWeaponId], references: [weaponId], onDelete: SetNull)
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 }
 
 model Wallet {
@@ -74,19 +73,18 @@ model PlayerStats {
 }
 
 model InventoryItem {
-  id          String   @id @default(uuid())
+  id          String            @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   itemType    InventoryItemType
   characterId String?
   weaponId    String?
-  timesUsed   Int      @default(0)
+  timesUsed   Int               @default(0)
+  acquiredAt  DateTime          @default(now())
 
-  character   Character? @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
-  weapon      Weapon?    @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
-
-  acquiredAt  DateTime @default(now())
+  character   Character?        @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
+  weapon      Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
 
   @@unique([userId, characterId])
   @@unique([userId, weaponId])
@@ -96,40 +94,37 @@ model InventoryItem {
 }
 
 model Character {
-  characterId  String   @id
-  name         String
-  classType    String
-  description  String?
-  pricePigs    Int      @default(0)
-  unlockLevel  Int      @default(1)
+  characterId    String          @id
+  name           String
+  classType      String
+  description    String?
+  pricePigs      Int             @default(0)
+  unlockLevel    Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   inventoryItems InventoryItem[]
-  equippedBy     Profile[] @relation("EquippedCharacter")
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  equippedBy     Profile[]       @relation("EquippedCharacter")
 }
 
 model Weapon {
-  weaponId      String   @id
-  name          String
-  type          String
-  damage        Int
-  description   String?
-  pricePigs     Int      @default(0)
-  unlockLevel   Int      @default(1)
+  weaponId       String          @id
+  name           String
+  type           String
+  damage         Int
+  description    String?
+  pricePigs      Int             @default(0)
+  unlockLevel    Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   inventoryItems InventoryItem[]
-  equippedBy     Profile[] @relation("EquippedWeapon")
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  equippedBy     Profile[]       @relation("EquippedWeapon")
 }
 
 model Level {
-  id                String   @id @default(uuid())
-  levelNumber       Int      @unique
-
+  id                String    @id @default(uuid())
+  levelNumber       Int       @unique
   name              String
   description       String
   difficulty        Int
@@ -138,57 +133,56 @@ model Level {
   bossId            String?
   baseReward        Int
   xpReward          Int
-  unlockRequirement Int      @default(0)
-  isBossLevel       Boolean  @default(false)
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  unlockRequirement Int       @default(0)
+  isBossLevel       Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   runs              GameRun[]
 }
 
 model GameRun {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   levelId         String
-  level           Level    @relation(fields: [levelId], references: [id])
+  level           Level         @relation(fields: [levelId], references: [id])
 
   characterId     String
   weaponId        String
 
-  status          GameRunStatus
-  score           Int      @default(0)
-  kills           Int      @default(0)
-  damageDealt     Int      @default(0)
-  damageTaken     Int      @default(0)
-  accuracy        Float    @default(0)
-  rewardsEarned   Int      @default(0)
-  xpEarned        Int      @default(0)
+  status          GameRunStatus @default(ACTIVE)
+  score           Int           @default(0)
+  kills           Int           @default(0)
+  damageDealt     Int           @default(0)
+  damageTaken     Int           @default(0)
+  accuracy        Float         @default(0)
+  rewardsEarned   Int           @default(0)
+  xpEarned        Int           @default(0)
   clientHash      String?
-  serverValidated Boolean  @default(false)
+  serverValidated Boolean       @default(false)
 
-  createdAt       DateTime @default(now())
+  startedAt       DateTime      @default(now())
   endedAt         DateTime?
 
   @@index([userId])
   @@index([levelId])
   @@index([status])
+  @@index([startedAt])
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type        TransactionType
   amount      Int
   description String?
   referenceId String?
   txHash      String?
-
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
 
   @@index([userId])
   @@index([type])
