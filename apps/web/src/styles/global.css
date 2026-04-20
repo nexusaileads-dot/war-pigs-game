@@ -3,10 +3,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
-  font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
   background: #0a0a0a;
   color: #ffffff;
   overflow: hidden;
@@ -14,9 +21,24 @@ body {
   -webkit-user-select: none;
 }
 
+img,
+canvas {
+  display: block;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
 button {
-  font-family: inherit;
   touch-action: manipulation;
+}
+
+#root {
+  isolation: isolate;
 }
 
 ::-webkit-scrollbar {
@@ -33,11 +55,23 @@ button {
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 @keyframes glow {
-  0%, 100% { box-shadow: 0 0 5px #ff6b35; }
-  50% { box-shadow: 0 0 20px #ff6b35, 0 0 40px #ff6b35; }
+  0%,
+  100% {
+    box-shadow: 0 0 5px #ff6b35;
+  }
+
+  50% {
+    box-shadow: 0 0 20px #ff6b35, 0 0 40px #ff6b35;
+  }
 }
