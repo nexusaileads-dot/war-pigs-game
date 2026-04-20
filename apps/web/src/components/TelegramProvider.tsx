@@ -1,7 +1,19 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
+
+type TelegramWebApp = {
+  ready?: () => void;
+  expand?: () => void;
+  themeParams?: {
+    bg_color?: string;
+  };
+  HapticFeedback?: {
+    impactOccurred?: (style: 'light' | 'medium' | 'heavy') => void;
+    notificationOccurred?: (type: 'success' | 'error') => void;
+  };
+};
 
 interface TelegramContextType {
-  webApp: typeof window.Telegram.WebApp | null;
+  webApp: TelegramWebApp | null;
   hapticFeedback: (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => void;
 }
 
@@ -13,36 +25,55 @@ const TelegramContext = createContext<TelegramContextType>({
 export const useTelegram = () => useContext(TelegramContext);
 
 export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const webApp = window.Telegram?.WebApp || null;
+  const webApp = (window.Telegram?.WebApp as TelegramWebApp | undefined) || null;
 
   const hapticFeedback = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
-    if (webApp?.HapticFeedback) {
+    try {
+      if (!webApp?.HapticFeedback) return;
+
       switch (type) {
         case 'light':
         case 'medium':
         case 'heavy':
-          webApp.HapticFeedback.impactOccurred(type);
+          webApp.HapticFeedback.impactOccurred?.(type);
           break;
         case 'success':
         case 'error':
-          webApp.HapticFeedback.notificationOccurred(type);
+          webApp.HapticFeedback.notificationOccurred?.(type);
           break;
       }
+    } catch (error) {
+      console.error('[TelegramProvider] Haptic feedback failed:', error);
     }
   };
 
   useEffect(() => {
-    if (webApp) {
-      webApp.ready();
-      if (webApp.themeParams) {
-        document.body.style.backgroundColor = webApp.themeParams.bg_color || '#0a0a0a';
+    try {
+      if (webApp?.ready) {
+        webApp.ready();
       }
+
+      if (webApp?.expand) {
+        webApp.expand();
+      }
+
+      const bgColor = webApp?.themeParams?.bg_color || '#0a0a0a';
+      document.body.style.backgroundColor = bgColor;
+      document.documentElement.style.backgroundColor = bgColor;
+    } catch (error) {
+      console.error('[TelegramProvider] Telegram init failed:', error);
+      document.body.style.backgroundColor = '#0a0a0a';
+      document.documentElement.style.backgroundColor = '#0a0a0a';
     }
   }, [webApp]);
 
-  return (
-    <TelegramContext.Provider value={{ webApp, hapticFeedback }}>
-      {children}
-    </TelegramContext.Provider>
+  const value = useMemo(
+    () => ({
+      webApp,
+      hapticFeedback
+    }),
+    [webApp]
   );
+
+  return <TelegramContext.Provider value={value}>{children}</TelegramContext.Provider>;
 };
