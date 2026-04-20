@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from './store/gameStore';
 import { TelegramProvider } from './components/TelegramProvider';
 import { MenuScene } from './components/MenuScene';
@@ -26,23 +26,44 @@ export default function App() {
     void initAuth();
   }, [initAuth]);
 
+  useEffect(() => {
+    const hasRun = !!sessionStorage.getItem('currentRun');
+    if (user && hasRun) {
+      setCurrentScreen('GAME');
+    }
+  }, [user]);
+
   const handleGameExit = async () => {
-    await refreshProfile();
+    try {
+      await refreshProfile();
+    } catch (error) {
+      console.error('[App] Failed to refresh profile on game exit:', error);
+    }
     setCurrentScreen('MENU');
   };
+
+  const authFailedMessage = useMemo(() => {
+    const devEnabled = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
+    return devEnabled
+      ? 'AUTH FAILED. DEV LOGIN DID NOT COMPLETE.'
+      : 'AUTH FAILED. LAUNCH VIA TELEGRAM.';
+  }, []);
 
   if (isLoading) {
     return (
       <div
         style={{
           width: '100%',
-          height: '100vh',
+          minHeight: '100vh',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           background: '#0a0a0a',
           color: '#ff6b35',
-          fontFamily: 'monospace'
+          fontFamily: 'monospace',
+          letterSpacing: '0.05em',
+          padding: '24px',
+          boxSizing: 'border-box'
         }}
       >
         LOADING SWINE CORPS DATA...
@@ -55,7 +76,7 @@ export default function App() {
       <div
         style={{
           width: '100%',
-          height: '100vh',
+          minHeight: '100vh',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -63,10 +84,21 @@ export default function App() {
           color: '#ff6b35',
           fontFamily: 'monospace',
           textAlign: 'center',
-          padding: '24px'
+          padding: '24px',
+          boxSizing: 'border-box'
         }}
       >
-        AUTH FAILED. LAUNCH VIA TELEGRAM.
+        <div
+          style={{
+            maxWidth: '520px',
+            padding: '20px',
+            border: '2px solid #ff6b35',
+            borderRadius: '12px',
+            background: '#141414'
+          }}
+        >
+          {authFailedMessage}
+        </div>
       </div>
     );
   }
@@ -118,4 +150,4 @@ export default function App() {
   }
 
   return <TelegramProvider>{screen}</TelegramProvider>;
-          }
+}
