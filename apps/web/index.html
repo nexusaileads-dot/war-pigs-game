@@ -4,14 +4,42 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no"
     />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="description" content="WAR PIGS - Tactical Swine Warfare on Telegram Mini Apps." />
     <title>WAR PIGS</title>
-    <meta
-      name="description"
-      content="WAR PIGS - Tactical Swine Warfare on Telegram Mini Apps."
-    />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100%;
+        background: #0a0a0a;
+      }
+
+      body {
+        overflow: hidden;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      img {
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+
+      button,
+      canvas {
+        touch-action: manipulation;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
