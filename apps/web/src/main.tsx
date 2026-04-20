@@ -5,28 +5,38 @@ import './styles/global.css';
 
 declare global {
   interface Window {
-    Telegram: {
-      WebApp: {
+    Telegram?: {
+      WebApp?: {
         ready: () => void;
         expand: () => void;
-        initData: string;
-        initDataUnsafe: any;
-        colorScheme: string;
-        themeParams: any;
-        MainButton: any;
-        BackButton: any;
-        HapticFeedback: any;
+        initData?: string;
+        initDataUnsafe?: unknown;
+        colorScheme?: string;
+        themeParams?: unknown;
+        MainButton?: unknown;
+        BackButton?: unknown;
+        HapticFeedback?: unknown;
       };
     };
   }
 }
 
-if (window.Telegram?.WebApp) {
-  window.Telegram.WebApp.ready();
-  window.Telegram.WebApp.expand();
+try {
+  if (window.Telegram?.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+} catch (error) {
+  console.error('[main] Telegram WebApp init failed:', error);
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('Root element #root not found');
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
