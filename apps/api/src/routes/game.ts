@@ -22,7 +22,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     const userId = request.user.userId;
 
-    const [charOwnership, weaponOwnership, level, profile] = await Promise.all([
+    const [charOwnership, weaponOwnership, level, profile, existingActiveRun] = await Promise.all([
       prisma.inventoryItem.findFirst({
         where: {
           userId,
@@ -42,6 +42,15 @@ export async function gameRoutes(fastify: FastifyInstance) {
       }),
       prisma.profile.findUnique({
         where: { userId }
+      }),
+      prisma.gameRun.findFirst({
+        where: {
+          userId,
+          status: 'ACTIVE'
+        },
+        orderBy: {
+          startedAt: 'desc'
+        }
       })
     ]);
 
@@ -61,6 +70,16 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Level not unlocked' });
     }
 
+    if (existingActiveRun) {
+      await prisma.gameRun.update({
+        where: { id: existingActiveRun.id },
+        data: {
+          status: 'FAILED',
+          endedAt: new Date()
+        }
+      });
+    }
+
     const run = await prisma.gameRun.create({
       data: {
         userId,
@@ -68,6 +87,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
         characterId,
         weaponId,
         status: 'ACTIVE'
+      },
+      include: {
+        level: true
       }
     });
 
@@ -76,11 +98,19 @@ export async function gameRoutes(fastify: FastifyInstance) {
       levelId,
       characterId,
       weaponId,
-      maxEnemies: level.waves * 5,
+      maxEnemies: Math.max(5, level.waves * 5),
       difficulty: level.difficulty
     });
 
-    return { run, sessionToken };
+    return {
+      run: {
+        id: run.id,
+        characterId: run.characterId,
+        weaponId: run.weaponId,
+        levelId: run.levelId
+      },
+      sessionToken
+    };
   });
 
   fastify.post('/complete', { preHandler: authenticate }, async (request, reply) => {
@@ -124,13 +154,23 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid run' });
     }
 
+    const safeStats = {
+      kills: Math.max(0, Number(stats.kills) || 0),
+      damageDealt: Math.max(0, Number(stats.damageDealt) || 0),
+      damageTaken: Math.max(0, Number(stats.damageTaken) || 0),
+      accuracy: Math.max(0, Math.min(1, Number(stats.accuracy) || 0)),
+      timeElapsed: Math.max(0, Number(stats.timeElapsed) || 0),
+      wavesCleared: Math.max(0, Number(stats.wavesCleared) || 0),
+      bossKilled: Boolean(stats.bossKilled)
+    };
+
     const calculator = new RewardCalculator();
-    const maxPossibleKills = run.level.waves * 5;
+    const maxPossibleKills = Math.max(5, run.level.waves * 5);
 
     const rewardInput = {
-      ...stats,
+      ...safeStats,
       difficulty: run.level.difficulty,
-      isPerfectRun: stats.damageTaken === 0
+      isPerfectRun: safeStats.damageTaken === 0
     };
 
     const validation = calculator.validateRunStats(rewardInput, maxPossibleKills);
@@ -142,40 +182,47 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
 
     const rewards = calculator.calculateRewards(rewardInput);
+    const maxPossibleReward = Math.max(run.level.baseReward, run.level.baseReward * 5);
 
-    const maxPossibleReward = run.level.baseReward * 5;
     if (rewards.total > maxPossibleReward) {
       return reply.status(400).send({ error: 'Reward calculation error' });
     }
 
-    await prisma.gameRun.update({
-      where: { id: runId },
-      data: {
-        status: 'COMPLETED',
-        endedAt: new Date(),
-        score: stats.kills * 100 + (stats.bossKilled ? 1000 : 0),
-        kills: stats.kills,
-        damageDealt: stats.damageDealt,
-        damageTaken: stats.damageTaken,
-        accuracy: stats.accuracy,
-        rewardsEarned: rewards.total,
-        xpEarned: rewards.xpEarned,
-        clientHash,
-        serverValidated: validation.valid
-      }
+    await prisma.$transaction(async (tx) => {
+      await tx.gameRun.update({
+        where: { id: runId },
+        data: {
+          status: 'COMPLETED',
+          endedAt: new Date(),
+          score: safeStats.kills * 100 + (safeStats.bossKilled ? 1000 : 0),
+          kills: safeStats.kills,
+          damageDealt: safeStats.damageDealt,
+          damageTaken: safeStats.damageTaken,
+          accuracy: safeStats.accuracy,
+          rewardsEarned: rewards.total,
+          xpEarned: rewards.xpEarned,
+          clientHash,
+          serverValidated: validation.valid
+        }
+      });
+
+      await tx.playerStats.upsert({
+        where: { userId },
+        update: {
+          totalKills: { increment: safeStats.kills },
+          totalRuns: { increment: 1 },
+          totalBossKills: { increment: safeStats.bossKilled ? 1 : 0 }
+        },
+        create: {
+          userId,
+          totalKills: safeStats.kills,
+          totalRuns: 1,
+          totalBossKills: safeStats.bossKilled ? 1 : 0
+        }
+      });
     });
 
     await economy.grantRewards(userId, rewards.total, rewards.xpEarned, runId);
-
-    await prisma.playerStats.update({
-      where: { userId },
-      data: {
-        totalKills: { increment: stats.kills },
-        totalRuns: { increment: 1 },
-        totalBossKills: { increment: stats.bossKilled ? 1 : 0 }
-      }
-    });
-
     await gameSession.endSession(sessionToken);
 
     return {
@@ -183,6 +230,62 @@ export async function gameRoutes(fastify: FastifyInstance) {
       rewards,
       validation: validation.valid ? 'passed' : 'flagged'
     };
+  });
+
+  fastify.post('/fail', { preHandler: authenticate }, async (request, reply) => {
+    const { runId, sessionToken } = request.body as {
+      runId?: string;
+      sessionToken?: string;
+    };
+
+    if (!runId || !sessionToken) {
+      return reply.status(400).send({ error: 'Missing required fields' });
+    }
+
+    const userId = request.user.userId;
+    const session = await gameSession.getSession(sessionToken);
+
+    if (!session || session.userId !== userId) {
+      return reply.status(401).send({ error: 'Invalid session' });
+    }
+
+    const run = await prisma.gameRun.findFirst({
+      where: {
+        id: runId,
+        userId
+      }
+    });
+
+    if (!run || run.status !== 'ACTIVE') {
+      return reply.status(400).send({ error: 'Invalid run' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.gameRun.update({
+        where: { id: runId },
+        data: {
+          status: 'FAILED',
+          endedAt: new Date()
+        }
+      });
+
+      await tx.playerStats.upsert({
+        where: { userId },
+        update: {
+          totalRuns: { increment: 1 }
+        },
+        create: {
+          userId,
+          totalKills: 0,
+          totalRuns: 1,
+          totalBossKills: 0
+        }
+      });
+    });
+
+    await gameSession.endSession(sessionToken);
+
+    return { success: true };
   });
 
   fastify.get('/levels', { preHandler: authenticate }, async (request) => {
@@ -238,4 +341,4 @@ export async function gameRoutes(fastify: FastifyInstance) {
       totalEarned: player.totalPigsEarned
     }));
   });
-               }
+      }
