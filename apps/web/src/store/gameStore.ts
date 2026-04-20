@@ -87,6 +87,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return;
       }
 
+      localStorage.removeItem('token');
       set({
         user: null,
         token: null,
@@ -95,6 +96,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     } catch (error) {
       console.error('Auth failed:', error);
       localStorage.removeItem('token');
+      sessionStorage.removeItem('currentRun');
       set({
         user: null,
         token: null,
@@ -112,6 +114,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ user: data.user });
     } catch (error) {
       console.error('Failed to refresh profile:', error);
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('currentRun');
+      set({
+        user: null,
+        token: null
+      });
     }
   },
 
@@ -132,6 +140,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   logout: () => {
     localStorage.removeItem('token');
+    sessionStorage.removeItem('currentRun');
     set({
       user: null,
       token: null,
