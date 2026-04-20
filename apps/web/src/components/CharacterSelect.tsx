@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
+
+type CharacterDetails = {
+  characterId: string;
+  name: string;
+  classType: string;
+  description?: string | null;
+};
 
 type InventoryItem = {
   id: string;
   type: 'CHARACTER' | 'WEAPON';
-  details: {
-    characterId: string;
-    name: string;
-    classType: string;
-    description?: string | null;
-  };
+  details: CharacterDetails;
 };
 
 export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void }> = ({
@@ -20,19 +22,28 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadInventory = async () => {
       try {
+        setLoadError(null);
+
         const res = await apiClient.get('/api/inventory');
-        const characters = (res.data.items || []).filter(
+        const items = Array.isArray(res.data?.items) ? res.data.items : [];
+
+        const characters = items.filter(
           (item: InventoryItem) => item.type === 'CHARACTER' && item.details?.characterId
         );
 
         setInventory(characters);
-        setSelectedCharacterId(res.data.equipped?.characterId || characters[0]?.details.characterId || null);
+
+        setSelectedCharacterId(
+          res.data?.equipped?.characterId || characters[0]?.details.characterId || null
+        );
       } catch (error) {
         console.error('Failed to load character inventory:', error);
+        setLoadError('Failed to load squad inventory.');
       } finally {
         setIsLoading(false);
       }
@@ -40,6 +51,11 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
 
     void loadInventory();
   }, []);
+
+  const selectedCharacter = useMemo(
+    () => inventory.find((item) => item.details.characterId === selectedCharacterId) || null,
+    [inventory, selectedCharacterId]
+  );
 
   const confirmSelection = async () => {
     if (!selectedCharacterId) {
@@ -78,7 +94,7 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
         style={{
           padding: '20px',
           color: '#fff',
-          height: '100%',
+          minHeight: '100vh',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -90,16 +106,110 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
     );
   }
 
+  if (loadError) {
+    return (
+      <div
+        style={{
+          padding: '20px',
+          color: '#fff',
+          minHeight: '100vh',
+          background: '#0a0a0a'
+        }}
+      >
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            marginBottom: '20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          BACK
+        </button>
+
+        <div
+          style={{
+            maxWidth: '520px',
+            margin: '80px auto 0',
+            padding: '20px',
+            borderRadius: '12px',
+            border: '2px solid #5a1f1f',
+            background: '#1a1111',
+            textAlign: 'center',
+            color: '#ff8a80'
+          }}
+        >
+          {loadError}
+        </div>
+      </div>
+    );
+  }
+
+  if (inventory.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '20px',
+          color: '#fff',
+          minHeight: '100vh',
+          background: '#0a0a0a',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            marginBottom: '20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            alignSelf: 'flex-start'
+          }}
+        >
+          BACK
+        </button>
+
+        <div
+          style={{
+            maxWidth: '560px',
+            margin: '80px auto 0',
+            padding: '22px',
+            background: '#151515',
+            border: '2px solid #333',
+            borderRadius: '12px',
+            textAlign: 'center'
+          }}
+        >
+          <h2 style={{ marginTop: 0, color: '#ff6b35' }}>No Soldiers Available</h2>
+          <p style={{ color: '#bbb', marginBottom: 0 }}>
+            Your inventory has no character units yet. Add one in the armory before deployment.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
         padding: '20px',
         color: '#fff',
-        height: '100%',
+        minHeight: '100vh',
         overflowY: 'auto',
         background: '#0a0a0a',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        boxSizing: 'border-box'
       }}
     >
       <button
@@ -130,6 +240,62 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
         Select Soldier
       </h2>
 
+      {selectedCharacter ? (
+        <div
+          style={{
+            background: '#161616',
+            border: '2px solid #ff6b35',
+            borderRadius: '14px',
+            padding: '16px',
+            marginBottom: '18px',
+            display: 'flex',
+            gap: '14px',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div
+            style={{
+              background: '#101010',
+              padding: '10px',
+              borderRadius: '10px',
+              border: '1px solid #333',
+              width: '72px',
+              height: '72px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <img
+              src={getClassIcon(selectedCharacter.details.classType)}
+              alt={selectedCharacter.details.classType}
+              style={{ width: '46px', height: '46px', objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.src = '/assets/sprites/assault.png';
+              }}
+            />
+          </div>
+
+          <div style={{ flex: 1, minWidth: '220px' }}>
+            <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>
+              CURRENT SELECTION
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#fff' }}>
+              {selectedCharacter.details.name}
+            </div>
+            <div style={{ color: '#ffb74d', fontWeight: 700, marginTop: '4px' }}>
+              {selectedCharacter.details.classType}
+            </div>
+            {selectedCharacter.details.description ? (
+              <div style={{ color: '#bbb', fontSize: '13px', marginTop: '6px' }}>
+                {selectedCharacter.details.description}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
         {inventory.map((item) => {
           const isSelected = selectedCharacterId === item.details.characterId;
@@ -149,7 +315,8 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
                 gap: '20px',
                 border: `2px solid ${isSelected ? '#ff6b35' : '#333'}`,
                 color: '#fff',
-                textAlign: 'left'
+                textAlign: 'left',
+                boxShadow: isSelected ? '0 8px 20px rgba(255,107,53,0.18)' : 'none'
               }}
             >
               <div
