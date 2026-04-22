@@ -31,9 +31,9 @@ export class GameScene extends Phaser.Scene {
   isFinishing = false;
   runData!: CurrentRunPayload;
 
-  private hudText!: Phaser.GameObjects.Text;
-  private missionText!: Phaser.GameObjects.Text;
-  private debugText!: Phaser.GameObjects.Text;
+  private hudText?: Phaser.GameObjects.Text;
+  private missionText?: Phaser.GameObjects.Text;
+  private debugText?: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -41,12 +41,15 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a1a');
+    this.physics.world.setBounds(0, 0, 1600, 1200);
+
+    this.createHud();
 
     const storedRun = sessionStorage.getItem('currentRun');
     if (!storedRun) {
       console.error('[GameScene] Missing currentRun in sessionStorage');
       this.showFatalMessage('RUN DATA MISSING');
-      this.failMission();
+      this.forceDefeat();
       return;
     }
 
@@ -55,26 +58,43 @@ export class GameScene extends Phaser.Scene {
     } catch (error) {
       console.error('[GameScene] Failed to parse currentRun:', error);
       this.showFatalMessage('RUN DATA INVALID');
-      this.failMission();
+      this.forceDefeat();
       return;
     }
 
     if (!this.runData?.run?.id || !this.runData?.sessionToken) {
       console.error('[GameScene] Incomplete runData:', this.runData);
       this.showFatalMessage('RUN SESSION INVALID');
-      this.failMission();
+      this.forceDefeat();
       return;
     }
 
-    this.physics.world.setBounds(0, 0, 1600, 1200);
-
-    const background = this.add.image(800, 600, 'background');
-    background.setDisplaySize(1600, 1200);
-    background.setScrollFactor(1);
+    const backgroundKey = this.textures.exists('background') ? 'background' : null;
+    if (backgroundKey) {
+      const background = this.add.image(800, 600, backgroundKey);
+      background.setDisplaySize(1600, 1200);
+      background.setScrollFactor(1);
+      background.setDepth(0);
+    } else {
+      console.error('[GameScene] Missing background texture');
+      this.add
+        .rectangle(800, 600, 1600, 1200, 0x1a1a1a)
+        .setOrigin(0.5)
+        .setDepth(0);
+    }
 
     const characterKey = this.textures.exists(this.runData.run.characterId)
       ? this.runData.run.characterId
-      : 'player';
+      : this.textures.exists('player')
+        ? 'player'
+        : null;
+
+    if (!characterKey) {
+      console.error('[GameScene] Missing player texture');
+      this.showFatalMessage('PLAYER ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
 
     this.player = new PigPlayer(this, 800, 600, characterKey);
     this.player.setDisplaySize(72, 72);
@@ -88,7 +108,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.input.keyboard) {
       console.error('[GameScene] Keyboard input unavailable');
       this.showFatalMessage('KEYBOARD INPUT UNAVAILABLE');
-      this.failMission();
+      this.forceDefeat();
       return;
     }
 
@@ -100,9 +120,17 @@ export class GameScene extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D
     }) as typeof this.wasd;
 
+    const projectileKey = this.textures.exists('bullet') ? 'bullet' : '__DEFAULT';
+    if (projectileKey === '__DEFAULT') {
+      console.error('[GameScene] Missing bullet texture');
+      this.showFatalMessage('BULLET ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
+
     this.projectiles = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Image,
-      defaultKey: 'bullet',
+      defaultKey: projectileKey,
       maxSize: 80,
       runChildUpdate: false
     });
@@ -112,7 +140,6 @@ export class GameScene extends Phaser.Scene {
       maxSize: 40
     });
 
-    this.createHud();
     this.updateHud();
 
     this.input.on('pointerdown', () => {
@@ -147,7 +174,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-    if (!this.player || this.isFinishing) return;
+    if (!this.player || !this.player.active || this.isFinishing) return;
 
     this.player.updateMovement(this.cursors, this.wasd, 200);
 
@@ -218,6 +245,14 @@ export class GameScene extends Phaser.Scene {
   spawnEnemy() {
     if (this.isFinishing || !this.player?.active) return;
 
+    const enemyKey = this.textures.exists('enemy') ? 'enemy' : null;
+    if (!enemyKey) {
+      console.error('[GameScene] Missing enemy texture');
+      this.showFatalMessage('ENEMY ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
+
     const edges = [
       { x: Phaser.Math.Between(0, 1600), y: -40 },
       { x: Phaser.Math.Between(0, 1600), y: 1240 },
@@ -226,7 +261,7 @@ export class GameScene extends Phaser.Scene {
     ];
 
     const spawn = Phaser.Utils.Array.GetRandom(edges);
-    const enemy = this.enemies.create(spawn.x, spawn.y, 'enemy') as Phaser.Physics.Arcade.Sprite;
+    const enemy = this.enemies.create(spawn.x, spawn.y, enemyKey) as Phaser.Physics.Arcade.Sprite;
 
     if (!enemy) return;
 
@@ -252,6 +287,9 @@ export class GameScene extends Phaser.Scene {
 
     if (!bullet.active || !enemy.active || this.isFinishing) return;
 
+    const hitX = enemy.x;
+    const hitY = enemy.y;
+
     bullet.setActive(false);
     bullet.setVisible(false);
 
@@ -261,8 +299,7 @@ export class GameScene extends Phaser.Scene {
     enemy.destroy();
     this.kills += 1;
     this.updateHud();
-
-    this.showFloatingText(enemy.x, enemy.y - 20, '+1');
+    this.showFloatingText(hitX, hitY - 20, '+1');
 
     if (this.kills >= 10) {
       void this.finishGame();
@@ -270,7 +307,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   handlePlayerDamage(
-    playerObject: Phaser.GameObjects.GameObject,
+    _playerObject: Phaser.GameObjects.GameObject,
     enemyObject: Phaser.GameObjects.GameObject
   ) {
     const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
@@ -303,8 +340,10 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer?.remove(false);
     this.enemies.clear(true, true);
 
-    this.missionText.setText('MISSION COMPLETE');
-    this.missionText.setVisible(true);
+    if (this.missionText) {
+      this.missionText.setText('MISSION COMPLETE');
+      this.missionText.setVisible(true);
+    }
 
     try {
       await apiClient.post('/api/game/complete', {
@@ -331,15 +370,15 @@ export class GameScene extends Phaser.Scene {
         })
       );
     } catch (error) {
-      console.error('Failed to complete run:', error);
-      this.failMission();
+      console.error('[GameScene] Failed to complete run:', error);
+      this.forceDefeat();
     }
   }
 
   failMission() {
     if (this.isFinishing) return;
-    this.isFinishing = true;
 
+    this.isFinishing = true;
     this.spawnTimer?.remove(false);
     this.enemies?.clear(true, true);
 
@@ -358,34 +397,58 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private forceDefeat() {
+    this.spawnTimer?.remove(false);
+    this.enemies?.clear(true, true);
+
+    if (this.missionText) {
+      this.missionText.setText('MISSION FAILED');
+      this.missionText.setVisible(true);
+    }
+
+    this.isFinishing = true;
+
+    window.dispatchEvent(
+      new CustomEvent('WAR_PIGS_EVENT', {
+        detail: {
+          type: 'STATE_CHANGE',
+          state: 'defeat'
+        }
+      })
+    );
+  }
+
   private createHud() {
-    this.hudText = this.add.text(16, 16, '', {
-      fontSize: '20px',
-      color: '#ffffff',
-      backgroundColor: '#000000aa',
-      padding: { left: 10, right: 10, top: 8, bottom: 8 }
-    })
+    this.hudText = this.add
+      .text(16, 16, '', {
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: '#000000aa',
+        padding: { left: 10, right: 10, top: 8, bottom: 8 }
+      })
       .setScrollFactor(0)
       .setDepth(1000);
 
-    this.missionText = this.add.text(this.scale.width / 2, 70, '', {
-      fontSize: '28px',
-      color: '#ffdd57',
-      fontStyle: 'bold',
-      backgroundColor: '#000000aa',
-      padding: { left: 14, right: 14, top: 10, bottom: 10 }
-    })
+    this.missionText = this.add
+      .text(this.scale.width / 2, 70, '', {
+        fontSize: '28px',
+        color: '#ffdd57',
+        fontStyle: 'bold',
+        backgroundColor: '#000000aa',
+        padding: { left: 14, right: 14, top: 10, bottom: 10 }
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(1000)
       .setVisible(false);
 
-    this.debugText = this.add.text(16, 88, 'Scene live', {
-      fontSize: '14px',
-      color: '#bbbbbb',
-      backgroundColor: '#00000088',
-      padding: { left: 8, right: 8, top: 6, bottom: 6 }
-    })
+    this.debugText = this.add
+      .text(16, 88, 'Scene live', {
+        fontSize: '14px',
+        color: '#bbbbbb',
+        backgroundColor: '#00000088',
+        padding: { left: 8, right: 8, top: 6, bottom: 6 }
+      })
       .setScrollFactor(0)
       .setDepth(1000);
   }
@@ -401,23 +464,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showFatalMessage(message: string) {
-    this.add.text(this.scale.width / 2, this.scale.height / 2, message, {
-      fontSize: '28px',
-      color: '#ff4d4f',
-      backgroundColor: '#000000cc',
-      padding: { left: 14, right: 14, top: 10, bottom: 10 }
-    })
+    this.add
+      .text(this.scale.width / 2, this.scale.height / 2, message, {
+        fontSize: '28px',
+        color: '#ff4d4f',
+        backgroundColor: '#000000cc',
+        padding: { left: 14, right: 14, top: 10, bottom: 10 }
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(2000);
   }
 
   private showFloatingText(x: number, y: number, value: string) {
-    const text = this.add.text(x, y, value, {
-      fontSize: '18px',
-      color: '#ffd166',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    const text = this.add
+      .text(x, y, value, {
+        fontSize: '18px',
+        color: '#ffd166',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
 
     this.tweens.add({
       targets: text,
@@ -432,4 +498,4 @@ export class GameScene extends Phaser.Scene {
     this.input.off('pointerdown');
     this.spawnTimer?.remove(false);
   }
-                          }
+  }
