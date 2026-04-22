@@ -127,8 +127,7 @@ export const HUD: React.FC<HUDProps> = ({
           alt="PIGS"
           style={{ width: '22px', height: '22px', objectFit: 'contain' }}
           onError={(e) => {
-            const target = e.currentTarget;
-            target.style.display = 'none';
+            e.currentTarget.style.display = 'none';
           }}
         />
         <span>{pigs}</span>
