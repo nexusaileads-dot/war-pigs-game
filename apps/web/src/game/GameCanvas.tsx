@@ -18,15 +18,16 @@ type WarPigsEventDetail =
 export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false);
+  const isExitingRef = useRef(false);
 
   const [health, setHealth] = useState(100);
-  const [kills, setKills] = useState(0);
 
   const { user, refreshProfile } = useGameStore();
 
   useEffect(() => {
     isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
     };
@@ -47,14 +48,14 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       JSON.parse(runDataRaw);
     } catch (error) {
       console.error('[GameCanvas] Invalid currentRun JSON:', error);
-      alert('Mission session is corrupted.');
       sessionStorage.removeItem('currentRun');
+      alert('Mission session is corrupted.');
       void onExit();
       return;
     }
 
     setHealth(100);
-    setKills(0);
+    isExitingRef.current = false;
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
@@ -91,9 +92,17 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       const customEvent = event as CustomEvent<WarPigsEventDetail>;
       const detail = customEvent.detail;
 
-      if (!detail) return;
+      if (!detail || isExitingRef.current) return;
+
+      if (detail.type === 'PLAYER_HIT') {
+        setHealth((prev) => Math.max(0, prev - (detail.damage ?? 10)));
+        return;
+      }
 
       if (detail.type === 'STATE_CHANGE') {
+        isExitingRef.current = true;
+        sessionStorage.removeItem('currentRun');
+
         if (detail.state === 'victory') {
           try {
             await refreshProfile();
@@ -101,26 +110,21 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             console.error('[GameCanvas] Failed to refresh profile after victory:', error);
           }
 
-          sessionStorage.removeItem('currentRun');
+          if (isMountedRef.current) {
+            alert('MISSION ACCOMPLISHED! +$PIGS added to armory.');
+          }
 
-          if (!isMountedRef.current) return;
-          alert('MISSION ACCOMPLISHED! +$PIGS added to armory.');
           await onExit();
           return;
         }
 
         if (detail.state === 'defeat') {
-          sessionStorage.removeItem('currentRun');
+          if (isMountedRef.current) {
+            alert('KIA. Mission Failed.');
+          }
 
-          if (!isMountedRef.current) return;
-          alert('KIA. Mission Failed.');
           await onExit();
-          return;
         }
-      }
-
-      if (detail.type === 'PLAYER_HIT') {
-        setHealth((prev) => Math.max(0, prev - (detail.damage ?? 10)));
       }
     };
 
@@ -132,11 +136,6 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
-      }
-
-      if (isMountedRef.current) {
-        setHealth(100);
-        setKills(0);
       }
     };
   }, [onExit, refreshProfile]);
@@ -168,12 +167,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
           background: '#000'
         }}
       />
-      <HUD
-        health={health}
-        maxHealth={100}
-        pigs={user?.profile.currentPigs || 0}
-        kills={kills}
-      />
+      <HUD health={health} maxHealth={100} pigs={user?.profile.currentPigs || 0} />
     </div>
   );
 };
