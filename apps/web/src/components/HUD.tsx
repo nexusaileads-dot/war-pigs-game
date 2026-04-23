@@ -37,7 +37,8 @@ export const HUD: React.FC<HUDProps> = ({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px'
+          gap: '10px',
+          maxWidth: 'min(260px, 42vw)'
         }}
       >
         <div
@@ -46,7 +47,7 @@ export const HUD: React.FC<HUDProps> = ({
             padding: '8px 12px',
             borderRadius: '12px',
             border: '2px solid #444',
-            minWidth: '240px',
+            minWidth: '220px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
           }}
         >
