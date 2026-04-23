@@ -339,14 +339,17 @@ export class GameScene extends Phaser.Scene {
     const speedBoost = this.getProjectileSpeedBonus();
     const extraPierce = this.getExtraPierce();
 
+    const baseAngle = this.player.getData('aimAngle') || 0;
+    const muzzle = this.getMuzzlePosition(baseAngle);
+
     for (let i = 0; i < burst; i += 1) {
       const projectileKey = this.textures.exists(this.weaponConfig.projectileKey)
         ? this.weaponConfig.projectileKey
         : 'bullet';
 
       const bullet = this.projectiles.get(
-        this.player.x,
-        this.player.y,
+        muzzle.x,
+        muzzle.y,
         projectileKey
       ) as Phaser.Physics.Arcade.Image | Phaser.Physics.Arcade.Sprite | null;
 
@@ -356,7 +359,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setActive(true);
       bullet.setVisible(true);
       bullet.setAlpha(1);
-      bullet.setPosition(this.player.x, this.player.y);
+      bullet.setPosition(muzzle.x, muzzle.y);
       bullet.setDepth(50);
       bullet.clearTint();
       bullet.setDisplaySize(
@@ -370,10 +373,9 @@ export class GameScene extends Phaser.Scene {
       if (!body) continue;
 
       body.enable = true;
-      body.reset(this.player.x, this.player.y);
+      body.reset(muzzle.x, muzzle.y);
       body.setAllowGravity(false);
 
-      const baseAngle = this.player.getData('aimAngle') || 0;
       const randomSpread = spread > 0 ? Phaser.Math.FloatBetween(-spread, spread) : 0;
       const shotAngle =
         burst > 1
@@ -728,10 +730,15 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.setMoveSpeed(this.playerSpeed);
 
-    this.cameras.main.startFollow(this.player, true, 0.2, 0.2);
+    this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setRoundPixels(false);
-    this.cameras.main.setZoom(1.7);
+
+    const screenW = this.scale.width || 1600;
+    const screenH = this.scale.height || 900;
+    const isSmallScreen = screenW < 900 || screenH < 600;
+
+    this.cameras.main.setZoom(isSmallScreen ? 1.02 : 1.12);
 
     return true;
   }
@@ -1000,6 +1007,15 @@ export class GameScene extends Phaser.Scene {
     if (!this.fireButton) return;
     this.fireButton.setScale(isPressed ? 0.92 : 1);
     this.fireButton.setAlpha(isPressed ? 1 : 0.92);
+  }
+
+  private getMuzzlePosition(angle: number) {
+    const muzzleDistance = 34;
+
+    return {
+      x: this.player.x + Math.cos(angle) * muzzleDistance,
+      y: this.player.y + Math.sin(angle) * muzzleDistance
+    };
   }
 
   private pickEnemyKey(): string {
@@ -1295,7 +1311,11 @@ export class GameScene extends Phaser.Scene {
 
     const angles = [-0.6, -0.3, 0, 0.3, 0.6];
     angles.forEach((offset) => {
-      const bullet = this.projectiles.get(this.player.x, this.player.y, 'rocket') as
+      const baseAngle = this.player.getData('aimAngle') || 0;
+      const shotAngle = baseAngle + offset;
+      const muzzle = this.getMuzzlePosition(shotAngle);
+
+      const bullet = this.projectiles.get(muzzle.x, muzzle.y, 'rocket') as
         | Phaser.Physics.Arcade.Image
         | Phaser.Physics.Arcade.Sprite
         | null;
@@ -1306,7 +1326,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setActive(true);
       bullet.setVisible(true);
       bullet.setAlpha(1);
-      bullet.setPosition(this.player.x, this.player.y);
+      bullet.setPosition(muzzle.x, muzzle.y);
       bullet.setDepth(50);
       bullet.setDisplaySize(24, 14);
       bullet.setTint(0xffaa33);
@@ -1318,11 +1338,9 @@ export class GameScene extends Phaser.Scene {
       if (!body) return;
 
       body.enable = true;
-      body.reset(this.player.x, this.player.y);
+      body.reset(muzzle.x, muzzle.y);
       body.setAllowGravity(false);
 
-      const baseAngle = this.player.getData('aimAngle') || 0;
-      const shotAngle = baseAngle + offset;
       this.physics.velocityFromRotation(shotAngle, 520, body.velocity);
       bullet.setRotation(shotAngle);
 
@@ -1456,4 +1474,4 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer?.remove(false);
     this.scale.off('resize', this.handleResize, this);
   }
-  }
+}
