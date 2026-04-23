@@ -47,8 +47,6 @@ const IMAGE_ASSETS: AssetDef[] = [
   { key: 'class_tank', path: 'assets/sprites/tank.png' },
   { key: 'class_scout', path: 'assets/sprites/scout.png' },
   { key: 'class_sniper', path: 'assets/sprites/sniper.png' },
-  { key: 'class_demolition', path: 'assets/sprites/Demolition.png' },
-  { key: 'class_elite', path: 'assets/sprites/Elite.png' },
 
   { key: 'player', path: 'assets/sprites/Grunt-Bacon.png' },
   { key: 'enemy', path: 'assets/sprites/Wolf-Conscript.png' },
@@ -153,8 +151,6 @@ export class BootScene extends Phaser.Scene {
     this.ensureFallbackTexture('class_tank', 32, 32, 0x777777);
     this.ensureFallbackTexture('class_scout', 32, 32, 0x55aa55);
     this.ensureFallbackTexture('class_sniper', 32, 32, 0x5555aa);
-    this.ensureFallbackTexture('class_demolition', 32, 32, 0xaa6633);
-    this.ensureFallbackTexture('class_elite', 32, 32, 0xaa9933);
     this.ensureFallbackTexture('shop_ui', 64, 24, 0x444444);
   }
 
@@ -172,4 +168,4 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture(key, width, height);
     g.destroy();
   }
-      }
+  }
