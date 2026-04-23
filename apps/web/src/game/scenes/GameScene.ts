@@ -46,99 +46,99 @@ type BossConfig = {
   contactDamage: number;
 };
 
-const WORLD_WIDTH = 2400;
-const WORLD_HEIGHT = 1350;
+const WORLD_WIDTH = 4200;
+const WORLD_HEIGHT = 2400;
 const KILL_TARGET = 10;
 
-const JOYSTICK_MARGIN = 96;
-const JOYSTICK_RADIUS = 56;
-const JOYSTICK_THUMB_RADIUS = 24;
-const JOYSTICK_MAX_DISTANCE = 44;
+const JOYSTICK_MARGIN = 108;
+const JOYSTICK_RADIUS = 64;
+const JOYSTICK_THUMB_RADIUS = 28;
+const JOYSTICK_MAX_DISTANCE = 52;
 
-const FIRE_BUTTON_MARGIN_X = 96;
-const FIRE_BUTTON_MARGIN_Y = 96;
-const FIRE_BUTTON_RADIUS = 50;
+const FIRE_BUTTON_MARGIN_X = 110;
+const FIRE_BUTTON_MARGIN_Y = 110;
+const FIRE_BUTTON_RADIUS = 58;
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
     projectileKey: 'bullet',
     fireRate: 320,
-    bulletSpeed: 620,
-    bulletSize: 12,
+    bulletSpeed: 760,
+    bulletSize: 20,
     damage: 1,
-    projectileLifetime: 1000
+    projectileLifetime: 1200
   },
   sow_machinegun: {
     projectileKey: 'bullet',
     fireRate: 120,
-    bulletSpeed: 660,
-    bulletSize: 10,
+    bulletSpeed: 820,
+    bulletSize: 16,
     damage: 1,
-    projectileLifetime: 900,
+    projectileLifetime: 1000,
     spread: 0.08
   },
   boar_rifle: {
     projectileKey: 'bullet',
     fireRate: 180,
-    bulletSpeed: 720,
-    bulletSize: 11,
+    bulletSpeed: 900,
+    bulletSize: 18,
     damage: 1,
-    projectileLifetime: 950,
+    projectileLifetime: 1100,
     spread: 0.03
   },
   tusk_shotgun: {
     projectileKey: 'bullet',
     fireRate: 500,
-    bulletSpeed: 580,
-    bulletSize: 10,
+    bulletSpeed: 700,
+    bulletSize: 16,
     damage: 1,
-    projectileLifetime: 500,
+    projectileLifetime: 650,
     burst: 5,
     spread: 0.28
   },
   sniper_swine: {
     projectileKey: 'sniper_bullet',
     fireRate: 900,
-    bulletSpeed: 980,
-    bulletSize: 14,
+    bulletSpeed: 1200,
+    bulletSize: 24,
     damage: 2,
-    projectileLifetime: 1300,
+    projectileLifetime: 1400,
     pierce: 1
   },
   belcha_minigun: {
     projectileKey: 'bullet',
     fireRate: 90,
-    bulletSpeed: 760,
-    bulletSize: 9,
+    bulletSpeed: 860,
+    bulletSize: 14,
     damage: 1,
-    projectileLifetime: 850,
+    projectileLifetime: 950,
     spread: 0.12
   },
   plasma_porker: {
     projectileKey: 'plasma_globule',
     fireRate: 420,
-    bulletSpeed: 500,
-    bulletSize: 16,
+    bulletSpeed: 640,
+    bulletSize: 28,
     damage: 2,
-    projectileLifetime: 1200
+    projectileLifetime: 1300
   },
   bacon_blaster: {
     projectileKey: 'rocket',
     fireRate: 700,
-    bulletSpeed: 520,
-    bulletSize: 20,
+    bulletSpeed: 620,
+    bulletSize: 30,
     damage: 3,
-    projectileLifetime: 1100
+    projectileLifetime: 1200
   }
 };
 
 const CHARACTER_STATS: Record<string, CharacterStats> = {
-  grunt_bacon: { speed: 205, maxHealth: 100, scale: 72 },
-  iron_tusk: { speed: 155, maxHealth: 160, scale: 84 },
-  swift_hoof: { speed: 250, maxHealth: 85, scale: 68 },
-  precision_squeal: { speed: 190, maxHealth: 90, scale: 70 },
-  blast_ham: { speed: 180, maxHealth: 115, scale: 74 },
-  general_goldsnout: { speed: 215, maxHealth: 125, scale: 78 }
+  grunt_bacon: { speed: 240, maxHealth: 100, scale: 72 },
+  iron_tusk: { speed: 180, maxHealth: 160, scale: 84 },
+  swift_hoof: { speed: 300, maxHealth: 85, scale: 68 },
+  precision_squeal: { speed: 220, maxHealth: 90, scale: 70 },
+  blast_ham: { speed: 210, maxHealth: 115, scale: 74 },
+  general_goldsnout: { speed: 255, maxHealth: 125, scale: 78 }
 };
 
 const ENEMY_POOL = ['wolf_grunt', 'wolf_soldier', 'wolf_heavy', 'cyber_fox'];
@@ -265,7 +265,7 @@ export class GameScene extends Phaser.Scene {
       loop: true
     });
 
-    this.aimWorldPoint.set(this.player.x + 100, this.player.y);
+    this.aimWorldPoint.set(this.player.x + 200, this.player.y);
     this.updateHud();
     this.emitKillsUpdate();
 
@@ -355,13 +355,14 @@ export class GameScene extends Phaser.Scene {
       bullet.setTexture(projectileKey);
       bullet.setActive(true);
       bullet.setVisible(true);
+      bullet.setAlpha(1);
       bullet.setPosition(this.player.x, this.player.y);
-      bullet.setDepth(6);
+      bullet.setDepth(50);
       bullet.clearTint();
       bullet.setDisplaySize(
         this.weaponConfig.bulletSize,
         projectileKey === 'rocket'
-          ? Math.max(10, this.weaponConfig.bulletSize * 0.55)
+          ? Math.max(14, this.weaponConfig.bulletSize * 0.6)
           : this.weaponConfig.bulletSize
       );
 
@@ -394,6 +395,10 @@ export class GameScene extends Phaser.Scene {
         bullet.setTint(0x66e0ff);
       } else if (projectileKey === 'rocket') {
         bullet.setTint(0xffaa33);
+      } else if (projectileKey === 'sniper_bullet') {
+        bullet.setTint(0xffffff);
+      } else {
+        bullet.setTint(0xffe066);
       }
 
       this.time.delayedCall(this.weaponConfig.projectileLifetime, () => {
@@ -723,9 +728,10 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.setMoveSpeed(this.playerSpeed);
 
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.cameras.main.startFollow(this.player, true, 0.2, 0.2);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setRoundPixels(false);
+    this.cameras.main.setZoom(1.7);
 
     return true;
   }
@@ -803,7 +809,9 @@ export class GameScene extends Phaser.Scene {
       this.isTouchDevice =
         this.input.pointer1.isDown || this.input.pointer2.isDown || pointer.wasTouch;
 
-      const isLeftSide = pointer.x < this.scale.width * 0.45;
+      const fireZoneStartX = this.scale.width * 0.58;
+      const isLeftSide = pointer.x < this.scale.width * 0.42;
+      const isRightSide = pointer.x > fireZoneStartX;
 
       if (pointer.wasTouch && isLeftSide && this.movePointerId === null) {
         this.movePointerId = pointer.id;
@@ -812,14 +820,17 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (pointer.wasTouch) {
+      if (pointer.wasTouch && isRightSide) {
         this.aimPointerId = pointer.id;
         this.wantsToShoot = true;
         this.setAimFromPointer(pointer);
+        this.showFireButtonPressed(true);
         return;
       }
 
-      void this.shoot();
+      if (!pointer.wasTouch) {
+        void this.shoot();
+      }
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -837,15 +848,14 @@ export class GameScene extends Phaser.Scene {
       if (this.movePointerId === pointer.id) {
         this.movePointerId = null;
         this.moveVector.set(0, 0);
+        this.player.stopMovement();
         this.resetJoystickVisual();
       }
 
       if (this.aimPointerId === pointer.id) {
         this.aimPointerId = null;
         this.wantsToShoot = false;
-        if (this.fireButton) {
-          this.fireButton.setAlpha(0.85);
-        }
+        this.showFireButtonPressed(false);
       }
     });
   }
@@ -857,11 +867,12 @@ export class GameScene extends Phaser.Scene {
         this.scale.height - JOYSTICK_MARGIN,
         JOYSTICK_RADIUS,
         0x000000,
-        0.28
+        0.34
       )
+      .setStrokeStyle(3, 0xffffff, 0.25)
       .setScrollFactor(0)
       .setDepth(1200)
-      .setVisible(false);
+      .setVisible(true);
 
     this.joystickThumb = this.add
       .circle(
@@ -869,20 +880,33 @@ export class GameScene extends Phaser.Scene {
         this.scale.height - JOYSTICK_MARGIN,
         JOYSTICK_THUMB_RADIUS,
         0xffffff,
-        0.3
+        0.45
       )
       .setScrollFactor(0)
       .setDepth(1201)
-      .setVisible(false);
+      .setVisible(true);
 
-    const fireX = this.scale.width - FIRE_BUTTON_MARGIN_X;
-    const fireY = this.scale.height - FIRE_BUTTON_MARGIN_Y;
+    const fireBg = this.add
+      .circle(
+        this.scale.width - FIRE_BUTTON_MARGIN_X,
+        this.scale.height - FIRE_BUTTON_MARGIN_Y,
+        FIRE_BUTTON_RADIUS,
+        0x8b0000,
+        0.42
+      )
+      .setStrokeStyle(3, 0xffd27a, 0.55);
 
-    const fireBg = this.add.circle(fireX, fireY, FIRE_BUTTON_RADIUS, 0x8b0000, 0.32);
-    const fireCore = this.add.circle(fireX, fireY, 24, 0xff6b35, 0.7);
+    const fireCore = this.add.circle(
+      this.scale.width - FIRE_BUTTON_MARGIN_X,
+      this.scale.height - FIRE_BUTTON_MARGIN_Y,
+      28,
+      0xff6b35,
+      0.9
+    );
+
     const fireLabel = this.add
-      .text(fireX, fireY, 'FIRE', {
-        fontSize: '16px',
+      .text(this.scale.width - FIRE_BUTTON_MARGIN_X, this.scale.height - FIRE_BUTTON_MARGIN_Y, 'FIRE', {
+        fontSize: '18px',
         color: '#ffffff',
         fontStyle: 'bold'
       })
@@ -892,8 +916,8 @@ export class GameScene extends Phaser.Scene {
       .container(0, 0, [fireBg, fireCore, fireLabel])
       .setScrollFactor(0)
       .setDepth(1200)
-      .setVisible(false)
-      .setAlpha(0.85);
+      .setVisible(true)
+      .setAlpha(0.92);
   }
 
   private handleResize(gameSize: Phaser.Structs.Size) {
@@ -918,9 +942,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateTouchMovement() {
-    const vx = this.moveVector.x * this.playerSpeed;
-    const vy = this.moveVector.y * this.playerSpeed;
-    this.player.setVelocity(vx, vy);
+    this.player.setMoveVector(this.moveVector.x, this.moveVector.y, this.playerSpeed);
   }
 
   private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
@@ -932,6 +954,7 @@ export class GameScene extends Phaser.Scene {
 
     if (distance <= 0.0001) {
       this.moveVector.set(0, 0);
+      this.player.stopMovement();
       return;
     }
 
@@ -960,35 +983,23 @@ export class GameScene extends Phaser.Scene {
       thumbY = baseY + (dy / distance) * clamped;
     }
 
-    this.joystickBase.setVisible(true);
-    this.joystickThumb.setVisible(true);
     this.joystickThumb.setPosition(thumbX, thumbY);
-
-    if (this.fireButton) {
-      this.fireButton.setVisible(true);
-    }
   }
 
   private resetJoystickVisual() {
     if (!this.joystickBase || !this.joystickThumb) return;
-
     this.joystickThumb.setPosition(JOYSTICK_MARGIN, this.scale.height - JOYSTICK_MARGIN);
-    this.joystickBase.setVisible(false);
-    this.joystickThumb.setVisible(false);
-
-    if (!this.wantsToShoot && this.fireButton) {
-      this.fireButton.setVisible(false);
-    }
   }
 
   private setAimFromPointer(pointer: Phaser.Input.Pointer) {
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     this.aimWorldPoint.set(worldPoint.x, worldPoint.y);
+  }
 
-    if (this.fireButton) {
-      this.fireButton.setVisible(true);
-      this.fireButton.setAlpha(1);
-    }
+  private showFireButtonPressed(isPressed: boolean) {
+    if (!this.fireButton) return;
+    this.fireButton.setScale(isPressed ? 0.92 : 1);
+    this.fireButton.setAlpha(isPressed ? 1 : 0.92);
   }
 
   private pickEnemyKey(): string {
@@ -1142,11 +1153,11 @@ export class GameScene extends Phaser.Scene {
             ? 0xffffff
             : 0xffc857;
 
-    const circle = this.add.circle(x, y, 10, color, 0.85).setDepth(800);
+    const circle = this.add.circle(x, y, 12, color, 0.95).setDepth(800);
 
     this.tweens.add({
       targets: circle,
-      radius: projectileKey === 'rocket' ? 30 : 18,
+      radius: projectileKey === 'rocket' ? 36 : 22,
       alpha: 0,
       duration: projectileKey === 'rocket' ? 220 : 120,
       onComplete: () => circle.destroy()
@@ -1154,11 +1165,11 @@ export class GameScene extends Phaser.Scene {
 
     if (projectileKey === 'rocket' && this.textures.exists('explosion')) {
       const explosion = this.add.image(x, y, 'explosion').setDepth(801);
-      explosion.setDisplaySize(26, 26);
+      explosion.setDisplaySize(44, 44);
       this.tweens.add({
         targets: explosion,
-        scaleX: 2.2,
-        scaleY: 2.2,
+        scaleX: 2.4,
+        scaleY: 2.4,
         alpha: 0,
         duration: 240,
         onComplete: () => explosion.destroy()
@@ -1294,9 +1305,11 @@ export class GameScene extends Phaser.Scene {
       bullet.setTexture(this.textures.exists('rocket') ? 'rocket' : 'bullet');
       bullet.setActive(true);
       bullet.setVisible(true);
+      bullet.setAlpha(1);
       bullet.setPosition(this.player.x, this.player.y);
-      bullet.setDepth(6);
-      bullet.setDisplaySize(18, 10);
+      bullet.setDepth(50);
+      bullet.setDisplaySize(24, 14);
+      bullet.setTint(0xffaa33);
       bullet.setData('damage', 2);
       bullet.setData('projectileKey', 'rocket');
       bullet.setData('pierceLeft', 0);
@@ -1310,7 +1323,7 @@ export class GameScene extends Phaser.Scene {
 
       const baseAngle = this.player.getData('aimAngle') || 0;
       const shotAngle = baseAngle + offset;
-      this.physics.velocityFromRotation(shotAngle, 460, body.velocity);
+      this.physics.velocityFromRotation(shotAngle, 520, body.velocity);
       bullet.setRotation(shotAngle);
 
       this.time.delayedCall(700, () => {
