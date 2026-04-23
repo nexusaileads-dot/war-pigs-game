@@ -15,6 +15,16 @@ interface Level {
   isBossLevel?: boolean;
 }
 
+type StartRunResponse = {
+  run?: {
+    id?: string;
+    characterId?: string;
+    weaponId?: string;
+    levelId?: string;
+  };
+  sessionToken?: string;
+};
+
 export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> = ({
   onBack,
   onStart
@@ -28,14 +38,30 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
     const loadLevels = async () => {
       try {
         setLoadError(null);
+
         const res = await apiClient.get('/api/game/levels');
-
         const incoming = Array.isArray(res.data) ? res.data : [];
-        incoming.sort((a: Level, b: Level) => a.levelNumber - b.levelNumber);
 
-        setLevels(incoming);
+        const normalized = incoming
+          .filter((level: Partial<Level>) => !!level?.id)
+          .map((level: Partial<Level>) => ({
+            id: level.id as string,
+            levelNumber: Number(level.levelNumber ?? 0),
+            name: level.name || 'Unknown Mission',
+            description: level.description || 'No description available.',
+            difficulty: Number(level.difficulty ?? 1),
+            waves: Number(level.waves ?? 1),
+            baseReward: Number(level.baseReward ?? 0),
+            unlockRequirement: Number(level.unlockRequirement ?? 0),
+            unlocked: Boolean(level.unlocked),
+            completed: Boolean(level.completed),
+            isBossLevel: Boolean(level.isBossLevel)
+          }))
+          .sort((a: Level, b: Level) => a.levelNumber - b.levelNumber);
+
+        setLevels(normalized);
       } catch (error) {
-        console.error('Failed to load levels:', error);
+        console.error('[LevelSelect] Failed to load levels:', error);
         setLoadError('Failed to load missions.');
       } finally {
         setIsLoading(false);
@@ -54,27 +80,43 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   }, [levels]);
 
   const handleStart = async (levelId: string) => {
+    if (startingLevelId) return;
+
     try {
       setStartingLevelId(levelId);
 
       const inventoryRes = await apiClient.get('/api/inventory');
-      const { equipped } = inventoryRes.data ?? {};
+      const equipped = inventoryRes.data?.equipped;
 
       if (!equipped?.characterId || !equipped?.weaponId) {
         alert('Equip a character and weapon before deploying.');
         return;
       }
 
-      const startRes = await apiClient.post('/api/game/start', {
+      const startRes = await apiClient.post<StartRunResponse>('/api/game/start', {
         levelId,
         characterId: equipped.characterId,
         weaponId: equipped.weaponId
       });
 
-      sessionStorage.setItem('currentRun', JSON.stringify(startRes.data));
+      const payload = startRes.data;
+
+      if (
+        !payload?.run?.id ||
+        !payload?.run?.characterId ||
+        !payload?.run?.weaponId ||
+        !payload?.run?.levelId ||
+        !payload?.sessionToken
+      ) {
+        console.error('[LevelSelect] Invalid start payload:', payload);
+        alert('Mission session could not be created.');
+        return;
+      }
+
+      sessionStorage.setItem('currentRun', JSON.stringify(payload));
       onStart();
     } catch (error) {
-      console.error('Failed to start mission:', error);
+      console.error('[LevelSelect] Failed to start mission:', error);
       alert('Failed to start mission.');
     } finally {
       setStartingLevelId(null);
@@ -240,7 +282,15 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '860px', margin: '0 auto' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          maxWidth: '860px',
+          margin: '0 auto'
+        }}
+      >
         {levels.map((level) => {
           const isStarting = startingLevelId === level.id;
           const cardBorder = level.unlocked
@@ -334,8 +384,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                       <span style={{ color: '#ffb74d', fontWeight: 700 }}>{level.difficulty}</span>
                     </div>
                     <div style={{ color: '#ddd' }}>
-                      Waves:{' '}
-                      <span style={{ color: '#fff', fontWeight: 700 }}>{level.waves}</span>
+                      Waves: <span style={{ color: '#fff', fontWeight: 700 }}>{level.waves}</span>
                     </div>
                     <div style={{ color: '#ddd' }}>
                       Reward:{' '}
@@ -343,8 +392,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                     </div>
                     {!level.unlocked ? (
                       <div style={{ color: '#ff8a80' }}>
-                        Requires Level{' '}
-                        <span style={{ fontWeight: 700 }}>{level.unlockRequirement}</span>
+                        Requires Level <span style={{ fontWeight: 700 }}>{level.unlockRequirement}</span>
                       </div>
                     ) : (
                       <div style={{ color: '#9e9e9e' }}>Ready for deployment</div>
@@ -355,7 +403,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                 {level.unlocked ? (
                   <button
                     onClick={() => void handleStart(level.id)}
-                    disabled={isStarting}
+                    disabled={!!startingLevelId}
                     style={{
                       minWidth: '120px',
                       padding: '10px 14px',
@@ -363,7 +411,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                       color: '#fff',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: isStarting ? 'not-allowed' : 'pointer',
+                      cursor: startingLevelId ? 'not-allowed' : 'pointer',
                       fontWeight: 'bold'
                     }}
                   >
