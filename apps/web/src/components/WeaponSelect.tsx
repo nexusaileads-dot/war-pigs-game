@@ -84,6 +84,7 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       plasma_porker: 'Plasma-Porker-X.png',
       bacon_blaster: 'Bacon-Blaster-9000.png'
     };
+
     return `/assets/sprites/${map[id] || 'Standard-Bullet.png'}`;
   };
 
