@@ -618,7 +618,7 @@ export class GameScene extends Phaser.Scene {
       return 'wolf_soldier';
     }
 
-    return available[0];
+    return available.includes('wolf_grunt') ? 'wolf_grunt' : available[0];
   }
 
   private getEnemyStats(enemyKey: string) {
@@ -777,4 +777,4 @@ export class GameScene extends Phaser.Scene {
     this.input.off('pointerdown');
     this.spawnTimer?.remove(false);
   }
-                                       }
+  }
