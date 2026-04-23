@@ -37,7 +37,6 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
         );
 
         setInventory(characters);
-
         setSelectedCharacterId(
           res.data?.equipped?.characterId || characters[0]?.details.characterId || null
         );
