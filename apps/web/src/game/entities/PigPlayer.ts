@@ -25,14 +25,23 @@ export class PigPlayer extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body | undefined;
     if (body) {
       body.setAllowGravity(false);
-      body.setSize(this.width * 0.65, this.height * 0.75, true);
-      body.setDrag(600, 600);
-      body.setMaxVelocity(260, 260);
+      body.setCollideWorldBounds(true);
+      body.setSize(this.width * 0.6, this.height * 0.72, true);
+      body.setOffset(this.width * 0.2, this.height * 0.18);
+      body.setDrag(0, 0);
+      body.setDamping(false);
+      body.setMaxVelocity(420, 420);
+      body.setImmovable(false);
     }
   }
 
   setMoveSpeed(speed: number) {
     this.moveSpeed = Math.max(0, speed);
+
+    const body = this.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.setMaxVelocity(this.moveSpeed, this.moveSpeed);
+    }
   }
 
   updateMovement(
@@ -56,7 +65,20 @@ export class PigPlayer extends Phaser.Physics.Arcade.Sprite {
       vy *= diagonalFactor;
     }
 
-    this.setVelocity(vx, vy);
+    const body = this.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.setVelocity(vx, vy);
+
+      if (vx === 0) {
+        body.setVelocityX(0);
+      }
+
+      if (vy === 0) {
+        body.setVelocityY(0);
+      }
+    } else {
+      this.setVelocity(vx, vy);
+    }
 
     if (vx !== 0 || vy !== 0) {
       this.setData('isMoving', true);
@@ -66,10 +88,63 @@ export class PigPlayer extends Phaser.Physics.Arcade.Sprite {
       });
     } else {
       this.setData('isMoving', false);
+      this.setData('moveDirection', { x: 0, y: 0 });
     }
+  }
+
+  setMoveVector(x: number, y: number, speed?: number) {
+    const moveSpeed = speed ?? this.moveSpeed;
+
+    let vx = Phaser.Math.Clamp(x, -1, 1) * moveSpeed;
+    let vy = Phaser.Math.Clamp(y, -1, 1) * moveSpeed;
+
+    if (vx !== 0 && vy !== 0) {
+      const diagonalFactor = Math.SQRT1_2;
+      vx *= diagonalFactor;
+      vy *= diagonalFactor;
+    }
+
+    const body = this.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.setVelocity(vx, vy);
+
+      if (Math.abs(vx) < 0.001) {
+        body.setVelocityX(0);
+      }
+
+      if (Math.abs(vy) < 0.001) {
+        body.setVelocityY(0);
+      }
+    } else {
+      this.setVelocity(vx, vy);
+    }
+
+    if (vx !== 0 || vy !== 0) {
+      this.setData('isMoving', true);
+      this.setData('moveDirection', {
+        x: Math.sign(vx),
+        y: Math.sign(vy)
+      });
+    } else {
+      this.setData('isMoving', false);
+      this.setData('moveDirection', { x: 0, y: 0 });
+    }
+  }
+
+  stopMovement() {
+    const body = this.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.setVelocity(0, 0);
+      body.setAcceleration(0, 0);
+    } else {
+      this.setVelocity(0, 0);
+    }
+
+    this.setData('isMoving', false);
+    this.setData('moveDirection', { x: 0, y: 0 });
   }
 
   facePointer(pointerX: number) {
     this.setFlipX(pointerX < this.x);
   }
-}
+  }
