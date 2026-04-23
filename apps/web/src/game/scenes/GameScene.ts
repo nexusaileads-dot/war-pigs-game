@@ -12,6 +12,108 @@ type CurrentRunPayload = {
   sessionToken: string;
 };
 
+type WeaponConfig = {
+  projectileKey: string;
+  fireRate: number;
+  bulletSpeed: number;
+  bulletSize: number;
+  damage: number;
+  projectileLifetime: number;
+  spread?: number;
+  burst?: number;
+};
+
+const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
+  oink_pistol: {
+    projectileKey: 'bullet',
+    fireRate: 320,
+    bulletSpeed: 620,
+    bulletSize: 12,
+    damage: 1,
+    projectileLifetime: 1000
+  },
+  sow_machinegun: {
+    projectileKey: 'bullet',
+    fireRate: 120,
+    bulletSpeed: 660,
+    bulletSize: 10,
+    damage: 1,
+    projectileLifetime: 900,
+    spread: 0.08
+  },
+  boar_rifle: {
+    projectileKey: 'bullet',
+    fireRate: 180,
+    bulletSpeed: 720,
+    bulletSize: 11,
+    damage: 1,
+    projectileLifetime: 950,
+    spread: 0.03
+  },
+  tusk_shotgun: {
+    projectileKey: 'bullet',
+    fireRate: 500,
+    bulletSpeed: 580,
+    bulletSize: 10,
+    damage: 1,
+    projectileLifetime: 500,
+    burst: 5,
+    spread: 0.28
+  },
+  sniper_swine: {
+    projectileKey: 'sniper_bullet',
+    fireRate: 900,
+    bulletSpeed: 980,
+    bulletSize: 14,
+    damage: 2,
+    projectileLifetime: 1300
+  },
+  belcha_minigun: {
+    projectileKey: 'bullet',
+    fireRate: 90,
+    bulletSpeed: 760,
+    bulletSize: 9,
+    damage: 1,
+    projectileLifetime: 850,
+    spread: 0.12
+  },
+  plasma_porker: {
+    projectileKey: 'plasma_globule',
+    fireRate: 420,
+    bulletSpeed: 500,
+    bulletSize: 16,
+    damage: 2,
+    projectileLifetime: 1200
+  },
+  bacon_blaster: {
+    projectileKey: 'rocket',
+    fireRate: 700,
+    bulletSpeed: 520,
+    bulletSize: 20,
+    damage: 3,
+    projectileLifetime: 1100
+  }
+};
+
+const CHARACTER_STATS: Record<
+  string,
+  { speed: number; maxHealth: number; scale: number }
+> = {
+  grunt_bacon: { speed: 205, maxHealth: 100, scale: 72 },
+  iron_tusk: { speed: 155, maxHealth: 160, scale: 84 },
+  swift_hoof: { speed: 250, maxHealth: 85, scale: 68 },
+  precision_squeal: { speed: 190, maxHealth: 90, scale: 70 },
+  blast_ham: { speed: 180, maxHealth: 115, scale: 74 },
+  general_goldsnout: { speed: 215, maxHealth: 125, scale: 78 }
+};
+
+const LEVEL_ENEMY_KEYS: Record<string, string[]> = {
+  '1': ['wolf_grunt'],
+  '2': ['wolf_grunt', 'wolf_soldier'],
+  '3': ['wolf_soldier', 'cyber_fox'],
+  '4': ['wolf_grunt', 'wolf_soldier', 'wolf_heavy']
+};
+
 export class GameScene extends Phaser.Scene {
   player!: PigPlayer;
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -27,13 +129,18 @@ export class GameScene extends Phaser.Scene {
   kills = 0;
   health = 100;
   maxHealth = 100;
+  playerSpeed = 200;
+  killTarget = 10;
   spawnTimer?: Phaser.Time.TimerEvent;
   isFinishing = false;
   runData!: CurrentRunPayload;
+  weaponConfig!: WeaponConfig;
 
   private hudText?: Phaser.GameObjects.Text;
   private missionText?: Phaser.GameObjects.Text;
   private debugText?: Phaser.GameObjects.Text;
+  private progressBarBg?: Phaser.GameObjects.Rectangle;
+  private progressBarFill?: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -69,105 +176,34 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const backgroundKey = this.textures.exists('background') ? 'background' : null;
-    if (backgroundKey) {
-      const background = this.add.image(800, 600, backgroundKey);
-      background.setDisplaySize(1600, 1200);
-      background.setScrollFactor(1);
-      background.setDepth(0);
-    } else {
-      console.error('[GameScene] Missing background texture');
-      this.add
-        .rectangle(800, 600, 1600, 1200, 0x1a1a1a)
-        .setOrigin(0.5)
-        .setDepth(0);
-    }
+    const characterStats =
+      CHARACTER_STATS[this.runData.run.characterId] ?? CHARACTER_STATS.grunt_bacon;
+    this.maxHealth = characterStats.maxHealth;
+    this.health = characterStats.maxHealth;
+    this.playerSpeed = characterStats.speed;
 
-    const characterKey = this.textures.exists(this.runData.run.characterId)
-      ? this.runData.run.characterId
-      : this.textures.exists('player')
-        ? 'player'
-        : null;
+    this.weaponConfig =
+      WEAPON_CONFIGS[this.runData.run.weaponId] ?? WEAPON_CONFIGS.oink_pistol;
 
-    if (!characterKey) {
-      console.error('[GameScene] Missing player texture');
-      this.showFatalMessage('PLAYER ASSET MISSING');
-      this.forceDefeat();
-      return;
-    }
-
-    this.player = new PigPlayer(this, 800, 600, characterKey);
-    this.player.setDisplaySize(72, 72);
-    this.player.setDepth(10);
-    this.player.setCollideWorldBounds(true);
-
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setBounds(0, 0, 1600, 1200);
-    this.cameras.main.setZoom(1);
-
-    if (!this.input.keyboard) {
-      console.error('[GameScene] Keyboard input unavailable');
-      this.showFatalMessage('KEYBOARD INPUT UNAVAILABLE');
-      this.forceDefeat();
-      return;
-    }
-
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = this.input.keyboard.addKeys({
-      up: Phaser.Input.Keyboard.KeyCodes.W,
-      down: Phaser.Input.Keyboard.KeyCodes.S,
-      left: Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D
-    }) as typeof this.wasd;
-
-    const projectileKey = this.textures.exists('bullet') ? 'bullet' : '__DEFAULT';
-    if (projectileKey === '__DEFAULT') {
-      console.error('[GameScene] Missing bullet texture');
-      this.showFatalMessage('BULLET ASSET MISSING');
-      this.forceDefeat();
-      return;
-    }
-
-    this.projectiles = this.physics.add.group({
-      classType: Phaser.Physics.Arcade.Image,
-      defaultKey: projectileKey,
-      maxSize: 80,
-      runChildUpdate: false
-    });
-
-    this.enemies = this.physics.add.group({
-      classType: Phaser.Physics.Arcade.Sprite,
-      maxSize: 40
-    });
-
-    this.updateHud();
+    this.createBackground();
+    this.createPlayer(characterStats.scale);
+    this.createInput();
+    this.createGroups();
+    this.registerCollisions();
 
     this.input.on('pointerdown', () => {
       void this.shoot();
     });
 
     this.spawnTimer = this.time.addEvent({
-      delay: 1800,
+      delay: 1400,
       callback: this.spawnEnemy,
       callbackScope: this,
       loop: true
     });
 
-    this.physics.add.overlap(
-      this.projectiles,
-      this.enemies,
-      this.handleHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-      undefined,
-      this
-    );
-
-    this.physics.add.overlap(
-      this.player,
-      this.enemies,
-      this.handlePlayerDamage as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-      undefined,
-      this
-    );
+    this.updateHud();
+    this.emitHudUpdate();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanup, this);
@@ -176,7 +212,7 @@ export class GameScene extends Phaser.Scene {
   update() {
     if (!this.player || !this.player.active || this.isFinishing) return;
 
-    this.player.updateMovement(this.cursors, this.wasd, 200);
+    this.player.updateMovement(this.cursors, this.wasd, this.playerSpeed);
 
     const pointerX = this.input.activePointer.worldX;
     const pointerY = this.input.activePointer.worldY;
@@ -189,7 +225,8 @@ export class GameScene extends Phaser.Scene {
       const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
       if (!enemy.active) return;
 
-      this.physics.moveToObject(enemy, this.player, 100);
+      const speed = enemy.getData('moveSpeed') ?? 100;
+      this.physics.moveToObject(enemy, this.player, speed);
 
       const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
       if (body) {
@@ -208,46 +245,75 @@ export class GameScene extends Phaser.Scene {
     if (this.isFinishing || !this.player?.active) return;
 
     const now = this.time.now;
-    if (now - this.lastShotTime < 250) return;
+    if (now - this.lastShotTime < this.weaponConfig.fireRate) return;
     this.lastShotTime = now;
 
-    const bullet = this.projectiles.get(this.player.x, this.player.y, 'bullet') as
-      | Phaser.Physics.Arcade.Image
-      | Phaser.Physics.Arcade.Sprite
-      | null;
+    const burst = this.weaponConfig.burst ?? 1;
+    const spread = this.weaponConfig.spread ?? 0;
 
-    if (!bullet) return;
+    for (let i = 0; i < burst; i += 1) {
+      const projectileKey = this.textures.exists(this.weaponConfig.projectileKey)
+        ? this.weaponConfig.projectileKey
+        : 'bullet';
 
-    bullet.setActive(true);
-    bullet.setVisible(true);
-    bullet.setPosition(this.player.x, this.player.y);
-    bullet.setDepth(6);
-    bullet.setDisplaySize(12, 12);
+      const bullet = this.projectiles.get(
+        this.player.x,
+        this.player.y,
+        projectileKey
+      ) as Phaser.Physics.Arcade.Image | Phaser.Physics.Arcade.Sprite | null;
 
-    const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-    if (!body) return;
+      if (!bullet) continue;
 
-    body.enable = true;
-    body.reset(this.player.x, this.player.y);
-    body.setAllowGravity(false);
+      bullet.setTexture(projectileKey);
+      bullet.setActive(true);
+      bullet.setVisible(true);
+      bullet.setPosition(this.player.x, this.player.y);
+      bullet.setDepth(6);
+      bullet.setDisplaySize(
+        this.weaponConfig.bulletSize,
+        this.weaponConfig.projectileKey === 'rocket'
+          ? Math.max(10, this.weaponConfig.bulletSize * 0.55)
+          : this.weaponConfig.bulletSize
+      );
 
-    const aimAngle = this.player.getData('aimAngle') || 0;
-    this.physics.velocityFromRotation(aimAngle, 600, body.velocity);
+      const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+      if (!body) continue;
 
-    this.time.delayedCall(1000, () => {
-      if (!bullet.active) return;
-      bullet.setActive(false);
-      bullet.setVisible(false);
-      body.stop();
-    });
+      body.enable = true;
+      body.reset(this.player.x, this.player.y);
+      body.setAllowGravity(false);
+
+      const baseAngle = this.player.getData('aimAngle') || 0;
+      const randomSpread =
+        spread > 0 ? Phaser.Math.FloatBetween(-spread, spread) : 0;
+      const shotAngle =
+        burst > 1 ? baseAngle + randomSpread + (i - (burst - 1) / 2) * 0.04 : baseAngle + randomSpread;
+
+      this.physics.velocityFromRotation(
+        shotAngle,
+        this.weaponConfig.bulletSpeed,
+        body.velocity
+      );
+
+      bullet.setRotation(shotAngle);
+      bullet.setData('damage', this.weaponConfig.damage);
+      bullet.setData('projectileKey', projectileKey);
+
+      this.time.delayedCall(this.weaponConfig.projectileLifetime, () => {
+        if (!bullet.active) return;
+        bullet.setActive(false);
+        bullet.setVisible(false);
+        body.stop();
+      });
+    }
   }
 
   spawnEnemy() {
     if (this.isFinishing || !this.player?.active) return;
 
-    const enemyKey = this.textures.exists('enemy') ? 'enemy' : null;
-    if (!enemyKey) {
-      console.error('[GameScene] Missing enemy texture');
+    const enemyKey = this.pickEnemyKey();
+    if (!enemyKey || !this.textures.exists(enemyKey)) {
+      console.error('[GameScene] Missing enemy texture:', enemyKey);
       this.showFatalMessage('ENEMY ASSET MISSING');
       this.forceDefeat();
       return;
@@ -265,11 +331,16 @@ export class GameScene extends Phaser.Scene {
 
     if (!enemy) return;
 
-    enemy.setDisplaySize(64, 64);
+    const stats = this.getEnemyStats(enemyKey);
+
+    enemy.setDisplaySize(stats.size, stats.size);
     enemy.setDepth(5);
     enemy.setActive(true);
     enemy.setVisible(true);
     enemy.setCollideWorldBounds(false);
+    enemy.setData('hp', stats.hp);
+    enemy.setData('moveSpeed', stats.speed);
+    enemy.setData('enemyKey', enemyKey);
 
     const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
     if (body) {
@@ -296,12 +367,29 @@ export class GameScene extends Phaser.Scene {
     const bulletBody = bullet.body as Phaser.Physics.Arcade.Body | undefined;
     bulletBody?.stop();
 
+    const damage = bullet.getData('damage') ?? 1;
+    const currentHp = enemy.getData('hp') ?? 1;
+    const nextHp = currentHp - damage;
+
+    this.createHitEffect(hitX, hitY, bullet.getData('projectileKey') ?? 'bullet');
+
+    if (nextHp > 0) {
+      enemy.setData('hp', nextHp);
+      enemy.setTintFill(0xffffff);
+      this.time.delayedCall(70, () => {
+        if (enemy.active) enemy.clearTint();
+      });
+      this.showFloatingText(hitX, hitY - 20, `-${damage}`, '#ff8a65');
+      return;
+    }
+
     enemy.destroy();
     this.kills += 1;
     this.updateHud();
-    this.showFloatingText(hitX, hitY - 20, '+1');
+    this.emitHudUpdate();
+    this.showFloatingText(hitX, hitY - 20, '+1', '#ffd166');
 
-    if (this.kills >= 10) {
+    if (this.kills >= this.killTarget) {
       void this.finishGame();
     }
   }
@@ -313,17 +401,19 @@ export class GameScene extends Phaser.Scene {
     const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
     if (!enemy.active || this.isFinishing) return;
 
+    const damage = enemy.getData('contactDamage') ?? 10;
     enemy.destroy();
 
-    this.health = Math.max(0, this.health - 10);
+    this.health = Math.max(0, this.health - damage);
     this.updateHud();
+    this.emitHudUpdate();
     this.cameras.main.shake(120, 0.01);
 
     window.dispatchEvent(
       new CustomEvent('WAR_PIGS_EVENT', {
         detail: {
           type: 'PLAYER_HIT',
-          damage: 10
+          damage
         }
       })
     );
@@ -418,6 +508,125 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private createBackground() {
+    if (this.textures.exists('background')) {
+      const background = this.add.image(800, 600, 'background');
+      background.setDisplaySize(1600, 1200);
+      background.setScrollFactor(1);
+      background.setDepth(0);
+      return;
+    }
+
+    console.error('[GameScene] Missing background texture');
+    this.add.rectangle(800, 600, 1600, 1200, 0x1a1a1a).setOrigin(0.5).setDepth(0);
+  }
+
+  private createPlayer(scale: number) {
+    const characterKey = this.textures.exists(this.runData.run.characterId)
+      ? this.runData.run.characterId
+      : this.textures.exists('player')
+        ? 'player'
+        : null;
+
+    if (!characterKey) {
+      console.error('[GameScene] Missing player texture');
+      this.showFatalMessage('PLAYER ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
+
+    this.player = new PigPlayer(this, 800, 600, characterKey);
+    this.player.setDisplaySize(scale, scale);
+    this.player.setDepth(10);
+    this.player.setCollideWorldBounds(true);
+
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.setBounds(0, 0, 1600, 1200);
+    this.cameras.main.setZoom(1);
+  }
+
+  private createInput() {
+    if (!this.input.keyboard) {
+      console.error('[GameScene] Keyboard input unavailable');
+      this.showFatalMessage('KEYBOARD INPUT UNAVAILABLE');
+      this.forceDefeat();
+      return;
+    }
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd = this.input.keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.W,
+      down: Phaser.Input.Keyboard.KeyCodes.S,
+      left: Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D
+    }) as typeof this.wasd;
+  }
+
+  private createGroups() {
+    const projectileKey = this.textures.exists(this.weaponConfig.projectileKey)
+      ? this.weaponConfig.projectileKey
+      : this.textures.exists('bullet')
+        ? 'bullet'
+        : '__DEFAULT';
+
+    if (projectileKey === '__DEFAULT') {
+      console.error('[GameScene] Missing bullet texture');
+      this.showFatalMessage('BULLET ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
+
+    this.projectiles = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Image,
+      defaultKey: projectileKey,
+      maxSize: 120,
+      runChildUpdate: false
+    });
+
+    this.enemies = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      maxSize: 60
+    });
+  }
+
+  private registerCollisions() {
+    this.physics.add.overlap(
+      this.projectiles,
+      this.enemies,
+      this.handleHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this
+    );
+
+    this.physics.add.overlap(
+      this.player,
+      this.enemies,
+      this.handlePlayerDamage as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this
+    );
+  }
+
+  private pickEnemyKey(): string {
+    const levelNumber = String(this.runData?.run?.levelId ?? '');
+    const fromLevel = LEVEL_ENEMY_KEYS[levelNumber];
+    if (fromLevel?.length) return Phaser.Utils.Array.GetRandom(fromLevel);
+    return 'enemy';
+  }
+
+  private getEnemyStats(enemyKey: string) {
+    switch (enemyKey) {
+      case 'wolf_heavy':
+        return { hp: 3, speed: 70, size: 78, contactDamage: 15 };
+      case 'cyber_fox':
+        return { hp: 1, speed: 150, size: 58, contactDamage: 12 };
+      case 'wolf_soldier':
+        return { hp: 2, speed: 95, size: 66, contactDamage: 10 };
+      default:
+        return { hp: 1, speed: 100, size: 64, contactDamage: 10 };
+    }
+  }
+
   private createHud() {
     this.hudText = this.add
       .text(16, 16, '', {
@@ -451,6 +660,18 @@ export class GameScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(1000);
+
+    this.progressBarBg = this.add
+      .rectangle(16, 122, 220, 16, 0x222222)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.progressBarFill = this.add
+      .rectangle(16, 122, 0, 16, 0xff6b35)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setDepth(1001);
   }
 
   private updateHud() {
@@ -458,9 +679,26 @@ export class GameScene extends Phaser.Scene {
 
     this.hudText.setText([
       `Health: ${this.health}/${this.maxHealth}`,
-      `Kills: ${this.kills}/10`,
+      `Kills: ${this.kills}/${this.killTarget}`,
       `Weapon: ${this.runData?.run?.weaponId || 'default'}`
     ]);
+
+    if (this.progressBarFill) {
+      const progress = Phaser.Math.Clamp(this.kills / this.killTarget, 0, 1);
+      this.progressBarFill.width = 220 * progress;
+    }
+  }
+
+  private emitHudUpdate() {
+    window.dispatchEvent(
+      new CustomEvent('WAR_PIGS_EVENT', {
+        detail: {
+          type: 'HUD_UPDATE',
+          health: this.health,
+          kills: this.kills
+        }
+      })
+    );
   }
 
   private showFatalMessage(message: string) {
@@ -476,14 +714,20 @@ export class GameScene extends Phaser.Scene {
       .setDepth(2000);
   }
 
-  private showFloatingText(x: number, y: number, value: string) {
+  private showFloatingText(
+    x: number,
+    y: number,
+    value: string,
+    color = '#ffd166'
+  ) {
     const text = this.add
       .text(x, y, value, {
         fontSize: '18px',
-        color: '#ffd166',
+        color,
         fontStyle: 'bold'
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(900);
 
     this.tweens.add({
       targets: text,
@@ -494,8 +738,42 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private createHitEffect(x: number, y: number, projectileKey: string) {
+    const color =
+      projectileKey === 'plasma_globule'
+        ? 0x66e0ff
+        : projectileKey === 'rocket'
+          ? 0xff8844
+          : projectileKey === 'sniper_bullet'
+            ? 0xffffff
+            : 0xffc857;
+
+    const circle = this.add.circle(x, y, 10, color, 0.85).setDepth(800);
+
+    this.tweens.add({
+      targets: circle,
+      radius: projectileKey === 'rocket' ? 30 : 18,
+      alpha: 0,
+      duration: projectileKey === 'rocket' ? 220 : 120,
+      onComplete: () => circle.destroy()
+    });
+
+    if (projectileKey === 'rocket' && this.textures.exists('explosion')) {
+      const explosion = this.add.image(x, y, 'explosion').setDepth(801);
+      explosion.setDisplaySize(26, 26);
+      this.tweens.add({
+        targets: explosion,
+        scaleX: 2.2,
+        scaleY: 2.2,
+        alpha: 0,
+        duration: 240,
+        onComplete: () => explosion.destroy()
+      });
+    }
+  }
+
   private cleanup() {
     this.input.off('pointerdown');
     this.spawnTimer?.remove(false);
   }
-  }
+    }
