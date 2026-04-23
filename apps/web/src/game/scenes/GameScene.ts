@@ -95,10 +95,7 @@ const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   }
 };
 
-const CHARACTER_STATS: Record<
-  string,
-  { speed: number; maxHealth: number; scale: number }
-> = {
+const CHARACTER_STATS: Record<string, { speed: number; maxHealth: number; scale: number }> = {
   grunt_bacon: { speed: 205, maxHealth: 100, scale: 72 },
   iron_tusk: { speed: 155, maxHealth: 160, scale: 84 },
   swift_hoof: { speed: 250, maxHealth: 85, scale: 68 },
@@ -107,12 +104,7 @@ const CHARACTER_STATS: Record<
   general_goldsnout: { speed: 215, maxHealth: 125, scale: 78 }
 };
 
-const LEVEL_ENEMY_KEYS: Record<string, string[]> = {
-  '1': ['wolf_grunt'],
-  '2': ['wolf_grunt', 'wolf_soldier'],
-  '3': ['wolf_soldier', 'cyber_fox'],
-  '4': ['wolf_grunt', 'wolf_soldier', 'wolf_heavy']
-};
+const ENEMY_POOL = ['wolf_grunt', 'wolf_soldier', 'wolf_heavy', 'cyber_fox'];
 
 export class GameScene extends Phaser.Scene {
   player!: PigPlayer;
@@ -139,7 +131,6 @@ export class GameScene extends Phaser.Scene {
   private hudText?: Phaser.GameObjects.Text;
   private missionText?: Phaser.GameObjects.Text;
   private debugText?: Phaser.GameObjects.Text;
-  private progressBarBg?: Phaser.GameObjects.Rectangle;
   private progressBarFill?: Phaser.GameObjects.Rectangle;
 
   constructor() {
@@ -149,7 +140,6 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a1a');
     this.physics.world.setBounds(0, 0, 1600, 1200);
-
     this.createHud();
 
     const storedRun = sessionStorage.getItem('currentRun');
@@ -186,9 +176,11 @@ export class GameScene extends Phaser.Scene {
       WEAPON_CONFIGS[this.runData.run.weaponId] ?? WEAPON_CONFIGS.oink_pistol;
 
     this.createBackground();
-    this.createPlayer(characterStats.scale);
-    this.createInput();
-    this.createGroups();
+
+    if (!this.createPlayer(characterStats.scale)) return;
+    if (!this.createInput()) return;
+    if (!this.createGroups()) return;
+
     this.registerCollisions();
 
     this.input.on('pointerdown', () => {
@@ -203,7 +195,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.updateHud();
-    this.emitHudUpdate();
+    this.emitKillsUpdate();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanup, this);
@@ -271,7 +263,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setDepth(6);
       bullet.setDisplaySize(
         this.weaponConfig.bulletSize,
-        this.weaponConfig.projectileKey === 'rocket'
+        projectileKey === 'rocket'
           ? Math.max(10, this.weaponConfig.bulletSize * 0.55)
           : this.weaponConfig.bulletSize
       );
@@ -284,10 +276,11 @@ export class GameScene extends Phaser.Scene {
       body.setAllowGravity(false);
 
       const baseAngle = this.player.getData('aimAngle') || 0;
-      const randomSpread =
-        spread > 0 ? Phaser.Math.FloatBetween(-spread, spread) : 0;
+      const randomSpread = spread > 0 ? Phaser.Math.FloatBetween(-spread, spread) : 0;
       const shotAngle =
-        burst > 1 ? baseAngle + randomSpread + (i - (burst - 1) / 2) * 0.04 : baseAngle + randomSpread;
+        burst > 1
+          ? baseAngle + randomSpread + (i - (burst - 1) / 2) * 0.04
+          : baseAngle + randomSpread;
 
       this.physics.velocityFromRotation(
         shotAngle,
@@ -340,6 +333,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setCollideWorldBounds(false);
     enemy.setData('hp', stats.hp);
     enemy.setData('moveSpeed', stats.speed);
+    enemy.setData('contactDamage', stats.contactDamage);
     enemy.setData('enemyKey', enemyKey);
 
     const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
@@ -386,7 +380,7 @@ export class GameScene extends Phaser.Scene {
     enemy.destroy();
     this.kills += 1;
     this.updateHud();
-    this.emitHudUpdate();
+    this.emitKillsUpdate();
     this.showFloatingText(hitX, hitY - 20, '+1', '#ffd166');
 
     if (this.kills >= this.killTarget) {
@@ -406,7 +400,6 @@ export class GameScene extends Phaser.Scene {
 
     this.health = Math.max(0, this.health - damage);
     this.updateHud();
-    this.emitHudUpdate();
     this.cameras.main.shake(120, 0.01);
 
     window.dispatchEvent(
@@ -521,7 +514,7 @@ export class GameScene extends Phaser.Scene {
     this.add.rectangle(800, 600, 1600, 1200, 0x1a1a1a).setOrigin(0.5).setDepth(0);
   }
 
-  private createPlayer(scale: number) {
+  private createPlayer(scale: number): boolean {
     const characterKey = this.textures.exists(this.runData.run.characterId)
       ? this.runData.run.characterId
       : this.textures.exists('player')
@@ -532,7 +525,7 @@ export class GameScene extends Phaser.Scene {
       console.error('[GameScene] Missing player texture');
       this.showFatalMessage('PLAYER ASSET MISSING');
       this.forceDefeat();
-      return;
+      return false;
     }
 
     this.player = new PigPlayer(this, 800, 600, characterKey);
@@ -543,14 +536,16 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setBounds(0, 0, 1600, 1200);
     this.cameras.main.setZoom(1);
+
+    return true;
   }
 
-  private createInput() {
+  private createInput(): boolean {
     if (!this.input.keyboard) {
       console.error('[GameScene] Keyboard input unavailable');
       this.showFatalMessage('KEYBOARD INPUT UNAVAILABLE');
       this.forceDefeat();
-      return;
+      return false;
     }
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -560,9 +555,11 @@ export class GameScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D
     }) as typeof this.wasd;
+
+    return true;
   }
 
-  private createGroups() {
+  private createGroups(): boolean {
     const projectileKey = this.textures.exists(this.weaponConfig.projectileKey)
       ? this.weaponConfig.projectileKey
       : this.textures.exists('bullet')
@@ -573,7 +570,7 @@ export class GameScene extends Phaser.Scene {
       console.error('[GameScene] Missing bullet texture');
       this.showFatalMessage('BULLET ASSET MISSING');
       this.forceDefeat();
-      return;
+      return false;
     }
 
     this.projectiles = this.physics.add.group({
@@ -587,6 +584,8 @@ export class GameScene extends Phaser.Scene {
       classType: Phaser.Physics.Arcade.Sprite,
       maxSize: 60
     });
+
+    return true;
   }
 
   private registerCollisions() {
@@ -608,10 +607,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pickEnemyKey(): string {
-    const levelNumber = String(this.runData?.run?.levelId ?? '');
-    const fromLevel = LEVEL_ENEMY_KEYS[levelNumber];
-    if (fromLevel?.length) return Phaser.Utils.Array.GetRandom(fromLevel);
-    return 'enemy';
+    const available = ENEMY_POOL.filter((key) => this.textures.exists(key));
+    if (available.length === 0) return 'enemy';
+
+    if (this.kills >= 8 && available.includes('wolf_heavy')) return 'wolf_heavy';
+    if (this.kills >= 5 && available.includes('cyber_fox') && Math.random() < 0.35) {
+      return 'cyber_fox';
+    }
+    if (this.kills >= 3 && available.includes('wolf_soldier') && Math.random() < 0.5) {
+      return 'wolf_soldier';
+    }
+
+    return available[0];
   }
 
   private getEnemyStats(enemyKey: string) {
@@ -661,7 +668,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    this.progressBarBg = this.add
+    this.add
       .rectangle(16, 122, 220, 16, 0x222222)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
@@ -689,12 +696,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private emitHudUpdate() {
+  private emitKillsUpdate() {
     window.dispatchEvent(
       new CustomEvent('WAR_PIGS_EVENT', {
         detail: {
-          type: 'HUD_UPDATE',
-          health: this.health,
+          type: 'KILLS_UPDATE',
           kills: this.kills
         }
       })
@@ -714,12 +720,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(2000);
   }
 
-  private showFloatingText(
-    x: number,
-    y: number,
-    value: string,
-    color = '#ffd166'
-  ) {
+  private showFloatingText(x: number, y: number, value: string, color = '#ffd166') {
     const text = this.add
       .text(x, y, value, {
         fontSize: '18px',
@@ -776,4 +777,4 @@ export class GameScene extends Phaser.Scene {
     this.input.off('pointerdown');
     this.spawnTimer?.remove(false);
   }
-    }
+                                       }
