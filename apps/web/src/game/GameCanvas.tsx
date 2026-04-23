@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
@@ -38,24 +38,6 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const { user, refreshProfile } = useGameStore();
 
   const isLandscape = viewport.width >= viewport.height;
-  const frameSize = useMemo(() => {
-    const availableWidth = Math.max(320, viewport.width - 16);
-    const availableHeight = Math.max(240, viewport.height - 16);
-    const aspect = GAME_BASE_WIDTH / GAME_BASE_HEIGHT;
-
-    let width = availableWidth;
-    let height = width / aspect;
-
-    if (height > availableHeight) {
-      height = availableHeight;
-      width = height * aspect;
-    }
-
-    return {
-      width: Math.floor(width),
-      height: Math.floor(height)
-    };
-  }, [viewport.height, viewport.width]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -112,10 +94,10 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       width: GAME_BASE_WIDTH,
       height: GAME_BASE_HEIGHT,
       scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: GAME_BASE_WIDTH,
-        height: GAME_BASE_HEIGHT
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.NO_CENTER,
+        width: window.innerWidth,
+        height: window.innerHeight
       },
       physics: {
         default: 'arcade',
@@ -137,7 +119,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     const handleResize = () => {
       if (!gameRef.current) return;
-      gameRef.current.scale.refresh();
+      gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
     };
 
     handleResize();
@@ -206,60 +188,68 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   return (
     <div
       style={{
-        position: 'relative',
-        width: '100%',
-        minHeight: '100vh',
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
         height: '100dvh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
-        padding: '8px',
-        boxSizing: 'border-box',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        background: '#000'
       }}
     >
       {!isLandscape ? (
         <div
           style={{
-            width: '100%',
-            maxWidth: '420px',
-            padding: '28px 22px',
-            border: '2px solid #ff6b35',
-            borderRadius: '16px',
-            background: 'rgba(0,0,0,0.82)',
-            boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
-            textAlign: 'center',
-            color: '#fff'
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
+            boxSizing: 'border-box'
           }}
         >
           <div
             style={{
-              fontSize: '42px',
-              marginBottom: '14px'
+              width: '100%',
+              maxWidth: '420px',
+              padding: '28px 22px',
+              border: '2px solid #ff6b35',
+              borderRadius: '16px',
+              background: 'rgba(0,0,0,0.82)',
+              boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
+              textAlign: 'center',
+              color: '#fff'
             }}
           >
-            ↺
-          </div>
-          <div
-            style={{
-              fontSize: '24px',
-              fontWeight: 800,
-              color: '#ff6b35',
-              marginBottom: '10px',
-              textTransform: 'uppercase'
-            }}
-          >
-            Rotate Device
-          </div>
-          <div
-            style={{
-              fontSize: '15px',
-              lineHeight: 1.5,
-              color: '#cfcfcf'
-            }}
-          >
-            War Pigs is now optimized for landscape mode for movement, aiming, and camera tracking.
+            <div
+              style={{
+                fontSize: '42px',
+                marginBottom: '14px'
+              }}
+            >
+              ↺
+            </div>
+            <div
+              style={{
+                fontSize: '24px',
+                fontWeight: 800,
+                color: '#ff6b35',
+                marginBottom: '10px',
+                textTransform: 'uppercase'
+              }}
+            >
+              Rotate Device
+            </div>
+            <div
+              style={{
+                fontSize: '15px',
+                lineHeight: 1.5,
+                color: '#cfcfcf'
+              }}
+            >
+              War Pigs is optimized for landscape mode.
+            </div>
           </div>
         </div>
       ) : (
@@ -267,15 +257,12 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
           <div
             ref={containerRef}
             style={{
-              position: 'relative',
-              width: `${frameSize.width}px`,
-              height: `${frameSize.height}px`,
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
               overflow: 'hidden',
-              border: '2px solid #ff6b35',
-              boxShadow: '0 0 24px rgba(255, 107, 53, 0.35)',
-              borderRadius: '10px',
-              background: '#000',
-              flexShrink: 0
+              background: '#000'
             }}
           />
           <HUD
