@@ -351,7 +351,14 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  alignItems: 'flex-end'
+                }}
+              >
                 {isEquipped ? (
                   <span
                     style={{
