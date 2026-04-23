@@ -25,7 +25,7 @@ export const HUD: React.FC<HUDProps> = ({
       style={{
         position: 'absolute',
         inset: 0,
-        padding: '15px',
+        padding: '12px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
@@ -36,19 +36,22 @@ export const HUD: React.FC<HUDProps> = ({
       <div
         style={{
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
+          alignItems: 'flex-start',
           gap: '10px',
-          maxWidth: 'min(260px, 42vw)'
+          maxWidth: 'min(560px, 62vw)',
+          flexWrap: 'wrap'
         }}
       >
         <div
           style={{
-            background: 'rgba(0,0,0,0.78)',
+            background: 'rgba(0,0,0,0.82)',
             padding: '8px 12px',
             borderRadius: '12px',
             border: '2px solid #444',
             minWidth: '220px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(2px)'
           }}
         >
           <div
@@ -58,8 +61,9 @@ export const HUD: React.FC<HUDProps> = ({
               alignItems: 'center',
               color: '#fff',
               fontWeight: 700,
-              fontSize: '14px',
-              marginBottom: '8px'
+              fontSize: '13px',
+              marginBottom: '8px',
+              gap: '10px'
             }}
           >
             <span>HEALTH</span>
@@ -71,9 +75,9 @@ export const HUD: React.FC<HUDProps> = ({
           <div
             style={{
               width: '100%',
-              height: '22px',
+              height: '18px',
               background: 'rgba(255,255,255,0.08)',
-              borderRadius: '11px',
+              borderRadius: '10px',
               border: '1px solid rgba(255,255,255,0.1)',
               overflow: 'hidden'
             }}
@@ -91,17 +95,19 @@ export const HUD: React.FC<HUDProps> = ({
 
         <div
           style={{
-            background: 'rgba(0,0,0,0.78)',
+            background: 'rgba(0,0,0,0.82)',
             padding: '8px 12px',
             borderRadius: '12px',
             border: '2px solid #444',
             color: '#ffffff',
             fontWeight: 700,
-            fontSize: '14px',
+            fontSize: '13px',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            width: 'fit-content'
+            minHeight: '44px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(2px)'
           }}
         >
           <span>KILLS</span>
@@ -111,7 +117,7 @@ export const HUD: React.FC<HUDProps> = ({
 
       <div
         style={{
-          background: 'rgba(0,0,0,0.85)',
+          background: 'rgba(0,0,0,0.86)',
           padding: '8px 14px',
           borderRadius: '12px',
           color: '#ffd700',
@@ -120,13 +126,15 @@ export const HUD: React.FC<HUDProps> = ({
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          minHeight: '44px',
+          backdropFilter: 'blur(2px)'
         }}
       >
         <img
           src="/assets/sprites/pig-token.png"
           alt="PIGS"
-          style={{ width: '22px', height: '22px', objectFit: 'contain' }}
+          style={{ width: '20px', height: '20px', objectFit: 'contain' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
