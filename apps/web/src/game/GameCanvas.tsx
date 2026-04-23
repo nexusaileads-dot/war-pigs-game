@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
@@ -19,6 +19,9 @@ type WarPigsEventDetail =
       kills?: number;
     };
 
+const GAME_BASE_WIDTH = 1600;
+const GAME_BASE_HEIGHT = 900;
+
 export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -27,18 +30,56 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
   const [health, setHealth] = useState(100);
   const [kills, setKills] = useState(0);
+  const [viewport, setViewport] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : GAME_BASE_WIDTH,
+    height: typeof window !== 'undefined' ? window.innerHeight : GAME_BASE_HEIGHT
+  });
 
   const { user, refreshProfile } = useGameStore();
+
+  const isLandscape = viewport.width >= viewport.height;
+  const frameSize = useMemo(() => {
+    const availableWidth = Math.max(320, viewport.width - 16);
+    const availableHeight = Math.max(240, viewport.height - 16);
+    const aspect = GAME_BASE_WIDTH / GAME_BASE_HEIGHT;
+
+    let width = availableWidth;
+    let height = width / aspect;
+
+    if (height > availableHeight) {
+      height = availableHeight;
+      width = height * aspect;
+    }
+
+    return {
+      width: Math.floor(width),
+      height: Math.floor(height)
+    };
+  }, [viewport.height, viewport.width]);
 
   useEffect(() => {
     isMountedRef.current = true;
 
+    const updateViewport = () => {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+
     return () => {
       isMountedRef.current = false;
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
     };
   }, []);
 
   useEffect(() => {
+    if (!isLandscape) return;
     if (!containerRef.current) return;
     if (gameRef.current) return;
 
@@ -68,13 +109,13 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       parent: containerRef.current,
       backgroundColor: '#000000',
       pixelArt: false,
-      width: 1600,
-      height: 1200,
+      width: GAME_BASE_WIDTH,
+      height: GAME_BASE_HEIGHT,
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight
+        width: GAME_BASE_WIDTH,
+        height: GAME_BASE_HEIGHT
       },
       physics: {
         default: 'arcade',
@@ -95,18 +136,13 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     }
 
     const handleResize = () => {
-      if (!containerRef.current || !gameRef.current) return;
-
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-
-      if (width > 0 && height > 0) {
-        gameRef.current.scale.resize(width, height);
-      }
+      if (!gameRef.current) return;
+      gameRef.current.scale.refresh();
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     const handleGameEvent = async (event: Event) => {
       const customEvent = event as CustomEvent<WarPigsEventDetail>;
@@ -158,13 +194,14 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     return () => {
       window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
 
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
-  }, [onExit, refreshProfile]);
+  }, [isLandscape, onExit, refreshProfile]);
 
   return (
     <div
@@ -182,25 +219,73 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         overflow: 'hidden'
       }}
     >
-      <div
-        ref={containerRef}
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          border: '2px solid #ff6b35',
-          boxShadow: '0 0 24px rgba(255, 107, 53, 0.35)',
-          borderRadius: '8px',
-          background: '#000'
-        }}
-      />
-      <HUD
-        health={health}
-        maxHealth={100}
-        pigs={user?.profile.currentPigs || 0}
-        kills={kills}
-      />
+      {!isLandscape ? (
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '420px',
+            padding: '28px 22px',
+            border: '2px solid #ff6b35',
+            borderRadius: '16px',
+            background: 'rgba(0,0,0,0.82)',
+            boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
+            textAlign: 'center',
+            color: '#fff'
+          }}
+        >
+          <div
+            style={{
+              fontSize: '42px',
+              marginBottom: '14px'
+            }}
+          >
+            ↺
+          </div>
+          <div
+            style={{
+              fontSize: '24px',
+              fontWeight: 800,
+              color: '#ff6b35',
+              marginBottom: '10px',
+              textTransform: 'uppercase'
+            }}
+          >
+            Rotate Device
+          </div>
+          <div
+            style={{
+              fontSize: '15px',
+              lineHeight: 1.5,
+              color: '#cfcfcf'
+            }}
+          >
+            War Pigs is now optimized for landscape mode for movement, aiming, and camera tracking.
+          </div>
+        </div>
+      ) : (
+        <>
+          <div
+            ref={containerRef}
+            style={{
+              position: 'relative',
+              width: `${frameSize.width}px`,
+              height: `${frameSize.height}px`,
+              overflow: 'hidden',
+              border: '2px solid #ff6b35',
+              boxShadow: '0 0 24px rgba(255, 107, 53, 0.35)',
+              borderRadius: '10px',
+              background: '#000',
+              flexShrink: 0
+            }}
+          />
+          <HUD
+            health={health}
+            maxHealth={100}
+            pigs={user?.profile.currentPigs || 0}
+            kills={kills}
+          />
+        </>
+      )}
     </div>
   );
 };
