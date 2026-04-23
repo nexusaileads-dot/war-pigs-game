@@ -65,16 +65,16 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
-      width: 800,
-      height: 600,
       parent: containerRef.current,
       backgroundColor: '#000000',
       pixelArt: false,
+      width: 1600,
+      height: 1200,
       scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 800,
-        height: 600
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight
       },
       physics: {
         default: 'arcade',
@@ -93,6 +93,20 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       void onExit();
       return;
     }
+
+    const handleResize = () => {
+      if (!containerRef.current || !gameRef.current) return;
+
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+
+      if (width > 0 && height > 0) {
+        gameRef.current.scale.resize(width, height);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
 
     const handleGameEvent = async (event: Event) => {
       const customEvent = event as CustomEvent<WarPigsEventDetail>;
@@ -143,6 +157,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     return () => {
       window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
+      window.removeEventListener('resize', handleResize);
 
       if (gameRef.current) {
         gameRef.current.destroy(true);
@@ -157,20 +172,22 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         position: 'relative',
         width: '100%',
         minHeight: '100vh',
+        height: '100dvh',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
-        padding: '16px',
-        boxSizing: 'border-box'
+        padding: '8px',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
       }}
     >
       <div
         ref={containerRef}
         style={{
-          width: '800px',
-          height: '600px',
-          maxWidth: '100%',
+          position: 'relative',
+          width: '100%',
+          height: '100%',
           overflow: 'hidden',
           border: '2px solid #ff6b35',
           boxShadow: '0 0 24px rgba(255, 107, 53, 0.35)',
