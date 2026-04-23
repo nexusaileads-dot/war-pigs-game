@@ -13,6 +13,10 @@ type WarPigsEventDetail =
   | {
       type: 'PLAYER_HIT';
       damage?: number;
+    }
+  | {
+      type: 'KILLS_UPDATE';
+      kills?: number;
     };
 
 export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
@@ -22,6 +26,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const isExitingRef = useRef(false);
 
   const [health, setHealth] = useState(100);
+  const [kills, setKills] = useState(0);
 
   const { user, refreshProfile } = useGameStore();
 
@@ -55,6 +60,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     }
 
     setHealth(100);
+    setKills(0);
     isExitingRef.current = false;
 
     const config: Phaser.Types.Core.GameConfig = {
@@ -96,6 +102,11 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
       if (detail.type === 'PLAYER_HIT') {
         setHealth((prev) => Math.max(0, prev - (detail.damage ?? 10)));
+        return;
+      }
+
+      if (detail.type === 'KILLS_UPDATE') {
+        setKills(detail.kills ?? 0);
         return;
       }
 
@@ -167,7 +178,12 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
           background: '#000'
         }}
       />
-      <HUD health={health} maxHealth={100} pigs={user?.profile.currentPigs || 0} />
+      <HUD
+        health={health}
+        maxHealth={100}
+        pigs={user?.profile.currentPigs || 0}
+        kills={kills}
+      />
     </div>
   );
 };
