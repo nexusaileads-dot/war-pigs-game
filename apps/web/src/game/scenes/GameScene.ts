@@ -21,6 +21,29 @@ type WeaponConfig = {
   projectileLifetime: number;
   spread?: number;
   burst?: number;
+  pierce?: number;
+};
+
+type CharacterStats = {
+  speed: number;
+  maxHealth: number;
+  scale: number;
+};
+
+type EnemyStats = {
+  hp: number;
+  speed: number;
+  size: number;
+  contactDamage: number;
+};
+
+type BossConfig = {
+  key: string;
+  name: string;
+  hp: number;
+  speed: number;
+  size: number;
+  contactDamage: number;
 };
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
@@ -66,7 +89,8 @@ const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
     bulletSpeed: 980,
     bulletSize: 14,
     damage: 2,
-    projectileLifetime: 1300
+    projectileLifetime: 1300,
+    pierce: 1
   },
   belcha_minigun: {
     projectileKey: 'bullet',
@@ -95,7 +119,7 @@ const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   }
 };
 
-const CHARACTER_STATS: Record<string, { speed: number; maxHealth: number; scale: number }> = {
+const CHARACTER_STATS: Record<string, CharacterStats> = {
   grunt_bacon: { speed: 205, maxHealth: 100, scale: 72 },
   iron_tusk: { speed: 155, maxHealth: 160, scale: 84 },
   swift_hoof: { speed: 250, maxHealth: 85, scale: 68 },
@@ -106,6 +130,17 @@ const CHARACTER_STATS: Record<string, { speed: number; maxHealth: number; scale:
 
 const ENEMY_POOL = ['wolf_grunt', 'wolf_soldier', 'wolf_heavy', 'cyber_fox'];
 
+const BOSS_BY_LEVEL: Record<string, BossConfig> = {
+  '4': {
+    key: 'alpha_wolfgang',
+    name: 'WOLFGANG THE RAVAGER',
+    hp: 18,
+    speed: 90,
+    size: 132,
+    contactDamage: 20
+  }
+};
+
 export class GameScene extends Phaser.Scene {
   player!: PigPlayer;
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -115,6 +150,7 @@ export class GameScene extends Phaser.Scene {
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
   };
+  abilityKey?: Phaser.Input.Keyboard.Key;
   projectiles!: Phaser.Physics.Arcade.Group;
   enemies!: Phaser.Physics.Arcade.Group;
   lastShotTime = 0;
@@ -132,6 +168,14 @@ export class GameScene extends Phaser.Scene {
   private missionText?: Phaser.GameObjects.Text;
   private debugText?: Phaser.GameObjects.Text;
   private progressBarFill?: Phaser.GameObjects.Rectangle;
+
+  private currentCharacterId = 'grunt_bacon';
+  private abilityCooldownMs = 6000;
+  private lastAbilityUseTime = -99999;
+  private abilityLabel = 'TACTICAL BURST';
+  private abilityActiveUntil = 0;
+  private bossSpawned = false;
+  private bossDefeated = false;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -165,6 +209,9 @@ export class GameScene extends Phaser.Scene {
       this.forceDefeat();
       return;
     }
+
+    this.currentCharacterId = this.runData.run.characterId;
+    this.configureCharacterAbility();
 
     const characterStats =
       CHARACTER_STATS[this.runData.run.characterId] ?? CHARACTER_STATS.grunt_bacon;
@@ -204,6 +251,11 @@ export class GameScene extends Phaser.Scene {
   update() {
     if (!this.player || !this.player.active || this.isFinishing) return;
 
+    if (this.abilityKey && Phaser.Input.Keyboard.JustDown(this.abilityKey)) {
+      this.useCharacterAbility();
+    }
+
+    this.updateAbilityState();
     this.player.updateMovement(this.cursors, this.wasd, this.playerSpeed);
 
     const pointerX = this.input.activePointer.worldX;
@@ -227,21 +279,31 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (this.debugText) {
+      const remainingCd = Math.max(
+        0,
+        Math.ceil((this.abilityCooldownMs - (this.time.now - this.lastAbilityUseTime)) / 1000)
+      );
       this.debugText.setText(
-        `Enemies: ${this.enemies.countActive(true)} | Bullets: ${this.projectiles.countActive(true)}`
+        `Enemies: ${this.enemies.countActive(true)} | Bullets: ${this.projectiles.countActive(true)} | Ability: ${remainingCd}s`
       );
     }
+
+    this.updateHud();
   }
 
   async shoot() {
     if (this.isFinishing || !this.player?.active) return;
 
+    const effectiveFireRate = this.getEffectiveFireRate();
     const now = this.time.now;
-    if (now - this.lastShotTime < this.weaponConfig.fireRate) return;
+    if (now - this.lastShotTime < effectiveFireRate) return;
     this.lastShotTime = now;
 
     const burst = this.weaponConfig.burst ?? 1;
-    const spread = this.weaponConfig.spread ?? 0;
+    const spread = this.getEffectiveSpread();
+    const damageBoost = this.getDamageBonus();
+    const speedBoost = this.getProjectileSpeedBonus();
+    const extraPierce = this.getExtraPierce();
 
     for (let i = 0; i < burst; i += 1) {
       const projectileKey = this.textures.exists(this.weaponConfig.projectileKey)
@@ -261,6 +323,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setVisible(true);
       bullet.setPosition(this.player.x, this.player.y);
       bullet.setDepth(6);
+      bullet.clearTint();
       bullet.setDisplaySize(
         this.weaponConfig.bulletSize,
         projectileKey === 'rocket'
@@ -284,13 +347,20 @@ export class GameScene extends Phaser.Scene {
 
       this.physics.velocityFromRotation(
         shotAngle,
-        this.weaponConfig.bulletSpeed,
+        this.weaponConfig.bulletSpeed + speedBoost,
         body.velocity
       );
 
       bullet.setRotation(shotAngle);
-      bullet.setData('damage', this.weaponConfig.damage);
+      bullet.setData('damage', this.weaponConfig.damage + damageBoost);
       bullet.setData('projectileKey', projectileKey);
+      bullet.setData('pierceLeft', (this.weaponConfig.pierce ?? 0) + extraPierce);
+
+      if (projectileKey === 'plasma_globule') {
+        bullet.setTint(0x66e0ff);
+      } else if (projectileKey === 'rocket') {
+        bullet.setTint(0xffaa33);
+      }
 
       this.time.delayedCall(this.weaponConfig.projectileLifetime, () => {
         if (!bullet.active) return;
@@ -303,6 +373,17 @@ export class GameScene extends Phaser.Scene {
 
   spawnEnemy() {
     if (this.isFinishing || !this.player?.active) return;
+
+    const shouldSpawnBoss =
+      !this.bossSpawned &&
+      !this.bossDefeated &&
+      Boolean(BOSS_BY_LEVEL[this.runData.run.levelId]) &&
+      this.kills >= Math.max(4, this.killTarget - 4);
+
+    if (shouldSpawnBoss) {
+      this.spawnBoss();
+      return;
+    }
 
     const enemyKey = this.pickEnemyKey();
     if (!enemyKey || !this.textures.exists(enemyKey)) {
@@ -335,11 +416,60 @@ export class GameScene extends Phaser.Scene {
     enemy.setData('moveSpeed', stats.speed);
     enemy.setData('contactDamage', stats.contactDamage);
     enemy.setData('enemyKey', enemyKey);
+    enemy.setData('isBoss', false);
+    enemy.setData('rewardKills', 1);
 
     const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
     if (body) {
       body.setAllowGravity(false);
       body.setImmovable(false);
+    }
+  }
+
+  private spawnBoss() {
+    const boss = BOSS_BY_LEVEL[this.runData.run.levelId];
+    if (!boss) return;
+
+    if (!this.textures.exists(boss.key)) {
+      console.error('[GameScene] Missing boss texture:', boss.key);
+      this.showFatalMessage('BOSS ASSET MISSING');
+      this.forceDefeat();
+      return;
+    }
+
+    this.bossSpawned = true;
+
+    const spawn = { x: 800, y: -120 };
+    const enemy = this.enemies.create(spawn.x, spawn.y, boss.key) as Phaser.Physics.Arcade.Sprite;
+
+    if (!enemy) return;
+
+    enemy.setDisplaySize(boss.size, boss.size);
+    enemy.setDepth(7);
+    enemy.setActive(true);
+    enemy.setVisible(true);
+    enemy.setTint(0xffe0a3);
+    enemy.setData('hp', boss.hp);
+    enemy.setData('moveSpeed', boss.speed);
+    enemy.setData('contactDamage', boss.contactDamage);
+    enemy.setData('enemyKey', boss.key);
+    enemy.setData('isBoss', true);
+    enemy.setData('rewardKills', 4);
+    enemy.setData('bossName', boss.name);
+
+    const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.setAllowGravity(false);
+    }
+
+    if (this.missionText) {
+      this.missionText.setText(boss.name);
+      this.missionText.setVisible(true);
+      this.time.delayedCall(1800, () => {
+        if (!this.isFinishing && this.missionText) {
+          this.missionText.setVisible(false);
+        }
+      });
     }
   }
 
@@ -354,18 +484,29 @@ export class GameScene extends Phaser.Scene {
 
     const hitX = enemy.x;
     const hitY = enemy.y;
-
-    bullet.setActive(false);
-    bullet.setVisible(false);
-
-    const bulletBody = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-    bulletBody?.stop();
+    const projectileKey = bullet.getData('projectileKey') ?? 'bullet';
 
     const damage = bullet.getData('damage') ?? 1;
     const currentHp = enemy.getData('hp') ?? 1;
     const nextHp = currentHp - damage;
 
-    this.createHitEffect(hitX, hitY, bullet.getData('projectileKey') ?? 'bullet');
+    const pierceLeft = bullet.getData('pierceLeft') ?? 0;
+    if (pierceLeft > 0 && projectileKey !== 'rocket') {
+      bullet.setData('pierceLeft', pierceLeft - 1);
+    } else {
+      bullet.setActive(false);
+      bullet.setVisible(false);
+      const bulletBody = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+      bulletBody?.stop();
+    }
+
+    this.createHitEffect(hitX, hitY, projectileKey);
+
+    if (projectileKey === 'rocket') {
+      this.applySplashDamage(hitX, hitY, 85, damage);
+    }
+
+    if (!enemy.active) return;
 
     if (nextHp > 0) {
       enemy.setData('hp', nextHp);
@@ -377,11 +518,22 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const rewardKills = enemy.getData('rewardKills') ?? 1;
+    const isBoss = enemy.getData('isBoss') === true;
+
     enemy.destroy();
-    this.kills += 1;
+
+    this.kills += rewardKills;
+    if (isBoss) this.bossDefeated = true;
+
     this.updateHud();
     this.emitKillsUpdate();
-    this.showFloatingText(hitX, hitY - 20, '+1', '#ffd166');
+    this.showFloatingText(
+      hitX,
+      hitY - 20,
+      isBoss ? '+BOSS' : `+${rewardKills}`,
+      isBoss ? '#ffe082' : '#ffd166'
+    );
 
     if (this.kills >= this.killTarget) {
       void this.finishGame();
@@ -440,7 +592,7 @@ export class GameScene extends Phaser.Scene {
           accuracy: 0.8,
           timeElapsed: 120,
           wavesCleared: 1,
-          bossKilled: false
+          bossKilled: this.bossDefeated
         }
       });
 
@@ -532,6 +684,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setDisplaySize(scale, scale);
     this.player.setDepth(10);
     this.player.setCollideWorldBounds(true);
+    this.player.setMoveSpeed(this.playerSpeed);
 
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setBounds(0, 0, 1600, 1200);
@@ -555,6 +708,8 @@ export class GameScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D
     }) as typeof this.wasd;
+
+    this.abilityKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     return true;
   }
@@ -621,7 +776,7 @@ export class GameScene extends Phaser.Scene {
     return available.includes('wolf_grunt') ? 'wolf_grunt' : available[0];
   }
 
-  private getEnemyStats(enemyKey: string) {
+  private getEnemyStats(enemyKey: string): EnemyStats {
     switch (enemyKey) {
       case 'wolf_heavy':
         return { hp: 3, speed: 70, size: 78, contactDamage: 15 };
@@ -684,10 +839,18 @@ export class GameScene extends Phaser.Scene {
   private updateHud() {
     if (!this.hudText) return;
 
+    const cooldownLeft = Math.max(
+      0,
+      Math.ceil((this.abilityCooldownMs - (this.time.now - this.lastAbilityUseTime)) / 1000)
+    );
+    const abilityReady = this.time.now - this.lastAbilityUseTime >= this.abilityCooldownMs;
+    const abilityStatus = abilityReady ? 'READY' : `${cooldownLeft}s`;
+
     this.hudText.setText([
       `Health: ${this.health}/${this.maxHealth}`,
       `Kills: ${this.kills}/${this.killTarget}`,
-      `Weapon: ${this.runData?.run?.weaponId || 'default'}`
+      `Weapon: ${this.runData?.run?.weaponId || 'default'}`,
+      `Ability (${this.abilityLabel}): ${abilityStatus}`
     ]);
 
     if (this.progressBarFill) {
@@ -771,6 +934,276 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => explosion.destroy()
       });
     }
+  }
+
+  private configureCharacterAbility() {
+    switch (this.currentCharacterId) {
+      case 'iron_tusk':
+        this.abilityLabel = 'IRON SLAM';
+        this.abilityCooldownMs = 7000;
+        break;
+      case 'swift_hoof':
+        this.abilityLabel = 'SCOUT DASH';
+        this.abilityCooldownMs = 4500;
+        break;
+      case 'precision_squeal':
+        this.abilityLabel = 'FOCUS MODE';
+        this.abilityCooldownMs = 7000;
+        break;
+      case 'blast_ham':
+        this.abilityLabel = 'DEMOLITION BURST';
+        this.abilityCooldownMs = 6500;
+        break;
+      case 'general_goldsnout':
+        this.abilityLabel = 'RALLY ORDER';
+        this.abilityCooldownMs = 8000;
+        break;
+      default:
+        this.abilityLabel = 'BATTLE STIM';
+        this.abilityCooldownMs = 6000;
+        break;
+    }
+  }
+
+  private useCharacterAbility() {
+    if (this.time.now - this.lastAbilityUseTime < this.abilityCooldownMs) return;
+    if (!this.player?.active) return;
+
+    this.lastAbilityUseTime = this.time.now;
+
+    switch (this.currentCharacterId) {
+      case 'iron_tusk':
+        this.useIronSlam();
+        break;
+      case 'swift_hoof':
+        this.useScoutDash();
+        break;
+      case 'precision_squeal':
+        this.useFocusMode();
+        break;
+      case 'blast_ham':
+        this.useDemolitionBurst();
+        break;
+      case 'general_goldsnout':
+        this.useRallyOrder();
+        break;
+      default:
+        this.useBattleStim();
+        break;
+    }
+
+    this.updateHud();
+  }
+
+  private useIronSlam() {
+    const radius = 150;
+
+    this.cameras.main.shake(140, 0.012);
+    this.createAreaPulse(this.player.x, this.player.y, radius, 0xb0bec5);
+
+    this.enemies.getChildren().forEach((enemyObject) => {
+      const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) return;
+
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        enemy.x,
+        enemy.y
+      );
+
+      if (distance <= radius) {
+        const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
+        if (body) {
+          const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+          this.physics.velocityFromRotation(angle, 420, body.velocity);
+        }
+
+        const nextHp = (enemy.getData('hp') ?? 1) - 2;
+        if (nextHp <= 0) {
+          enemy.destroy();
+          this.kills += enemy.getData('rewardKills') ?? 1;
+          this.emitKillsUpdate();
+        } else {
+          enemy.setData('hp', nextHp);
+        }
+      }
+    });
+
+    this.showFloatingText(this.player.x, this.player.y - 60, 'IRON SLAM', '#cfd8dc');
+  }
+
+  private useScoutDash() {
+    const aimAngle = this.player.getData('aimAngle') || 0;
+    const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+    if (!body) return;
+
+    this.physics.velocityFromRotation(aimAngle, 640, body.velocity);
+    this.createAreaPulse(this.player.x, this.player.y, 60, 0x81c784);
+    this.showFloatingText(this.player.x, this.player.y - 50, 'DASH', '#81c784');
+  }
+
+  private useFocusMode() {
+    this.abilityActiveUntil = this.time.now + 3500;
+    this.player.setTint(0xd1c4e9);
+    this.showFloatingText(this.player.x, this.player.y - 50, 'FOCUS', '#d1c4e9');
+  }
+
+  private useDemolitionBurst() {
+    this.createAreaPulse(this.player.x, this.player.y, 85, 0xffb74d);
+
+    const angles = [-0.6, -0.3, 0, 0.3, 0.6];
+    angles.forEach((offset) => {
+      const bullet = this.projectiles.get(this.player.x, this.player.y, 'rocket') as
+        | Phaser.Physics.Arcade.Image
+        | Phaser.Physics.Arcade.Sprite
+        | null;
+
+      if (!bullet) return;
+
+      bullet.setTexture(this.textures.exists('rocket') ? 'rocket' : 'bullet');
+      bullet.setActive(true);
+      bullet.setVisible(true);
+      bullet.setPosition(this.player.x, this.player.y);
+      bullet.setDepth(6);
+      bullet.setDisplaySize(18, 10);
+      bullet.setData('damage', 2);
+      bullet.setData('projectileKey', 'rocket');
+      bullet.setData('pierceLeft', 0);
+
+      const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+      if (!body) return;
+
+      body.enable = true;
+      body.reset(this.player.x, this.player.y);
+      body.setAllowGravity(false);
+
+      const baseAngle = this.player.getData('aimAngle') || 0;
+      const shotAngle = baseAngle + offset;
+      this.physics.velocityFromRotation(shotAngle, 460, body.velocity);
+      bullet.setRotation(shotAngle);
+
+      this.time.delayedCall(700, () => {
+        if (!bullet.active) return;
+        bullet.setActive(false);
+        bullet.setVisible(false);
+        body.stop();
+      });
+    });
+
+    this.showFloatingText(this.player.x, this.player.y - 50, 'DEMOLITION', '#ffb74d');
+  }
+
+  private useRallyOrder() {
+    this.abilityActiveUntil = this.time.now + 4500;
+    this.player.setTint(0xffd54f);
+    this.showFloatingText(this.player.x, this.player.y - 50, 'RALLY', '#ffeb3b');
+  }
+
+  private useBattleStim() {
+    this.abilityActiveUntil = this.time.now + 3500;
+    this.player.setTint(0xff8a65);
+    this.showFloatingText(this.player.x, this.player.y - 50, 'STIM', '#ff8a65');
+  }
+
+  private updateAbilityState() {
+    if (this.abilityActiveUntil > 0 && this.time.now > this.abilityActiveUntil) {
+      this.abilityActiveUntil = 0;
+      this.player.clearTint();
+    }
+  }
+
+  private getEffectiveFireRate() {
+    if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
+      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.55));
+    }
+
+    if (this.currentCharacterId === 'general_goldsnout' && this.abilityActiveUntil > this.time.now) {
+      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.7));
+    }
+
+    if (this.currentCharacterId === 'grunt_bacon' && this.abilityActiveUntil > this.time.now) {
+      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.8));
+    }
+
+    return this.weaponConfig.fireRate;
+  }
+
+  private getEffectiveSpread() {
+    let spread = this.weaponConfig.spread ?? 0;
+
+    if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
+      spread *= 0.2;
+    }
+
+    return spread;
+  }
+
+  private getDamageBonus() {
+    if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
+      return 1;
+    }
+
+    if (this.currentCharacterId === 'general_goldsnout' && this.abilityActiveUntil > this.time.now) {
+      return 1;
+    }
+
+    return 0;
+  }
+
+  private getProjectileSpeedBonus() {
+    if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
+      return 180;
+    }
+
+    return 0;
+  }
+
+  private getExtraPierce() {
+    if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
+      return 1;
+    }
+
+    return 0;
+  }
+
+  private applySplashDamage(x: number, y: number, radius: number, damage: number) {
+    this.enemies.getChildren().forEach((enemyObject) => {
+      const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) return;
+
+      const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+      if (distance > radius) return;
+
+      const splashDamage = Math.max(1, damage - Math.floor(distance / 45));
+      const nextHp = (enemy.getData('hp') ?? 1) - splashDamage;
+
+      if (nextHp <= 0) {
+        const rewardKills = enemy.getData('rewardKills') ?? 1;
+        const isBoss = enemy.getData('isBoss') === true;
+        enemy.destroy();
+        this.kills += rewardKills;
+        if (isBoss) this.bossDefeated = true;
+        this.emitKillsUpdate();
+      } else {
+        enemy.setData('hp', nextHp);
+      }
+    });
+
+    this.updateHud();
+  }
+
+  private createAreaPulse(x: number, y: number, radius: number, color: number) {
+    const ring = this.add.circle(x, y, 12, color, 0.2).setDepth(790);
+    ring.setStrokeStyle(3, color, 0.9);
+
+    this.tweens.add({
+      targets: ring,
+      radius,
+      alpha: 0,
+      duration: 260,
+      onComplete: () => ring.destroy()
+    });
   }
 
   private cleanup() {
