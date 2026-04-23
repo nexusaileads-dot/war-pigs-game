@@ -47,8 +47,8 @@ type BossConfig = {
   contactDamage: number;
 };
 
-const WORLD_WIDTH = 4200;
-const WORLD_HEIGHT = 2400;
+const WORLD_WIDTH = 3600;
+const WORLD_HEIGHT = 2100;
 const KILL_TARGET = 10;
 
 const JOYSTICK_MARGIN = 74;
@@ -58,7 +58,6 @@ const JOYSTICK_MAX_DISTANCE = 26;
 
 const FIRE_BUTTON_MARGIN_X = 82;
 const FIRE_BUTTON_MARGIN_Y = 82;
-const FIRE_BUTTON_RADIUS = 34;
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
@@ -209,7 +208,8 @@ export class GameScene extends Phaser.Scene {
 
   private joystickBase?: Phaser.GameObjects.Arc;
   private joystickThumb?: Phaser.GameObjects.Arc;
-  private fireButton?: Phaser.GameObjects.Container;
+  private fireButtonBase?: Phaser.GameObjects.Arc;
+  private fireButtonThumb?: Phaser.GameObjects.Arc;
 
   private weaponSprite?: Phaser.GameObjects.Image;
 
@@ -311,6 +311,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setData('aimAngle', angle);
     this.player.setFlipX(pointerX < this.player.x);
     this.updateWeaponSprite(angle);
+    this.applyMovementLean();
 
     this.enemies.getChildren().forEach((enemyObject) => {
       const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
@@ -749,7 +750,7 @@ export class GameScene extends Phaser.Scene {
     const screenH = this.scale.height || 900;
     const isSmallScreen = screenW < 900 || screenH < 600;
 
-    this.cameras.main.setZoom(isSmallScreen ? 0.94 : 1.0);
+    this.cameras.main.setZoom(isSmallScreen ? 0.9 : 0.96);
 
     return true;
   }
@@ -815,7 +816,7 @@ export class GameScene extends Phaser.Scene {
 
     this.weaponSprite = this.add.image(this.player.x, this.player.y, weaponKey);
     this.weaponSprite.setDepth(12);
-    this.weaponSprite.setOrigin(0.2, 0.5);
+    this.weaponSprite.setOrigin(0.25, 0.5);
 
     const size = this.weaponConfig.weaponScale ?? { width: 40, height: 18 };
     this.weaponSprite.setDisplaySize(size.width, size.height);
@@ -824,7 +825,7 @@ export class GameScene extends Phaser.Scene {
   private updateWeaponSprite(angle: number) {
     if (!this.weaponSprite || !this.player?.active) return;
 
-    const handDistance = 18;
+    const handDistance = 14;
     const x = this.player.x + Math.cos(angle) * handDistance;
     const y = this.player.y + Math.sin(angle) * handDistance;
 
@@ -833,12 +834,24 @@ export class GameScene extends Phaser.Scene {
 
     const facingLeft = Math.cos(angle) < 0;
     this.weaponSprite.setFlipY(facingLeft);
+    this.weaponSprite.setDepth(facingLeft ? 9 : 12);
+  }
 
-    if (facingLeft) {
-      this.weaponSprite.setDepth(9);
-    } else {
-      this.weaponSprite.setDepth(12);
+  private applyMovementLean() {
+    const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+    if (!body) return;
+
+    const vx = body.velocity.x;
+    const vy = body.velocity.y;
+    const speed = Math.sqrt(vx * vx + vy * vy);
+
+    if (speed < 8) {
+      this.player.setRotation(0);
+      return;
     }
+
+    const lean = Phaser.Math.Clamp(vx / this.playerSpeed, -1, 1) * 0.08;
+    this.player.setRotation(lean);
   }
 
   private registerCollisions() {
@@ -916,55 +929,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTouchControls() {
+    const joyX = JOYSTICK_MARGIN;
+    const joyY = this.scale.height - JOYSTICK_MARGIN;
+    const fireX = this.scale.width - FIRE_BUTTON_MARGIN_X;
+    const fireY = this.scale.height - FIRE_BUTTON_MARGIN_Y;
+
     this.joystickBase = this.add
-      .circle(
-        JOYSTICK_MARGIN,
-        this.scale.height - JOYSTICK_MARGIN,
-        JOYSTICK_RADIUS,
-        0x000000,
-        0.34
-      )
+      .circle(joyX, joyY, JOYSTICK_RADIUS, 0x000000, 0.34)
       .setStrokeStyle(2, 0xffffff, 0.28)
       .setScrollFactor(0)
       .setDepth(1200)
       .setVisible(true);
 
     this.joystickThumb = this.add
-      .circle(
-        JOYSTICK_MARGIN,
-        this.scale.height - JOYSTICK_MARGIN,
-        JOYSTICK_THUMB_RADIUS,
-        0xffffff,
-        0.5
-      )
+      .circle(joyX, joyY, JOYSTICK_THUMB_RADIUS, 0xffffff, 0.5)
       .setScrollFactor(0)
       .setDepth(1201)
       .setVisible(true);
 
-    const fireBg = this.add
-      .circle(
-        this.scale.width - FIRE_BUTTON_MARGIN_X,
-        this.scale.height - FIRE_BUTTON_MARGIN_Y,
-        FIRE_BUTTON_RADIUS,
-        0x8b0000,
-        0.44
-      )
-      .setStrokeStyle(2, 0xffd27a, 0.6);
-
-    const fireCore = this.add.circle(
-      this.scale.width - FIRE_BUTTON_MARGIN_X,
-      this.scale.height - FIRE_BUTTON_MARGIN_Y,
-      16,
-      0xff6b35,
-      0.95
-    );
-
-    this.fireButton = this.add
-      .container(0, 0, [fireBg, fireCore])
+    this.fireButtonBase = this.add
+      .circle(fireX, fireY, JOYSTICK_RADIUS, 0x000000, 0.34)
+      .setStrokeStyle(2, 0xffffff, 0.28)
       .setScrollFactor(0)
       .setDepth(1200)
-      .setVisible(true)
-      .setAlpha(0.95);
+      .setVisible(true);
+
+    this.fireButtonThumb = this.add
+      .circle(fireX, fireY, JOYSTICK_THUMB_RADIUS, 0xffffff, 0.5)
+      .setScrollFactor(0)
+      .setDepth(1201)
+      .setVisible(true);
   }
 
   private handleResize(gameSize: Phaser.Structs.Size) {
@@ -983,8 +977,12 @@ export class GameScene extends Phaser.Scene {
       this.joystickThumb.setPosition(JOYSTICK_MARGIN, height - JOYSTICK_MARGIN);
     }
 
-    if (this.fireButton) {
-      this.fireButton.setPosition(width - FIRE_BUTTON_MARGIN_X, height - FIRE_BUTTON_MARGIN_Y);
+    if (this.fireButtonBase) {
+      this.fireButtonBase.setPosition(width - FIRE_BUTTON_MARGIN_X, height - FIRE_BUTTON_MARGIN_Y);
+    }
+
+    if (this.fireButtonThumb) {
+      this.fireButtonThumb.setPosition(width - FIRE_BUTTON_MARGIN_X, height - FIRE_BUTTON_MARGIN_Y);
     }
   }
 
@@ -1034,7 +1032,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetJoystickVisual() {
-    if (!this.joystickBase || !this.joystickThumb) return;
+    if (!this.joystickThumb) return;
     this.joystickThumb.setPosition(JOYSTICK_MARGIN, this.scale.height - JOYSTICK_MARGIN);
   }
 
@@ -1044,13 +1042,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showFireButtonPressed(isPressed: boolean) {
-    if (!this.fireButton) return;
-    this.fireButton.setScale(isPressed ? 0.9 : 1);
-    this.fireButton.setAlpha(isPressed ? 1 : 0.95);
+    if (!this.fireButtonThumb || !this.fireButtonBase) return;
+
+    const scale = isPressed ? 0.9 : 1;
+    this.fireButtonBase.setScale(scale);
+    this.fireButtonThumb.setScale(scale);
+    this.fireButtonThumb.setAlpha(isPressed ? 0.7 : 0.5);
   }
 
   private getMuzzlePosition(angle: number) {
-    const muzzleDistance = 44;
+    const muzzleDistance = 40;
 
     return {
       x: this.player.x + Math.cos(angle) * muzzleDistance,
@@ -1515,5 +1516,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer?.remove(false);
     this.scale.off('resize', this.handleResize, this);
     this.weaponSprite?.destroy();
+    this.fireButtonBase?.destroy();
+    this.fireButtonThumb?.destroy();
   }
-                     }
+}
