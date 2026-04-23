@@ -46,6 +46,10 @@ type BossConfig = {
   contactDamage: number;
 };
 
+const WORLD_WIDTH = 2400;
+const WORLD_HEIGHT = 1800;
+const KILL_TARGET = 10;
+
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
     projectileKey: 'bullet',
@@ -153,12 +157,13 @@ export class GameScene extends Phaser.Scene {
   abilityKey?: Phaser.Input.Keyboard.Key;
   projectiles!: Phaser.Physics.Arcade.Group;
   enemies!: Phaser.Physics.Arcade.Group;
+
   lastShotTime = 0;
   kills = 0;
   health = 100;
   maxHealth = 100;
   playerSpeed = 200;
-  killTarget = 10;
+  killTarget = KILL_TARGET;
   spawnTimer?: Phaser.Time.TimerEvent;
   isFinishing = false;
   runData!: CurrentRunPayload;
@@ -177,13 +182,24 @@ export class GameScene extends Phaser.Scene {
   private bossSpawned = false;
   private bossDefeated = false;
 
+  private isTouchDevice = false;
+  private movePointerId: number | null = null;
+  private aimPointerId: number | null = null;
+  private moveVector = new Phaser.Math.Vector2(0, 0);
+  private aimWorldPoint = new Phaser.Math.Vector2(0, 0);
+  private wantsToShoot = false;
+
+  private joystickBase?: Phaser.GameObjects.Arc;
+  private joystickThumb?: Phaser.GameObjects.Arc;
+  private fireButton?: Phaser.GameObjects.Container;
+
   constructor() {
     super({ key: 'GameScene' });
   }
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a1a');
-    this.physics.world.setBounds(0, 0, 1600, 1200);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.createHud();
 
     const storedRun = sessionStorage.getItem('currentRun');
@@ -229,10 +245,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.createGroups()) return;
 
     this.registerCollisions();
-
-    this.input.on('pointerdown', () => {
-      void this.shoot();
-    });
+    this.setupPointerControls();
+    this.createTouchControls();
 
     this.spawnTimer = this.time.addEvent({
       delay: 1400,
@@ -241,9 +255,11 @@ export class GameScene extends Phaser.Scene {
       loop: true
     });
 
+    this.aimWorldPoint.set(this.player.x + 100, this.player.y);
     this.updateHud();
     this.emitKillsUpdate();
 
+    this.scale.on('resize', this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanup, this);
   }
@@ -256,12 +272,24 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateAbilityState();
-    this.player.updateMovement(this.cursors, this.wasd, this.playerSpeed);
 
-    const pointerX = this.input.activePointer.worldX;
-    const pointerY = this.input.activePointer.worldY;
+    if (this.isTouchDevice) {
+      this.updateTouchMovement();
+      if (this.wantsToShoot) {
+        void this.shoot();
+      }
+    } else {
+      this.player.updateMovement(this.cursors, this.wasd, this.playerSpeed);
+    }
+
+    const pointerX = this.isTouchDevice
+      ? this.aimWorldPoint.x
+      : this.input.activePointer.worldX;
+    const pointerY = this.isTouchDevice
+      ? this.aimWorldPoint.y
+      : this.input.activePointer.worldY;
+
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointerX, pointerY);
-
     this.player.setData('aimAngle', angle);
     this.player.setFlipX(pointerX < this.player.x);
 
@@ -284,7 +312,7 @@ export class GameScene extends Phaser.Scene {
         Math.ceil((this.abilityCooldownMs - (this.time.now - this.lastAbilityUseTime)) / 1000)
       );
       this.debugText.setText(
-        `Enemies: ${this.enemies.countActive(true)} | Bullets: ${this.projectiles.countActive(true)} | Ability: ${remainingCd}s`
+        `Enemies: ${this.enemies.countActive(true)} | Bullets: ${this.projectiles.countActive(true)} | Ability: ${remainingCd}s | Touch: ${this.isTouchDevice ? 'ON' : 'OFF'}`
       );
     }
 
@@ -394,10 +422,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     const edges = [
-      { x: Phaser.Math.Between(0, 1600), y: -40 },
-      { x: Phaser.Math.Between(0, 1600), y: 1240 },
-      { x: -40, y: Phaser.Math.Between(0, 1200) },
-      { x: 1640, y: Phaser.Math.Between(0, 1200) }
+      { x: Phaser.Math.Between(0, WORLD_WIDTH), y: -40 },
+      { x: Phaser.Math.Between(0, WORLD_WIDTH), y: WORLD_HEIGHT + 40 },
+      { x: -40, y: Phaser.Math.Between(0, WORLD_HEIGHT) },
+      { x: WORLD_WIDTH + 40, y: Phaser.Math.Between(0, WORLD_HEIGHT) }
     ];
 
     const spawn = Phaser.Utils.Array.GetRandom(edges);
@@ -439,7 +467,7 @@ export class GameScene extends Phaser.Scene {
 
     this.bossSpawned = true;
 
-    const spawn = { x: 800, y: -120 };
+    const spawn = { x: WORLD_WIDTH / 2, y: -120 };
     const enemy = this.enemies.create(spawn.x, spawn.y, boss.key) as Phaser.Physics.Arcade.Sprite;
 
     if (!enemy) return;
@@ -655,15 +683,18 @@ export class GameScene extends Phaser.Scene {
 
   private createBackground() {
     if (this.textures.exists('background')) {
-      const background = this.add.image(800, 600, 'background');
-      background.setDisplaySize(1600, 1200);
+      const background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'background');
+      background.setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
       background.setScrollFactor(1);
       background.setDepth(0);
       return;
     }
 
     console.error('[GameScene] Missing background texture');
-    this.add.rectangle(800, 600, 1600, 1200, 0x1a1a1a).setOrigin(0.5).setDepth(0);
+    this.add
+      .rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0x1a1a1a)
+      .setOrigin(0.5)
+      .setDepth(0);
   }
 
   private createPlayer(scale: number): boolean {
@@ -680,15 +711,15 @@ export class GameScene extends Phaser.Scene {
       return false;
     }
 
-    this.player = new PigPlayer(this, 800, 600, characterKey);
+    this.player = new PigPlayer(this, WORLD_WIDTH / 2, WORLD_HEIGHT / 2, characterKey);
     this.player.setDisplaySize(scale, scale);
     this.player.setDepth(10);
     this.player.setCollideWorldBounds(true);
     this.player.setMoveSpeed(this.playerSpeed);
 
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setBounds(0, 0, 1600, 1200);
-    this.cameras.main.setZoom(1);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.cameras.main.setRoundPixels(false);
 
     return true;
   }
@@ -759,6 +790,176 @@ export class GameScene extends Phaser.Scene {
       undefined,
       this
     );
+  }
+
+  private setupPointerControls() {
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.isTouchDevice = this.input.pointer1.isDown || this.input.pointer2.isDown || pointer.wasTouch;
+
+      const isLeftSide = pointer.x < this.scale.width * 0.45;
+
+      if (pointer.wasTouch && isLeftSide && this.movePointerId === null) {
+        this.movePointerId = pointer.id;
+        this.updateMoveVectorFromPointer(pointer);
+        this.updateJoystickVisual(pointer.x, pointer.y);
+        return;
+      }
+
+      if (pointer.wasTouch) {
+        this.aimPointerId = pointer.id;
+        this.wantsToShoot = true;
+        this.setAimFromPointer(pointer);
+        return;
+      }
+
+      void this.shoot();
+    });
+
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.movePointerId === pointer.id) {
+        this.updateMoveVectorFromPointer(pointer);
+        this.updateJoystickVisual(pointer.x, pointer.y);
+      }
+
+      if (this.aimPointerId === pointer.id) {
+        this.setAimFromPointer(pointer);
+      }
+    });
+
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (this.movePointerId === pointer.id) {
+        this.movePointerId = null;
+        this.moveVector.set(0, 0);
+        this.resetJoystickVisual();
+      }
+
+      if (this.aimPointerId === pointer.id) {
+        this.aimPointerId = null;
+        this.wantsToShoot = false;
+      }
+    });
+  }
+
+  private createTouchControls() {
+    this.joystickBase = this.add
+      .circle(92, this.scale.height - 92, 54, 0x000000, 0.28)
+      .setScrollFactor(0)
+      .setDepth(1200)
+      .setVisible(false);
+
+    this.joystickThumb = this.add
+      .circle(92, this.scale.height - 92, 24, 0xffffff, 0.3)
+      .setScrollFactor(0)
+      .setDepth(1201)
+      .setVisible(false);
+
+    const fireBg = this.add.circle(this.scale.width - 90, this.scale.height - 90, 48, 0x8b0000, 0.32);
+    const fireCore = this.add.circle(this.scale.width - 90, this.scale.height - 90, 24, 0xff6b35, 0.7);
+    const fireLabel = this.add
+      .text(this.scale.width - 90, this.scale.height - 90, 'FIRE', {
+        fontSize: '16px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+
+    this.fireButton = this.add.container(0, 0, [fireBg, fireCore, fireLabel])
+      .setScrollFactor(0)
+      .setDepth(1200)
+      .setVisible(false);
+  }
+
+  private handleResize(gameSize: Phaser.Structs.Size) {
+    const width = gameSize.width;
+    const height = gameSize.height;
+
+    if (this.missionText) {
+      this.missionText.setPosition(width / 2, 70);
+    }
+
+    if (this.joystickBase) {
+      this.joystickBase.setPosition(92, height - 92);
+    }
+
+    if (this.joystickThumb) {
+      this.joystickThumb.setPosition(92, height - 92);
+    }
+
+    if (this.fireButton) {
+      this.fireButton.setPosition(width - 90, height - 90);
+    }
+  }
+
+  private updateTouchMovement() {
+    const vx = this.moveVector.x * this.playerSpeed;
+    const vy = this.moveVector.y * this.playerSpeed;
+    this.player.setVelocity(vx, vy);
+  }
+
+  private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
+    const baseX = 92;
+    const baseY = this.scale.height - 92;
+    const dx = pointer.x - baseX;
+    const dy = pointer.y - baseY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const maxDistance = 44;
+
+    if (distance <= 0.0001) {
+      this.moveVector.set(0, 0);
+      return;
+    }
+
+    const clampedDistance = Math.min(distance, maxDistance);
+    this.moveVector.set((dx / distance) * (clampedDistance / maxDistance), (dy / distance) * (clampedDistance / maxDistance));
+  }
+
+  private updateJoystickVisual(pointerX: number, pointerY: number) {
+    if (!this.joystickBase || !this.joystickThumb) return;
+
+    const baseX = 92;
+    const baseY = this.scale.height - 92;
+    const dx = pointerX - baseX;
+    const dy = pointerY - baseY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const maxDistance = 44;
+
+    let thumbX = baseX;
+    let thumbY = baseY;
+
+    if (distance > 0) {
+      const clamped = Math.min(distance, maxDistance);
+      thumbX = baseX + (dx / distance) * clamped;
+      thumbY = baseY + (dy / distance) * clamped;
+    }
+
+    this.joystickBase.setVisible(true);
+    this.joystickThumb.setVisible(true);
+    this.joystickThumb.setPosition(thumbX, thumbY);
+
+    if (this.fireButton) {
+      this.fireButton.setVisible(true);
+    }
+  }
+
+  private resetJoystickVisual() {
+    if (!this.joystickBase || !this.joystickThumb) return;
+
+    this.joystickThumb.setPosition(92, this.scale.height - 92);
+    this.joystickBase.setVisible(false);
+    this.joystickThumb.setVisible(false);
+
+    if (!this.wantsToShoot && this.fireButton) {
+      this.fireButton.setVisible(false);
+    }
+  }
+
+  private setAimFromPointer(pointer: Phaser.Input.Pointer) {
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    this.aimWorldPoint.set(worldPoint.x, worldPoint.y);
+
+    if (this.fireButton) {
+      this.fireButton.setVisible(true);
+    }
   }
 
   private pickEnemyKey(): string {
@@ -1208,6 +1409,9 @@ export class GameScene extends Phaser.Scene {
 
   private cleanup() {
     this.input.off('pointerdown');
+    this.input.off('pointermove');
+    this.input.off('pointerup');
     this.spawnTimer?.remove(false);
+    this.scale.off('resize', this.handleResize, this);
   }
-  }
+      }
