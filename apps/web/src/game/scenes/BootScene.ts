@@ -50,7 +50,6 @@ const IMAGE_ASSETS: AssetDef[] = [
   { key: 'class_demolition', path: 'assets/sprites/Demolition.png' },
   { key: 'class_elite', path: 'assets/sprites/Elite.png' },
 
-  // fallback aliases used elsewhere in the game
   { key: 'player', path: 'assets/sprites/Grunt-Bacon.png' },
   { key: 'enemy', path: 'assets/sprites/Wolf-Conscript.png' },
   { key: 'boss', path: 'assets/sprites/Wolfgang-the-Ravager.png' }
@@ -108,7 +107,9 @@ export class BootScene extends Phaser.Scene {
     this.load.on('complete', () => {
       if (this.failedAssets.length > 0) {
         console.error('[BootScene] Failed assets:', this.failedAssets);
-        statusText.setText(`Missing assets: ${this.failedAssets.length}. Check /public/assets/sprites.`);
+        statusText.setText(
+          `Missing assets: ${this.failedAssets.length}. Check /public/assets/sprites.`
+        );
         statusText.setColor('#ff4d4f');
       } else {
         statusText.setText('Load complete');
