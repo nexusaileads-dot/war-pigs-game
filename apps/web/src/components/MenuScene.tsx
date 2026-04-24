@@ -66,7 +66,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column'
         }}
       >
-        {/* Background */}
         <img
           src={`${HOME}/main-background.png`}
           alt=""
@@ -76,13 +75,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             inset: 0,
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
-            objectPosition: 'center top',
+            objectFit: 'cover',
+            objectPosition: 'center center',
             display: 'block',
             pointerEvents: 'none',
             userSelect: 'none'
           }}
         />
+
         <div
           style={{
             position: 'absolute',
@@ -111,13 +111,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             minHeight: 0
           }}
         >
-          {/* Top-left branding & reward */}
           <div
             style={{
               position: 'absolute',
               top: 10,
               left: 12,
-              width: 120,
+              width: 118,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start',
@@ -135,6 +134,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 objectFit: 'contain'
               }}
             />
+
             <img
               src={`${BRANDING}/subtitle-banner.png`}
               alt="Tactical Swine Warfare"
@@ -144,21 +144,34 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                marginTop: 4
+                marginTop: '-20px'
               }}
             />
 
             <div
               style={{
                 width: 104,
-                marginTop: 8,
+                marginTop: 6,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch'
               }}
             >
+              <img
+                src={`${REWARD}/reward-chest.png`}
+                alt="Daily reward"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+
               <div
                 style={{
+                  marginTop: '-10px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 3,
@@ -166,8 +179,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   color: '#f7ecd0',
                   fontSize: 8,
                   fontWeight: 800,
-                  lineHeight: 1,
-                  marginBottom: 4
+                  lineHeight: 1
                 }}
               >
                 <img
@@ -184,22 +196,10 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 <span>23:59:12</span>
               </div>
 
-              <img
-                src={`${REWARD}/reward-chest.png`}
-                alt="Daily reward"
-                draggable={false}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  objectFit: 'contain'
-                }}
-              />
-
               <button
                 type="button"
                 style={{
-                  marginTop: 4,
+                  marginTop: '-4px',
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
@@ -226,7 +226,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
           <div style={{ flex: 1, minHeight: 0 }} />
 
-          {/* Bottom stack: Play Mission → Cards → Nav (ZERO GAP) */}
           <div
             style={{
               width: '100%',
@@ -238,7 +237,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               zIndex: 2
             }}
           >
-            {/* Play Mission */}
             <button
               type="button"
               onClick={() => handleNavigate('CHAR_SELECT')}
@@ -267,7 +265,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Cards — directly under Play Mission, absolutely no gap */}
             <div
               style={{
                 width: '100%',
@@ -276,7 +273,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
                 gap: 4,
                 alignItems: 'end',
-                margin: 0,
+                marginTop: '-2px',
                 lineHeight: 0
               }}
             >
@@ -560,7 +557,8 @@ const BottomNav: React.FC<{
         position: 'relative',
         zIndex: 4,
         flexShrink: 0,
-        lineHeight: 0
+        lineHeight: 0,
+        marginTop: '-2px'
       }}
     >
       <img
