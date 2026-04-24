@@ -51,17 +51,17 @@ const WORLD_WIDTH = 3600;
 const WORLD_HEIGHT = 2100;
 const KILL_TARGET = 10;
 
-const JOYSTICK_MARGIN = 74;
-const JOYSTICK_RADIUS = 32;
-const JOYSTICK_THUMB_RADIUS = 14;
-const JOYSTICK_MAX_DISTANCE = 26;
+const MOVE_STICK_MARGIN = 74;
+const MOVE_STICK_BASE_RADIUS = 36;
+const MOVE_STICK_THUMB_RADIUS = 10;
+const MOVE_STICK_MAX_DISTANCE = 22;
 
-const FIRE_BUTTON_MARGIN_X = 82;
-const FIRE_BUTTON_MARGIN_Y = 82;
-const FIRE_JOYSTICK_RADIUS = 32;
-const FIRE_JOYSTICK_THUMB_RADIUS = 14;
-const FIRE_JOYSTICK_MAX_DISTANCE = 26;
-const FIRE_DEADZONE = 0.18;
+const FIRE_STICK_MARGIN_X = 82;
+const FIRE_STICK_MARGIN_Y = 82;
+const FIRE_STICK_BASE_RADIUS = 36;
+const FIRE_STICK_THUMB_RADIUS = 10;
+const FIRE_STICK_MAX_DISTANCE = 22;
+const FIRE_DEADZONE = 0.35;
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
@@ -308,6 +308,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isTouchDevice) {
       this.updateTouchMovement();
       this.updateTouchAim();
+
       if (this.wantsToShoot) {
         void this.shoot();
       }
@@ -325,6 +326,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player.setData('aimAngle', angle);
     this.player.setFlipX(this.aimWorldPoint.x < this.player.x);
+
     this.updateWeaponSprite(angle);
     this.applyMovementLean();
 
@@ -899,14 +901,12 @@ export class GameScene extends Phaser.Scene {
         this.movePointerId = pointer.id;
         this.updateMoveVectorFromPointer(pointer);
         this.updateJoystickVisual(pointer.x, pointer.y);
-        return;
       }
 
       if (pointer.wasTouch && fireZone && this.aimPointerId === null) {
         this.aimPointerId = pointer.id;
         this.updateFireVectorFromPointer(pointer);
         this.updateFireJoystickVisual(pointer.x, pointer.y);
-        return;
       }
 
       if (!pointer.wasTouch) {
@@ -936,6 +936,7 @@ export class GameScene extends Phaser.Scene {
 
       if (this.aimPointerId === pointer.id) {
         this.aimPointerId = null;
+        this.fireVector.set(0, 0);
         this.wantsToShoot = false;
         this.resetFireJoystickVisual();
       }
@@ -943,40 +944,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTouchControls() {
-    const joyX = JOYSTICK_MARGIN;
-    const joyY = this.scale.height - JOYSTICK_MARGIN;
-    const fireX = this.scale.width - FIRE_BUTTON_MARGIN_X;
-    const fireY = this.scale.height - FIRE_BUTTON_MARGIN_Y;
+    const joyX = MOVE_STICK_MARGIN;
+    const joyY = this.scale.height - MOVE_STICK_MARGIN;
+    const fireX = this.scale.width - FIRE_STICK_MARGIN_X;
+    const fireY = this.scale.height - FIRE_STICK_MARGIN_Y;
 
     this.joystickBase = this.add
-      .circle(joyX, joyY, JOYSTICK_RADIUS, 0x000000, 0.34)
+      .circle(joyX, joyY, MOVE_STICK_BASE_RADIUS, 0x000000, 0.34)
       .setStrokeStyle(2, 0xffffff, 0.28)
       .setScrollFactor(0)
       .setDepth(1200)
       .setVisible(true);
 
     this.joystickThumb = this.add
-      .circle(joyX, joyY, JOYSTICK_THUMB_RADIUS, 0xffffff, 0.5)
+      .circle(joyX, joyY, MOVE_STICK_THUMB_RADIUS, 0xffffff, 0.58)
       .setScrollFactor(0)
       .setDepth(1201)
       .setVisible(true);
 
     this.fireButtonBase = this.add
-      .circle(fireX, fireY, FIRE_JOYSTICK_RADIUS, 0x4a0000, 0.78)
+      .circle(fireX, fireY, FIRE_STICK_BASE_RADIUS, 0x4a0000, 0.78)
       .setStrokeStyle(3, 0xffb347, 0.95)
       .setScrollFactor(0)
       .setDepth(1200)
       .setVisible(true);
 
     this.fireButtonRing = this.add
-      .circle(fireX, fireY, FIRE_JOYSTICK_RADIUS - 8, 0x000000, 0)
+      .circle(fireX, fireY, FIRE_STICK_BASE_RADIUS - 8, 0x000000, 0)
       .setStrokeStyle(2, 0xff6b35, 0.9)
       .setScrollFactor(0)
       .setDepth(1201)
       .setVisible(true);
 
     this.fireButtonThumb = this.add
-      .circle(fireX, fireY, FIRE_JOYSTICK_THUMB_RADIUS, 0xff6b35, 1)
+      .circle(fireX, fireY, FIRE_STICK_THUMB_RADIUS, 0xff6b35, 1)
       .setStrokeStyle(2, 0xffffff, 0.85)
       .setScrollFactor(0)
       .setDepth(1202)
@@ -992,15 +993,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.joystickBase) {
-      this.joystickBase.setPosition(JOYSTICK_MARGIN, height - JOYSTICK_MARGIN);
+      this.joystickBase.setPosition(MOVE_STICK_MARGIN, height - MOVE_STICK_MARGIN);
     }
 
     if (this.joystickThumb) {
-      this.joystickThumb.setPosition(JOYSTICK_MARGIN, height - JOYSTICK_MARGIN);
+      this.joystickThumb.setPosition(MOVE_STICK_MARGIN, height - MOVE_STICK_MARGIN);
     }
 
-    const fireX = width - FIRE_BUTTON_MARGIN_X;
-    const fireY = height - FIRE_BUTTON_MARGIN_Y;
+    const fireX = width - FIRE_STICK_MARGIN_X;
+    const fireY = height - FIRE_STICK_MARGIN_Y;
 
     if (this.fireButtonBase) {
       this.fireButtonBase.setPosition(fireX, fireY);
@@ -1028,15 +1029,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.wantsToShoot = true;
+
+    const normalized = this.fireVector.clone().normalize();
     this.aimWorldPoint.set(
-      this.player.x + this.fireVector.x * 300,
-      this.player.y + this.fireVector.y * 300
+      this.player.x + normalized.x * 300,
+      this.player.y + normalized.y * 300
     );
   }
 
   private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
-    const baseX = JOYSTICK_MARGIN;
-    const baseY = this.scale.height - JOYSTICK_MARGIN;
+    const baseX = MOVE_STICK_MARGIN;
+    const baseY = this.scale.height - MOVE_STICK_MARGIN;
     const dx = pointer.x - baseX;
     const dy = pointer.y - baseY;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1047,38 +1050,38 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const clampedDistance = Math.min(distance, JOYSTICK_MAX_DISTANCE);
+    const clampedDistance = Math.min(distance, MOVE_STICK_MAX_DISTANCE);
     this.moveVector.set(
-      (dx / distance) * (clampedDistance / JOYSTICK_MAX_DISTANCE),
-      (dy / distance) * (clampedDistance / JOYSTICK_MAX_DISTANCE)
+      (dx / distance) * (clampedDistance / MOVE_STICK_MAX_DISTANCE),
+      (dy / distance) * (clampedDistance / MOVE_STICK_MAX_DISTANCE)
     );
   }
 
   private updateFireVectorFromPointer(pointer: Phaser.Input.Pointer) {
-    const baseX = this.scale.width - FIRE_BUTTON_MARGIN_X;
-    const baseY = this.scale.height - FIRE_BUTTON_MARGIN_Y;
+    const baseX = this.scale.width - FIRE_STICK_MARGIN_X;
+    const baseY = this.scale.height - FIRE_STICK_MARGIN_Y;
     const dx = pointer.x - baseX;
     const dy = pointer.y - baseY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     if (distance <= 0.0001) {
-      this.fireVector.set(1, 0);
+      this.fireVector.set(0, 0);
       this.wantsToShoot = false;
       return;
     }
 
-    const clampedDistance = Math.min(distance, FIRE_JOYSTICK_MAX_DISTANCE);
+    const clampedDistance = Math.min(distance, FIRE_STICK_MAX_DISTANCE);
     this.fireVector.set(
-      (dx / distance) * (clampedDistance / FIRE_JOYSTICK_MAX_DISTANCE),
-      (dy / distance) * (clampedDistance / FIRE_JOYSTICK_MAX_DISTANCE)
+      (dx / distance) * (clampedDistance / FIRE_STICK_MAX_DISTANCE),
+      (dy / distance) * (clampedDistance / FIRE_STICK_MAX_DISTANCE)
     );
   }
 
   private updateJoystickVisual(pointerX: number, pointerY: number) {
     if (!this.joystickThumb) return;
 
-    const baseX = JOYSTICK_MARGIN;
-    const baseY = this.scale.height - JOYSTICK_MARGIN;
+    const baseX = MOVE_STICK_MARGIN;
+    const baseY = this.scale.height - MOVE_STICK_MARGIN;
     const dx = pointerX - baseX;
     const dy = pointerY - baseY;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1087,7 +1090,7 @@ export class GameScene extends Phaser.Scene {
     let thumbY = baseY;
 
     if (distance > 0) {
-      const clamped = Math.min(distance, JOYSTICK_MAX_DISTANCE);
+      const clamped = Math.min(distance, MOVE_STICK_MAX_DISTANCE);
       thumbX = baseX + (dx / distance) * clamped;
       thumbY = baseY + (dy / distance) * clamped;
     }
@@ -1098,8 +1101,8 @@ export class GameScene extends Phaser.Scene {
   private updateFireJoystickVisual(pointerX: number, pointerY: number) {
     if (!this.fireButtonThumb) return;
 
-    const baseX = this.scale.width - FIRE_BUTTON_MARGIN_X;
-    const baseY = this.scale.height - FIRE_BUTTON_MARGIN_Y;
+    const baseX = this.scale.width - FIRE_STICK_MARGIN_X;
+    const baseY = this.scale.height - FIRE_STICK_MARGIN_Y;
     const dx = pointerX - baseX;
     const dy = pointerY - baseY;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1108,7 +1111,7 @@ export class GameScene extends Phaser.Scene {
     let thumbY = baseY;
 
     if (distance > 0) {
-      const clamped = Math.min(distance, FIRE_JOYSTICK_MAX_DISTANCE);
+      const clamped = Math.min(distance, FIRE_STICK_MAX_DISTANCE);
       thumbX = baseX + (dx / distance) * clamped;
       thumbY = baseY + (dy / distance) * clamped;
     }
@@ -1118,14 +1121,14 @@ export class GameScene extends Phaser.Scene {
 
   private resetJoystickVisual() {
     if (!this.joystickThumb) return;
-    this.joystickThumb.setPosition(JOYSTICK_MARGIN, this.scale.height - JOYSTICK_MARGIN);
+    this.joystickThumb.setPosition(MOVE_STICK_MARGIN, this.scale.height - MOVE_STICK_MARGIN);
   }
 
   private resetFireJoystickVisual() {
     if (!this.fireButtonThumb) return;
     this.fireButtonThumb.setPosition(
-      this.scale.width - FIRE_BUTTON_MARGIN_X,
-      this.scale.height - FIRE_BUTTON_MARGIN_Y
+      this.scale.width - FIRE_STICK_MARGIN_X,
+      this.scale.height - FIRE_STICK_MARGIN_Y
     );
   }
 
