@@ -43,36 +43,26 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
         minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
-        background: '#050505',
-        color: '#fff'
+        background: '#040404'
       }}
     >
       <div
         style={{
           width: '100%',
           maxWidth: '430px',
+          height: '100dvh',
           minHeight: '100vh',
+          position: 'relative',
+          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#0a0a0a',
-          backgroundImage: `url(${HOME_ASSET}/main-background.png)`,
+          backgroundColor: '#090909',
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,0.12)), url(${HOME_ASSET}/main-background.png)`,
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center top',
-          backgroundSize: 'cover',
-          position: 'relative',
-          overflow: 'hidden'
+          backgroundSize: '100% 100%'
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.10) 18%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.16) 72%, rgba(0,0,0,0.22) 100%)',
-            pointerEvents: 'none'
-          }}
-        />
-
         <TopBar
           level={level}
           xp={xp}
@@ -85,16 +75,17 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             position: 'relative',
             zIndex: 1,
             flex: 1,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            padding: '8px 10px 0'
+            padding: '6px 10px 0'
           }}
         >
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '124px 1fr',
-              gap: '8px',
+              gridTemplateColumns: '112px 1fr',
+              gap: '4px',
               alignItems: 'start'
             }}
           >
@@ -103,8 +94,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'flex-start',
-                gap: '6px',
-                marginTop: '2px'
+                gap: '2px'
               }}
             >
               <img
@@ -113,7 +103,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 draggable={false}
                 style={{
                   width: '100%',
-                  maxWidth: '116px',
+                  maxWidth: '104px',
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain'
@@ -126,7 +116,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 draggable={false}
                 style={{
                   width: '100%',
-                  maxWidth: '116px',
+                  maxWidth: '104px',
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain'
@@ -145,7 +135,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             style={{
               display: 'flex',
               justifyContent: 'center',
-              marginBottom: '8px'
+              marginBottom: '4px'
             }}
           >
             <button
@@ -157,7 +147,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 margin: 0,
                 cursor: 'pointer',
                 width: '100%',
-                maxWidth: '300px',
+                maxWidth: '286px',
                 position: 'relative',
                 display: 'block'
               }}
@@ -180,14 +170,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#f5efe0',
+                  color: '#f6f0df',
                   fontWeight: 900,
-                  fontSize: '24px',
-                  letterSpacing: '1px',
+                  fontSize: '23px',
+                  letterSpacing: '0.8px',
                   textShadow:
-                    '0 2px 0 rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.5)',
+                    '0 2px 0 rgba(0,0,0,0.88), 0 0 8px rgba(0,0,0,0.45)',
                   pointerEvents: 'none',
-                  transform: 'translateY(-1px)'
+                  transform: 'translateY(-2px)'
                 }}
               >
                 PLAY MISSION
@@ -199,8 +189,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '4px',
-              marginBottom: '2px'
+              gap: '3px',
+              marginBottom: '0'
             }}
           >
             <FeatureCard
@@ -251,18 +241,17 @@ const TopBar: React.FC<{
       style={{
         position: 'relative',
         zIndex: 2,
-        padding: '0',
         display: 'grid',
-        gridTemplateColumns: '1.58fr 1.12fr 0.56fr 0.56fr',
-        gap: '0',
-        minHeight: '78px'
+        gridTemplateColumns: '1.6fr 1.05fr 0.55fr 0.55fr',
+        minHeight: '76px',
+        borderBottom: '1px solid rgba(160,117,39,0.22)'
       }}
     >
       <div style={topCellStyle}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '48px 1fr',
+            gridTemplateColumns: '44px 1fr',
             gap: '8px',
             alignItems: 'center',
             height: '100%',
@@ -274,8 +263,8 @@ const TopBar: React.FC<{
             alt="Player rank"
             draggable={false}
             style={{
-              width: '46px',
-              height: '46px',
+              width: '42px',
+              height: '42px',
               objectFit: 'contain',
               display: 'block'
             }}
@@ -284,7 +273,7 @@ const TopBar: React.FC<{
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 900,
                 lineHeight: 1.05,
                 textTransform: 'uppercase',
@@ -302,7 +291,7 @@ const TopBar: React.FC<{
                 marginTop: '2px',
                 fontSize: '9px',
                 fontWeight: 800,
-                color: '#e2ded4',
+                color: '#e6e1d5',
                 textTransform: 'uppercase'
               }}
             >
@@ -313,9 +302,9 @@ const TopBar: React.FC<{
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr auto',
-                gap: '6px',
+                gap: '5px',
                 alignItems: 'center',
-                marginTop: '7px'
+                marginTop: '6px'
               }}
             >
               <div
@@ -323,15 +312,15 @@ const TopBar: React.FC<{
                   height: '8px',
                   borderRadius: '999px',
                   overflow: 'hidden',
-                  background: 'rgba(255,255,255,0.12)',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)'
+                  background: 'rgba(255,255,255,0.11)',
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05)'
                 }}
               >
                 <div
                   style={{
                     width: `${xpProgress}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, #ffb100 0%, #ff8200 100%)'
+                    background: 'linear-gradient(90deg, #ffb400 0%, #ff7c00 100%)'
                   }}
                 />
               </div>
@@ -356,7 +345,7 @@ const TopBar: React.FC<{
           style={{
             height: '100%',
             position: 'relative',
-            padding: '10px 8px',
+            padding: '9px 8px',
             display: 'flex',
             alignItems: 'center'
           }}
@@ -367,9 +356,9 @@ const TopBar: React.FC<{
             draggable={false}
             style={{
               position: 'absolute',
-              inset: '10px 8px',
+              inset: '9px 8px',
               width: 'calc(100% - 16px)',
-              height: 'calc(100% - 20px)',
+              height: 'calc(100% - 18px)',
               objectFit: 'fill',
               display: 'block'
             }}
@@ -383,24 +372,23 @@ const TopBar: React.FC<{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0 10px'
+              padding: '0 9px'
             }}
           >
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                minWidth: 0
+                gap: '7px'
               }}
             >
               <div
                 style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '26px',
+                  height: '26px',
                   borderRadius: '50%',
                   background:
-                    'radial-gradient(circle at 35% 35%, #ffd04f 0%, #ffab1f 58%, #914800 100%)',
+                    'radial-gradient(circle at 35% 35%, #ffd04f 0%, #ffac20 58%, #8f4900 100%)',
                   boxShadow: '0 0 0 1px rgba(255,255,255,0.12)'
                 }}
               />
@@ -408,8 +396,8 @@ const TopBar: React.FC<{
                 style={{
                   fontSize: '12px',
                   fontWeight: 900,
-                  color: '#fff0c8',
-                  letterSpacing: '0.4px'
+                  color: '#fff0c7',
+                  letterSpacing: '0.3px'
                 }}
               >
                 {currentPigs}
@@ -476,7 +464,7 @@ const IconPanel: React.FC<{
             minWidth: '16px',
             height: '16px',
             borderRadius: '999px',
-            background: '#d52f19',
+            background: '#d62f18',
             color: '#fff',
             fontSize: '9px',
             fontWeight: 900,
@@ -484,7 +472,7 @@ const IconPanel: React.FC<{
             alignItems: 'center',
             justifyContent: 'center',
             padding: '0 4px',
-            boxShadow: '0 0 0 2px rgba(0,0,0,0.45)'
+            boxShadow: '0 0 0 2px rgba(0,0,0,0.42)'
           }}
         >
           {badgeCount}
@@ -499,10 +487,10 @@ const DailyRewardCard: React.FC = () => {
     <div
       style={{
         width: '100%',
-        maxWidth: '104px',
+        maxWidth: '100px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px'
+        gap: '2px'
       }}
     >
       <img
@@ -521,7 +509,7 @@ const DailyRewardCard: React.FC = () => {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '3px',
           color: '#f2e7c4',
           fontSize: '8px',
           fontWeight: 800,
@@ -533,8 +521,8 @@ const DailyRewardCard: React.FC = () => {
           alt=""
           draggable={false}
           style={{
-            width: '11px',
-            height: '11px',
+            width: '10px',
+            height: '10px',
             objectFit: 'contain',
             display: 'block'
           }}
@@ -620,7 +608,7 @@ const BottomNav: React.FC<{
         style={{
           position: 'relative',
           width: '100%',
-          minHeight: '78px'
+          minHeight: '72px'
         }}
       >
         <img
@@ -644,7 +632,7 @@ const BottomNav: React.FC<{
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             alignItems: 'end',
-            padding: '8px 4px 4px'
+            padding: '6px 4px 2px'
           }}
         >
           <NavItem src={`${NAV_ASSET}/nav-home-active.png`} alt="Home" onClick={onHome} />
@@ -686,7 +674,7 @@ const NavItem: React.FC<{
         draggable={false}
         style={{
           width: '100%',
-          maxWidth: '72px',
+          maxWidth: '68px',
           height: 'auto',
           display: 'block',
           objectFit: 'contain'
@@ -697,9 +685,8 @@ const NavItem: React.FC<{
 };
 
 const topCellStyle: React.CSSProperties = {
-  minHeight: '78px',
+  minHeight: '76px',
   background: 'linear-gradient(180deg, rgba(18,18,18,0.96) 0%, rgba(10,10,10,0.95) 100%)',
-  borderRight: '1px solid rgba(158,116,38,0.28)',
-  borderBottom: '1px solid rgba(158,116,38,0.28)',
+  borderRight: '1px solid rgba(160,117,39,0.22)',
   boxSizing: 'border-box'
 };
