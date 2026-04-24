@@ -40,7 +40,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
     } catch (error) {
       console.error('[MenuScene] Haptic feedback failed:', error);
     }
-
     onNavigate(screen);
   };
 
@@ -144,8 +143,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 width: '100%',
                 height: 'auto',
                 display: 'block',
-                objectFit: 'contain',
-                marginTop: 4
+                objectFit: 'contain'
               }}
             />
 
@@ -158,7 +156,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 alignItems: 'stretch'
               }}
             >
-              {/* Timer above the chest */}
+              {/* Timer above chest */}
               <div
                 style={{
                   display: 'flex',
@@ -169,7 +167,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   fontSize: 8,
                   fontWeight: 800,
                   lineHeight: 1,
-                  marginBottom: 4
+                  marginBottom: 2
                 }}
               >
                 <img
@@ -198,16 +196,18 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 }}
               />
 
-              {/* Claim directly under the chest */}
+              {/* Claim directly under chest */}
               <button
                 type="button"
                 style={{
-                  marginTop: 4,
+                  marginTop: 0,
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
                   cursor: 'pointer',
-                  width: '100%'
+                  width: '100%',
+                  display: 'block',
+                  lineHeight: 0
                 }}
               >
                 <img
@@ -225,7 +225,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Bottom stack: CTA → Cards → Nav */}
+          {/* Bottom stack: CTA → Cards → Nav (ZERO GAP) */}
           <div
             style={{
               position: 'absolute',
@@ -237,74 +237,69 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               alignItems: 'center'
             }}
           >
+            {/* Play Mission */}
+            <button
+              type="button"
+              onClick={() => handleNavigate('CHAR_SELECT')}
+              style={{
+                width: '100%',
+                maxWidth: 304,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'block',
+                lineHeight: 0
+              }}
+            >
+              <img
+                src={`${CTA}/play-mission-button.png`}
+                alt="Play Mission"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+            </button>
+
+            {/* Cards grid — directly under button, no gap */}
             <div
               style={{
                 width: '100%',
                 padding: '0 10px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 4,
+                alignItems: 'end',
+                margin: 0
               }}
             >
-              <button
-                type="button"
+              <MenuCard
+                src={`${CARDS}/armory-card.png`}
+                alt="Armory"
+                onClick={() => handleNavigate('WEAPON_SELECT')}
+              />
+              <MenuCard
+                src={`${CARDS}/units-card.png`}
+                alt="Units"
                 onClick={() => handleNavigate('CHAR_SELECT')}
-                style={{
-                  width: '100%',
-                  maxWidth: 304,
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  display: 'block'
-                }}
-              >
-                <img
-                  src={`${CTA}/play-mission-button.png`}
-                  alt="Play Mission"
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    objectFit: 'contain'
-                  }}
-                />
-              </button>
-
-              <div
-                style={{
-                  width: '100%',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                  gap: 4,
-                  alignItems: 'end'
-                }}
-              >
-                <MenuCard
-                  src={`${CARDS}/armory-card.png`}
-                  alt="Armory"
-                  onClick={() => handleNavigate('WEAPON_SELECT')}
-                />
-                <MenuCard
-                  src={`${CARDS}/units-card.png`}
-                  alt="Units"
-                  onClick={() => handleNavigate('CHAR_SELECT')}
-                />
-                <MenuCard
-                  src={`${CARDS}/pvp-card.png`}
-                  alt="PVP"
-                  onClick={() => handleNavigate('PROFILE')}
-                />
-                <MenuCard
-                  src={`${CARDS}/shop-card.png`}
-                  alt="Shop"
-                  onClick={() => handleNavigate('SHOP')}
-                />
-              </div>
+              />
+              <MenuCard
+                src={`${CARDS}/pvp-card.png`}
+                alt="PVP"
+                onClick={() => handleNavigate('PROFILE')}
+              />
+              <MenuCard
+                src={`${CARDS}/shop-card.png`}
+                alt="Shop"
+                onClick={() => handleNavigate('SHOP')}
+              />
             </div>
 
+            {/* Nav — directly under cards, no gap */}
             <BottomNav
               onHome={() => handleNavigate('MENU')}
               onMissions={() => handleNavigate('LEVEL_SELECT')}
@@ -550,7 +545,8 @@ const MenuCard: React.FC<{
         border: 'none',
         background: 'transparent',
         cursor: 'pointer',
-        display: 'block'
+        display: 'block',
+        lineHeight: 0
       }}
     >
       <img
