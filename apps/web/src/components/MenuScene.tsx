@@ -51,12 +51,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
       <div
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '430px',
           minHeight: '100vh',
           position: 'relative',
           overflow: 'hidden',
           backgroundColor: '#0b0b0b',
-          backgroundImage: `url(${HOME_ASSET}/main-background.png)`,
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.18), rgba(0,0,0,0.4)), url(${HOME_ASSET}/main-background.png)`,
           backgroundPosition: 'center top',
           backgroundRepeat: 'no-repeat',
           backgroundSize: 'cover',
@@ -73,28 +73,35 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
         <div
           style={{
-            padding: '18px 16px 12px',
+            padding: '8px 10px 6px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '14px',
-            flex: 1
+            gap: '8px',
+            flex: 1,
+            justifyContent: 'space-between'
           }}
         >
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) minmax(150px, 240px)',
-              gap: '12px',
+              gridTemplateColumns: '120px 1fr',
+              gap: '8px',
               alignItems: 'start'
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px'
+              }}
+            >
               <img
                 src={`${BRANDING_ASSET}/war-pigs-logo.png`}
                 alt="War Pigs"
                 style={{
                   width: '100%',
-                  maxWidth: '210px',
+                  maxWidth: '116px',
                   height: 'auto',
                   objectFit: 'contain',
                   display: 'block'
@@ -107,7 +114,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 alt="Tactical Swine Warfare"
                 style={{
                   width: '100%',
-                  maxWidth: '210px',
+                  maxWidth: '116px',
                   height: 'auto',
                   objectFit: 'contain',
                   display: 'block'
@@ -121,24 +128,65 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             <div />
           </div>
 
-          <button
-            onClick={() => handleNavigate('CHAR_SELECT')}
-            style={imageButtonStyle}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginTop: 'auto'
+            }}
           >
-            <img
-              src={`${CTA_ASSET}/play-mission-button.png`}
-              alt="Play Mission"
-              style={fullImageStyle}
-              draggable={false}
-            />
-          </button>
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '310px'
+              }}
+            >
+              <button
+                onClick={() => handleNavigate('CHAR_SELECT')}
+                style={imageButtonStyle}
+              >
+                <img
+                  src={`${CTA_ASSET}/play-mission-button.png`}
+                  alt="Play Mission"
+                  style={fullImageStyle}
+                  draggable={false}
+                />
+              </button>
+
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  pointerEvents: 'none',
+                  textAlign: 'center'
+                }}
+              >
+                <div
+                  style={{
+                    transform: 'translateY(-2px)',
+                    color: '#f7f0d8',
+                    fontWeight: 900,
+                    fontSize: '28px',
+                    letterSpacing: '1px',
+                    textShadow:
+                      '0 2px 0 rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)'
+                  }}
+                >
+                  PLAY MISSION
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: '10px',
-              marginTop: '2px'
+              gap: '8px'
             }}
           >
             <FeatureCard
@@ -190,14 +238,14 @@ const TopBar: React.FC<{
       style={{
         position: 'relative',
         zIndex: 2,
-        padding: '10px 10px 0'
+        padding: '6px 6px 0'
       }}
     >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.6fr 1fr auto auto',
-          gap: '8px',
+          gridTemplateColumns: '1.5fr 1fr 46px 46px',
+          gap: '6px',
           alignItems: 'stretch'
         }}
       >
@@ -205,8 +253,8 @@ const TopBar: React.FC<{
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '52px minmax(0, 1fr)',
-              gap: '10px',
+              gridTemplateColumns: '42px minmax(0, 1fr)',
+              gap: '8px',
               alignItems: 'center'
             }}
           >
@@ -214,8 +262,8 @@ const TopBar: React.FC<{
               src={`${TOPBAR_ASSET}/player-rank-badge.png`}
               alt="Player rank"
               style={{
-                width: '52px',
-                height: '52px',
+                width: '42px',
+                height: '42px',
                 objectFit: 'contain',
                 display: 'block'
               }}
@@ -225,11 +273,11 @@ const TopBar: React.FC<{
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 900,
-                  letterSpacing: '0.5px',
+                  letterSpacing: '0.4px',
                   textTransform: 'uppercase',
-                  lineHeight: 1.1,
+                  lineHeight: 1.05,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
@@ -240,8 +288,8 @@ const TopBar: React.FC<{
 
               <div
                 style={{
-                  marginTop: '2px',
-                  fontSize: '10px',
+                  marginTop: '1px',
+                  fontSize: '9px',
                   fontWeight: 800,
                   color: '#d9d9d9',
                   textTransform: 'uppercase'
@@ -252,16 +300,16 @@ const TopBar: React.FC<{
 
               <div
                 style={{
-                  marginTop: '6px',
+                  marginTop: '5px',
                   display: 'grid',
                   gridTemplateColumns: '1fr auto',
-                  gap: '8px',
+                  gap: '6px',
                   alignItems: 'center'
                 }}
               >
                 <div
                   style={{
-                    height: '8px',
+                    height: '7px',
                     borderRadius: '999px',
                     background: 'rgba(255,255,255,0.12)',
                     overflow: 'hidden',
@@ -279,13 +327,13 @@ const TopBar: React.FC<{
 
                 <div
                   style={{
-                    fontSize: '10px',
+                    fontSize: '9px',
                     fontWeight: 700,
                     color: '#d4d4d4',
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  {xp} / {xpTarget} XP
+                  {xp} / {xpTarget}
                 </div>
               </div>
             </div>
@@ -320,21 +368,21 @@ const TopBar: React.FC<{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '8px 10px'
+                padding: '6px 8px'
               }}
             >
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '6px',
                   minWidth: 0
                 }}
               >
                 <div
                   style={{
-                    width: '28px',
-                    height: '28px',
+                    width: '24px',
+                    height: '24px',
                     borderRadius: '50%',
                     background:
                       'radial-gradient(circle at 35% 35%, #ffcf40 0%, #ff9f1a 52%, #8a3f00 100%)',
@@ -343,10 +391,10 @@ const TopBar: React.FC<{
                 />
                 <span
                   style={{
-                    fontSize: '15px',
+                    fontSize: '13px',
                     fontWeight: 900,
                     color: '#fff4c2',
-                    letterSpacing: '0.4px'
+                    letterSpacing: '0.3px'
                   }}
                 >
                   {currentPigs}
@@ -357,8 +405,8 @@ const TopBar: React.FC<{
                 src={`${TOPBAR_ASSET}/plus-button.png`}
                 alt="Add"
                 style={{
-                  width: '24px',
-                  height: '24px',
+                  width: '20px',
+                  height: '20px',
                   objectFit: 'contain',
                   display: 'block'
                 }}
@@ -385,8 +433,9 @@ const IconPanel: React.FC<{
       onClick={onClick}
       style={{
         ...panelStyle,
-        width: '54px',
-        minWidth: '54px',
+        width: '46px',
+        minWidth: '46px',
+        minHeight: '46px',
         padding: '0',
         display: 'flex',
         alignItems: 'center',
@@ -399,8 +448,8 @@ const IconPanel: React.FC<{
         src={icon}
         alt=""
         style={{
-          width: '24px',
-          height: '24px',
+          width: '20px',
+          height: '20px',
           objectFit: 'contain',
           display: 'block'
         }}
@@ -411,20 +460,20 @@ const IconPanel: React.FC<{
         <div
           style={{
             position: 'absolute',
-            top: '4px',
-            right: '4px',
-            minWidth: '18px',
-            height: '18px',
+            top: '2px',
+            right: '2px',
+            minWidth: '16px',
+            height: '16px',
             borderRadius: '999px',
             background: '#d73318',
             color: '#fff',
-            fontSize: '10px',
+            fontSize: '9px',
             fontWeight: 900,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '0 4px',
-            boxShadow: '0 0 0 2px rgba(0,0,0,0.5)'
+            boxShadow: '0 0 0 2px rgba(0,0,0,0.45)'
           }}
         >
           {badgeCount}
@@ -439,10 +488,10 @@ const DailyRewardCard: React.FC = () => {
     <div
       style={{
         width: '100%',
-        maxWidth: '150px',
+        maxWidth: '108px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px'
+        gap: '4px'
       }}
     >
       <img
@@ -461,9 +510,9 @@ const DailyRewardCard: React.FC = () => {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '6px',
+          gap: '4px',
           color: '#f6e7bc',
-          fontSize: '11px',
+          fontSize: '9px',
           fontWeight: 800,
           textTransform: 'uppercase'
         }}
@@ -472,8 +521,8 @@ const DailyRewardCard: React.FC = () => {
           src={`${REWARD_ASSET}/timer-icon.png`}
           alt=""
           style={{
-            width: '14px',
-            height: '14px',
+            width: '11px',
+            height: '11px',
             objectFit: 'contain',
             display: 'block'
           }}
@@ -513,7 +562,12 @@ const FeatureCard: React.FC<{
       <img
         src={src}
         alt={alt}
-        style={fullImageStyle}
+        style={{
+          width: '100%',
+          height: 'auto',
+          objectFit: 'contain',
+          display: 'block'
+        }}
         draggable={false}
       />
     </button>
@@ -538,7 +592,7 @@ const BottomNav: React.FC<{
         style={{
           position: 'relative',
           width: '100%',
-          minHeight: '86px'
+          minHeight: '74px'
         }}
       >
         <img
@@ -559,7 +613,7 @@ const BottomNav: React.FC<{
             zIndex: 1,
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
-            padding: '10px 10px 8px',
+            padding: '8px 8px 6px',
             alignItems: 'end'
           }}
         >
@@ -612,7 +666,7 @@ const NavItem: React.FC<{
         alt={alt}
         style={{
           width: '100%',
-          maxWidth: '86px',
+          maxWidth: '72px',
           height: 'auto',
           objectFit: 'contain',
           display: 'block'
@@ -624,11 +678,11 @@ const NavItem: React.FC<{
 };
 
 const panelStyle: React.CSSProperties = {
-  minHeight: '62px',
+  minHeight: '46px',
   background: 'linear-gradient(180deg, rgba(20,20,20,0.94) 0%, rgba(9,9,9,0.92) 100%)',
   border: '1px solid rgba(176,128,49,0.55)',
   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
-  padding: '8px',
+  padding: '6px',
   boxSizing: 'border-box'
 };
 
@@ -638,7 +692,8 @@ const imageButtonStyle: React.CSSProperties = {
   padding: '0',
   margin: '0',
   cursor: 'pointer',
-  display: 'block'
+  display: 'block',
+  width: '100%'
 };
 
 const fullImageStyle: React.CSSProperties = {
