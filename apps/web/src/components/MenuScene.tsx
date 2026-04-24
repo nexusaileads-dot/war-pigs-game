@@ -28,8 +28,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const { hapticFeedback } = useTelegram();
 
   const level = user?.profile.level || 2;
-  const xp = user?.profile.xp || 1060;
-  const currentPigs = user?.profile.currentPigs || 8190;
+  const xp = user?.profile.xp || 1460;
+  const currentPigs = user?.profile.currentPigs || 8690;
 
   const xpTarget = Math.max(2500, level * 1250);
   const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
@@ -78,8 +78,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             objectFit: 'cover',
             objectPosition: 'center center',
             display: 'block',
-            userSelect: 'none',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            userSelect: 'none'
           }}
         />
 
@@ -88,234 +88,36 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             position: 'absolute',
             inset: 0,
             background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 20%, rgba(0,0,0,0.06) 65%, rgba(0,0,0,0.18) 100%)',
+              'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 22%, rgba(0,0,0,0.06) 70%, rgba(0,0,0,0.18) 100%)',
             pointerEvents: 'none'
           }}
+        />
+
+        <TopBar
+          level={level}
+          xp={xp}
+          xpTarget={xpTarget}
+          xpProgress={xpProgress}
+          currentPigs={currentPigs}
+          onSettings={() => handleNavigate('PROFILE')}
         />
 
         <div
           style={{
             position: 'absolute',
-            top: 0,
+            top: 76,
             left: 0,
             right: 0,
-            height: '76px',
-            zIndex: 3,
-            display: 'grid',
-            gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            background: 'rgba(10,10,10,0.72)',
-            backdropFilter: 'blur(2px)'
-          }}
-        >
-          <div style={topCellStyle}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '44px 1fr',
-                gap: '8px',
-                alignItems: 'center',
-                height: '100%',
-                padding: '8px 10px'
-              }}
-            >
-              <img
-                src={`${TOPBAR}/player-rank-badge.png`}
-                alt="Player rank"
-                draggable={false}
-                style={{
-                  width: '42px',
-                  height: '42px',
-                  objectFit: 'contain',
-                  display: 'block'
-                }}
-              />
-
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.4px',
-                    lineHeight: 1.1,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}
-                >
-                  General Pig
-                </div>
-
-                <div
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: 800,
-                    color: '#f2ede0',
-                    textTransform: 'uppercase',
-                    marginTop: '2px'
-                  }}
-                >
-                  Level {level}
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: '5px',
-                    alignItems: 'center',
-                    marginTop: '6px'
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '8px',
-                      background: 'rgba(255,255,255,0.12)',
-                      borderRadius: '999px',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${xpProgress}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #ffb300 0%, #ff7e00 100%)'
-                      }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '8px',
-                      fontWeight: 800,
-                      color: '#e2e2e2',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {xp} / {xpTarget} XP
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={topCellStyle}>
-            <div
-              style={{
-                position: 'relative',
-                height: '100%',
-                padding: '8px'
-              }}
-            >
-              <img
-                src={`${TOPBAR}/topbar-panel.png`}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute',
-                  top: '8px',
-                  left: '8px',
-                  right: '8px',
-                  bottom: '8px',
-                  width: 'calc(100% - 16px)',
-                  height: 'calc(100% - 16px)',
-                  objectFit: 'fill',
-                  display: 'block'
-                }}
-              />
-
-              <div
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0 10px'
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '50%',
-                      background:
-                        'radial-gradient(circle at 35% 35%, #ffd14d 0%, #ffb323 55%, #8a4e00 100%)',
-                      boxShadow: '0 0 0 1px rgba(255,255,255,0.12)'
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 900,
-                      color: '#fff1c9'
-                    }}
-                  >
-                    {currentPigs}
-                  </span>
-                </div>
-
-                <img
-                  src={`${TOPBAR}/plus-button.png`}
-                  alt="Add"
-                  draggable={false}
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    objectFit: 'contain',
-                    display: 'block'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <button style={iconCellStyle} type="button">
-            <img
-              src={`${TOPBAR}/mail-icon.png`}
-              alt="Mail"
-              draggable={false}
-              style={{ width: '22px', height: '22px', objectFit: 'contain', display: 'block' }}
-            />
-            <div style={badgeStyle}>2</div>
-          </button>
-
-          <button style={iconCellStyle} type="button" onClick={() => handleNavigate('PROFILE')}>
-            <img
-              src={`${TOPBAR}/settings-icon.png`}
-              alt="Settings"
-              draggable={false}
-              style={{ width: '22px', height: '22px', objectFit: 'contain', display: 'block' }}
-            />
-          </button>
-        </div>
-
-        <div
-          style={{
-            position: 'absolute',
-            top: '76px',
-            left: 0,
-            right: 0,
-            bottom: '78px',
-            zIndex: 2,
-            padding: '8px 12px 6px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between'
+            bottom: 78,
+            zIndex: 2
           }}
         >
           <div
             style={{
-              width: '120px',
+              position: 'absolute',
+              top: 10,
+              left: 12,
+              width: 116,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start'
@@ -342,14 +144,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                marginTop: '-20px'
+                marginTop: '-26px'
               }}
             />
 
             <div
               style={{
-                width: '104px',
-                marginTop: '4px',
+                width: 104,
+                marginTop: '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch'
@@ -369,13 +171,13 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
               <div
                 style={{
-                  marginTop: '-8px',
+                  marginTop: '-14px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px',
-                  paddingLeft: '4px',
+                  gap: 3,
+                  paddingLeft: 4,
                   color: '#f7ecd0',
-                  fontSize: '8px',
+                  fontSize: 8,
                   fontWeight: 800,
                   lineHeight: 1
                 }}
@@ -385,8 +187,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   alt=""
                   draggable={false}
                   style={{
-                    width: '10px',
-                    height: '10px',
+                    width: 10,
+                    height: 10,
                     objectFit: 'contain',
                     display: 'block'
                   }}
@@ -397,7 +199,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               <button
                 type="button"
                 style={{
-                  marginTop: '-2px',
+                  marginTop: '-6px',
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
@@ -420,91 +222,218 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div
+          <button
+            type="button"
+            onClick={() => handleNavigate('CHAR_SELECT')}
             style={{
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
+              position: 'absolute',
+              left: '50%',
+              bottom: 116,
+              transform: 'translateX(-50%)',
+              width: 'calc(100% - 84px)',
+              maxWidth: 304,
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              display: 'block'
             }}
           >
-            <button
-              type="button"
-              onClick={() => handleNavigate('CHAR_SELECT')}
+            <img
+              src={`${CTA}/play-mission-button.png`}
+              alt="Play Mission"
+              draggable={false}
               style={{
-                alignSelf: 'center',
                 width: '100%',
-                maxWidth: '300px',
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer'
+                height: 'auto',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+            />
+          </button>
+
+          <div
+            style={{
+              position: 'absolute',
+              left: 10,
+              right: 10,
+              bottom: 6,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: 4,
+              alignItems: 'end'
+            }}
+          >
+            <MenuCard
+              src={`${CARDS}/armory-card.png`}
+              alt="Armory"
+              onClick={() => handleNavigate('WEAPON_SELECT')}
+            />
+            <MenuCard
+              src={`${CARDS}/units-card.png`}
+              alt="Units"
+              onClick={() => handleNavigate('CHAR_SELECT')}
+            />
+            <MenuCard
+              src={`${CARDS}/pvp-card.png`}
+              alt="PVP"
+              onClick={() => handleNavigate('PROFILE')}
+            />
+            <MenuCard
+              src={`${CARDS}/shop-card.png`}
+              alt="Shop"
+              onClick={() => handleNavigate('SHOP')}
+            />
+          </div>
+        </div>
+
+        <BottomNav
+          onHome={() => handleNavigate('MENU')}
+          onMissions={() => handleNavigate('LEVEL_SELECT')}
+          onClans={() => handleNavigate('PROFILE')}
+          onLeaderboard={() => handleNavigate('PROFILE')}
+        />
+      </div>
+    </div>
+  );
+};
+
+const TopBar: React.FC<{
+  level: number;
+  xp: number;
+  xpTarget: number;
+  xpProgress: number;
+  currentPigs: number;
+  onSettings: () => void;
+}> = ({ level, xp, xpTarget, xpProgress, currentPigs, onSettings }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 76,
+        zIndex: 3,
+        display: 'grid',
+        gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: 'rgba(10,10,10,0.72)',
+        backdropFilter: 'blur(2px)'
+      }}
+    >
+      <div style={topCellStyle}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '44px 1fr',
+            gap: 8,
+            alignItems: 'center',
+            height: '100%',
+            padding: '8px 10px'
+          }}
+        >
+          <img
+            src={`${TOPBAR}/player-rank-badge.png`}
+            alt="Player rank"
+            draggable={false}
+            style={{
+              width: 42,
+              height: 42,
+              objectFit: 'contain',
+              display: 'block'
+            }}
+          />
+
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
             >
-              <img
-                src={`${CTA}/play-mission-button.png`}
-                alt="Play Mission"
-                draggable={false}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  objectFit: 'contain'
-                }}
-              />
-            </button>
+              General Pig
+            </div>
+
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                color: '#f2ede0',
+                textTransform: 'uppercase',
+                marginTop: 2
+              }}
+            >
+              Level {level}
+            </div>
 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '4px',
-                alignItems: 'end'
+                gridTemplateColumns: '1fr auto',
+                gap: 5,
+                alignItems: 'center',
+                marginTop: 6
               }}
             >
-              <MenuCard
-                src={`${CARDS}/armory-card.png`}
-                alt="Armory"
-                onClick={() => handleNavigate('WEAPON_SELECT')}
-              />
-              <MenuCard
-                src={`${CARDS}/units-card.png`}
-                alt="Units"
-                onClick={() => handleNavigate('CHAR_SELECT')}
-              />
-              <MenuCard
-                src={`${CARDS}/pvp-card.png`}
-                alt="PVP"
-                onClick={() => handleNavigate('PROFILE')}
-              />
-              <MenuCard
-                src={`${CARDS}/shop-card.png`}
-                alt="Shop"
-                onClick={() => handleNavigate('SHOP')}
-              />
+              <div
+                style={{
+                  height: 8,
+                  background: 'rgba(255,255,255,0.12)',
+                  borderRadius: 999,
+                  overflow: 'hidden'
+                }}
+              >
+                <div
+                  style={{
+                    width: `${xpProgress}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #ffb300 0%, #ff7e00 100%)'
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  fontSize: 8,
+                  fontWeight: 800,
+                  color: '#e2e2e2',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {xp} / {xpTarget} XP
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
+      <div style={topCellStyle}>
         <div
           style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: '78px',
-            zIndex: 4
+            position: 'relative',
+            height: '100%',
+            padding: 8
           }}
         >
           <img
-            src={`${NAV}/bottom-nav-bar.png`}
+            src={`${TOPBAR}/topbar-panel.png`}
             alt=""
             draggable={false}
             style={{
               position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
+              top: 8,
+              left: 8,
+              right: 8,
+              bottom: 8,
+              width: 'calc(100% - 16px)',
+              height: 'calc(100% - 16px)',
               objectFit: 'fill',
               display: 'block'
             }}
@@ -515,35 +444,73 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               position: 'relative',
               zIndex: 1,
               height: '100%',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              display: 'flex',
               alignItems: 'center',
-              padding: '4px 4px 0'
+              justifyContent: 'space-between',
+              padding: '0 10px'
             }}
           >
-            <NavItem
-              src={`${NAV}/nav-home-active.png`}
-              alt="Home"
-              onClick={() => handleNavigate('MENU')}
-            />
-            <NavItem
-              src={`${NAV}/nav-missions.png`}
-              alt="Missions"
-              onClick={() => handleNavigate('LEVEL_SELECT')}
-            />
-            <NavItem
-              src={`${NAV}/nav-clans.png`}
-              alt="Clans"
-              onClick={() => handleNavigate('PROFILE')}
-            />
-            <NavItem
-              src={`${NAV}/nav-leaderboard.png`}
-              alt="Leaderboard"
-              onClick={() => handleNavigate('PROFILE')}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background:
+                    'radial-gradient(circle at 35% 35%, #ffd14d 0%, #ffb323 55%, #8a4e00 100%)',
+                  boxShadow: '0 0 0 1px rgba(255,255,255,0.12)'
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: '#fff1c9'
+                }}
+              >
+                {currentPigs}
+              </span>
+            </div>
+
+            <img
+              src={`${TOPBAR}/plus-button.png`}
+              alt="Add"
+              draggable={false}
+              style={{
+                width: 20,
+                height: 20,
+                objectFit: 'contain',
+                display: 'block'
+              }}
             />
           </div>
         </div>
       </div>
+
+      <button style={iconCellStyle} type="button">
+        <img
+          src={`${TOPBAR}/mail-icon.png`}
+          alt="Mail"
+          draggable={false}
+          style={{ width: 22, height: 22, objectFit: 'contain', display: 'block' }}
+        />
+        <div style={badgeStyle}>2</div>
+      </button>
+
+      <button style={iconCellStyle} type="button" onClick={onSettings}>
+        <img
+          src={`${TOPBAR}/settings-icon.png`}
+          alt="Settings"
+          draggable={false}
+          style={{ width: 22, height: 22, objectFit: 'contain', display: 'block' }}
+        />
+      </button>
     </div>
   );
 };
@@ -581,6 +548,57 @@ const MenuCard: React.FC<{
   );
 };
 
+const BottomNav: React.FC<{
+  onHome: () => void;
+  onMissions: () => void;
+  onClans: () => void;
+  onLeaderboard: () => void;
+}> = ({ onHome, onMissions, onClans, onLeaderboard }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 78,
+        zIndex: 4
+      }}
+    >
+      <img
+        src={`${NAV}/bottom-nav-bar.png`}
+        alt=""
+        draggable={false}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'fill',
+          display: 'block'
+        }}
+      />
+
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          height: '100%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          alignItems: 'center',
+          padding: '4px 4px 0'
+        }}
+      >
+        <NavItem src={`${NAV}/nav-home-active.png`} alt="Home" onClick={onHome} />
+        <NavItem src={`${NAV}/nav-missions.png`} alt="Missions" onClick={onMissions} />
+        <NavItem src={`${NAV}/nav-clans.png`} alt="Clans" onClick={onClans} />
+        <NavItem src={`${NAV}/nav-leaderboard.png`} alt="Leaderboard" onClick={onLeaderboard} />
+      </div>
+    </div>
+  );
+};
+
 const NavItem: React.FC<{
   src: string;
   alt: string;
@@ -607,7 +625,7 @@ const NavItem: React.FC<{
         alt={alt}
         draggable={false}
         style={{
-          width: '72px',
+          width: 72,
           maxWidth: '100%',
           height: 'auto',
           display: 'block',
@@ -619,13 +637,13 @@ const NavItem: React.FC<{
 };
 
 const topCellStyle: React.CSSProperties = {
-  minHeight: '76px',
+  minHeight: 76,
   borderRight: '1px solid rgba(255,255,255,0.08)',
   boxSizing: 'border-box'
 };
 
 const iconCellStyle: React.CSSProperties = {
-  minHeight: '76px',
+  minHeight: 76,
   border: 'none',
   borderRight: '1px solid rgba(255,255,255,0.08)',
   background: 'transparent',
@@ -639,15 +657,15 @@ const iconCellStyle: React.CSSProperties = {
 
 const badgeStyle: React.CSSProperties = {
   position: 'absolute',
-  top: '10px',
-  right: '10px',
-  minWidth: '16px',
-  height: '16px',
+  top: 10,
+  right: 10,
+  minWidth: 16,
+  height: 16,
   padding: '0 4px',
-  borderRadius: '999px',
+  borderRadius: 999,
   background: '#d92a17',
   color: '#fff',
-  fontSize: '9px',
+  fontSize: 9,
   fontWeight: 900,
   display: 'flex',
   alignItems: 'center',
