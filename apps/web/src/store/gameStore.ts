@@ -33,9 +33,15 @@ interface GameState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+
+  connectedWalletAddress: string | null;
+  walletProviderName: string | null;
+
   initAuth: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   equipItem: (type: 'character' | 'weapon', id: string) => Promise<void>;
+  setConnectedWallet: (address: string | null, providerName?: string | null) => void;
+  clearConnectedWallet: () => void;
   logout: () => void;
 }
 
@@ -45,6 +51,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
   isLoading: true,
+
+  connectedWalletAddress: localStorage.getItem('solanaWalletAddress'),
+  walletProviderName: localStorage.getItem('solanaWalletProvider'),
 
   initAuth: async () => {
     try {
@@ -138,13 +147,46 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
+  setConnectedWallet: (address, providerName = null) => {
+    if (address) {
+      localStorage.setItem('solanaWalletAddress', address);
+    } else {
+      localStorage.removeItem('solanaWalletAddress');
+    }
+
+    if (providerName) {
+      localStorage.setItem('solanaWalletProvider', providerName);
+    } else {
+      localStorage.removeItem('solanaWalletProvider');
+    }
+
+    set({
+      connectedWalletAddress: address,
+      walletProviderName: providerName
+    });
+  },
+
+  clearConnectedWallet: () => {
+    localStorage.removeItem('solanaWalletAddress');
+    localStorage.removeItem('solanaWalletProvider');
+
+    set({
+      connectedWalletAddress: null,
+      walletProviderName: null
+    });
+  },
+
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('solanaWalletAddress');
+    localStorage.removeItem('solanaWalletProvider');
     sessionStorage.removeItem('currentRun');
     set({
       user: null,
       token: null,
-      isLoading: false
+      isLoading: false,
+      connectedWalletAddress: null,
+      walletProviderName: null
     });
   }
 }));
