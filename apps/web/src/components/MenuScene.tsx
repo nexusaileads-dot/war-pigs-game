@@ -66,7 +66,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column'
         }}
       >
-        {/* Background — contained to fit full image on screen */}
+        {/* Background */}
         <img
           src={`${HOME}/main-background.png`}
           alt=""
@@ -93,7 +93,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           }}
         />
 
-        {/* TopBar */}
         <TopBar
           level={level}
           xp={xp}
@@ -103,7 +102,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           onSettings={() => handleNavigate('PROFILE')}
         />
 
-        {/* Content area */}
         <div
           style={{
             flex: 1,
@@ -226,7 +224,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Spacer pushes bottom stack to the bottom */}
           <div style={{ flex: 1, minHeight: 0 }} />
 
           {/* Bottom stack: Play Mission → Cards → Nav (ZERO GAP) */}
@@ -253,7 +250,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 background: 'transparent',
                 cursor: 'pointer',
                 display: 'block',
-                lineHeight: 0
+                lineHeight: 0,
+                margin: 0
               }}
             >
               <img
@@ -269,7 +267,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Cards — directly under Play Mission, no gap */}
+            {/* Cards — directly under Play Mission, absolutely no gap */}
             <div
               style={{
                 width: '100%',
@@ -277,7 +275,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
                 gap: 4,
-                alignItems: 'end'
+                alignItems: 'end',
+                margin: 0,
+                lineHeight: 0
               }}
             >
               <MenuCard
@@ -302,7 +302,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </div>
 
-            {/* Nav — directly under cards, guaranteed visible */}
             <BottomNav
               onHome={() => handleNavigate('MENU')}
               onMissions={() => handleNavigate('LEVEL_SELECT')}
@@ -528,7 +527,8 @@ const MenuCard: React.FC<{
         background: 'transparent',
         cursor: 'pointer',
         display: 'block',
-        lineHeight: 0
+        lineHeight: 0,
+        margin: 0
       }}
     >
       <img
@@ -559,7 +559,8 @@ const BottomNav: React.FC<{
         height: 78,
         position: 'relative',
         zIndex: 4,
-        flexShrink: 0
+        flexShrink: 0,
+        lineHeight: 0
       }}
     >
       <img
