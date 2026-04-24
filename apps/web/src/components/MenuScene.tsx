@@ -47,7 +47,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
     <div
       style={{
         width: '100%',
-        minHeight: '100vh',
+        height: '100dvh',
         background: '#030303',
         display: 'flex',
         justifyContent: 'center'
@@ -58,8 +58,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: '100dvh',
-          minHeight: '100vh',
+          height: '100%',
           overflow: 'hidden',
           background: '#070707',
           color: '#fff',
@@ -67,7 +66,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column'
         }}
       >
-        {/* Background */}
+        {/* Background — contained to fit full image on screen */}
         <img
           src={`${HOME}/main-background.png`}
           alt=""
@@ -77,8 +76,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             inset: 0,
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center center',
+            objectFit: 'contain',
+            objectPosition: 'center top',
             display: 'block',
             pointerEvents: 'none',
             userSelect: 'none'
@@ -104,7 +103,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           onSettings={() => handleNavigate('PROFILE')}
         />
 
-        {/* Content */}
+        {/* Content area */}
         <div
           style={{
             flex: 1,
@@ -227,7 +226,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Spacer pushes everything below to the absolute bottom */}
+          {/* Spacer pushes bottom stack to the bottom */}
           <div style={{ flex: 1, minHeight: 0 }} />
 
           {/* Bottom stack: Play Mission → Cards → Nav (ZERO GAP) */}
@@ -270,7 +269,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Cards — directly under Play Mission */}
+            {/* Cards — directly under Play Mission, no gap */}
             <div
               style={{
                 width: '100%',
@@ -303,7 +302,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </div>
 
-            {/* Nav — directly under cards */}
+            {/* Nav — directly under cards, guaranteed visible */}
             <BottomNav
               onHome={() => handleNavigate('MENU')}
               onMissions={() => handleNavigate('LEVEL_SELECT')}
@@ -559,7 +558,8 @@ const BottomNav: React.FC<{
         width: '100%',
         height: 78,
         position: 'relative',
-        zIndex: 4
+        zIndex: 4,
+        flexShrink: 0
       }}
     >
       <img
