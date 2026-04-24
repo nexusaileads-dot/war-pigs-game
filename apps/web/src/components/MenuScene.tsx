@@ -117,7 +117,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               position: 'absolute',
               top: 10,
               left: 12,
-              width: 116,
+              width: 120,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start'
@@ -151,7 +151,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             <div
               style={{
                 width: 104,
-                marginTop: '8px',
+                marginTop: 8,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch'
@@ -222,68 +222,74 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handleNavigate('CHAR_SELECT')}
-            style={{
-              position: 'absolute',
-              left: '50%',
-              bottom: 116,
-              transform: 'translateX(-50%)',
-              width: 'calc(100% - 84px)',
-              maxWidth: 304,
-              padding: 0,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              display: 'block'
-            }}
-          >
-            <img
-              src={`${CTA}/play-mission-button.png`}
-              alt="Play Mission"
-              draggable={false}
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block',
-                objectFit: 'contain'
-              }}
-            />
-          </button>
-
           <div
             style={{
               position: 'absolute',
               left: 10,
               right: 10,
-              bottom: 6,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gap: 4,
-              alignItems: 'end'
+              bottom: 8,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4
             }}
           >
-            <MenuCard
-              src={`${CARDS}/armory-card.png`}
-              alt="Armory"
-              onClick={() => handleNavigate('WEAPON_SELECT')}
-            />
-            <MenuCard
-              src={`${CARDS}/units-card.png`}
-              alt="Units"
+            <button
+              type="button"
               onClick={() => handleNavigate('CHAR_SELECT')}
-            />
-            <MenuCard
-              src={`${CARDS}/pvp-card.png`}
-              alt="PVP"
-              onClick={() => handleNavigate('PROFILE')}
-            />
-            <MenuCard
-              src={`${CARDS}/shop-card.png`}
-              alt="Shop"
-              onClick={() => handleNavigate('SHOP')}
-            />
+              style={{
+                width: '100%',
+                maxWidth: 304,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'block'
+              }}
+            >
+              <img
+                src={`${CTA}/play-mission-button.png`}
+                alt="Play Mission"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+            </button>
+
+            <div
+              style={{
+                width: '100%',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 4,
+                alignItems: 'end'
+              }}
+            >
+              <MenuCard
+                src={`${CARDS}/armory-card.png`}
+                alt="Armory"
+                onClick={() => handleNavigate('WEAPON_SELECT')}
+              />
+              <MenuCard
+                src={`${CARDS}/units-card.png`}
+                alt="Units"
+                onClick={() => handleNavigate('CHAR_SELECT')}
+              />
+              <MenuCard
+                src={`${CARDS}/pvp-card.png`}
+                alt="PVP"
+                onClick={() => handleNavigate('PROFILE')}
+              />
+              <MenuCard
+                src={`${CARDS}/shop-card.png`}
+                alt="Shop"
+                onClick={() => handleNavigate('SHOP')}
+              />
+            </div>
           </div>
         </div>
 
