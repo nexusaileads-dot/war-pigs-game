@@ -108,10 +108,11 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             top: 76,
             left: 0,
             right: 0,
-            bottom: 78,
+            bottom: 0,
             zIndex: 2
           }}
         >
+          {/* Top-left branding + reward */}
           <div
             style={{
               position: 'absolute',
@@ -144,7 +145,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                marginTop: '-26px'
+                marginTop: 4
               }}
             />
 
@@ -157,21 +158,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 alignItems: 'stretch'
               }}
             >
-              <img
-                src={`${REWARD}/reward-chest.png`}
-                alt="Daily reward"
-                draggable={false}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  objectFit: 'contain'
-                }}
-              />
-
+              {/* Timer above the chest */}
               <div
                 style={{
-                  marginTop: '-14px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 3,
@@ -179,7 +168,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   color: '#f7ecd0',
                   fontSize: 8,
                   fontWeight: 800,
-                  lineHeight: 1
+                  lineHeight: 1,
+                  marginBottom: 4
                 }}
               >
                 <img
@@ -196,10 +186,23 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 <span>23:59:12</span>
               </div>
 
+              <img
+                src={`${REWARD}/reward-chest.png`}
+                alt="Daily reward"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+
+              {/* Claim directly under the chest */}
               <button
                 type="button"
                 style={{
-                  marginTop: '-6px',
+                  marginTop: 4,
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
@@ -222,83 +225,94 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
+          {/* Bottom stack: CTA → Cards → Nav */}
           <div
             style={{
               position: 'absolute',
-              left: 10,
-              right: 10,
-              bottom: 8,
+              left: 0,
+              right: 0,
+              bottom: 0,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4
+              alignItems: 'center'
             }}
           >
-            <button
-              type="button"
-              onClick={() => handleNavigate('CHAR_SELECT')}
-              style={{
-                width: '100%',
-                maxWidth: 304,
-                padding: 0,
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                display: 'block'
-              }}
-            >
-              <img
-                src={`${CTA}/play-mission-button.png`}
-                alt="Play Mission"
-                draggable={false}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  objectFit: 'contain'
-                }}
-              />
-            </button>
-
             <div
               style={{
                 width: '100%',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                gap: 4,
-                alignItems: 'end'
+                padding: '0 10px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4
               }}
             >
-              <MenuCard
-                src={`${CARDS}/armory-card.png`}
-                alt="Armory"
-                onClick={() => handleNavigate('WEAPON_SELECT')}
-              />
-              <MenuCard
-                src={`${CARDS}/units-card.png`}
-                alt="Units"
+              <button
+                type="button"
                 onClick={() => handleNavigate('CHAR_SELECT')}
-              />
-              <MenuCard
-                src={`${CARDS}/pvp-card.png`}
-                alt="PVP"
-                onClick={() => handleNavigate('PROFILE')}
-              />
-              <MenuCard
-                src={`${CARDS}/shop-card.png`}
-                alt="Shop"
-                onClick={() => handleNavigate('SHOP')}
-              />
+                style={{
+                  width: '100%',
+                  maxWidth: 304,
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'block'
+                }}
+              >
+                <img
+                  src={`${CTA}/play-mission-button.png`}
+                  alt="Play Mission"
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    display: 'block',
+                    objectFit: 'contain'
+                  }}
+                />
+              </button>
+
+              <div
+                style={{
+                  width: '100%',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                  gap: 4,
+                  alignItems: 'end'
+                }}
+              >
+                <MenuCard
+                  src={`${CARDS}/armory-card.png`}
+                  alt="Armory"
+                  onClick={() => handleNavigate('WEAPON_SELECT')}
+                />
+                <MenuCard
+                  src={`${CARDS}/units-card.png`}
+                  alt="Units"
+                  onClick={() => handleNavigate('CHAR_SELECT')}
+                />
+                <MenuCard
+                  src={`${CARDS}/pvp-card.png`}
+                  alt="PVP"
+                  onClick={() => handleNavigate('PROFILE')}
+                />
+                <MenuCard
+                  src={`${CARDS}/shop-card.png`}
+                  alt="Shop"
+                  onClick={() => handleNavigate('SHOP')}
+                />
+              </div>
             </div>
+
+            <BottomNav
+              onHome={() => handleNavigate('MENU')}
+              onMissions={() => handleNavigate('LEVEL_SELECT')}
+              onClans={() => handleNavigate('PROFILE')}
+              onLeaderboard={() => handleNavigate('PROFILE')}
+            />
           </div>
         </div>
-
-        <BottomNav
-          onHome={() => handleNavigate('MENU')}
-          onMissions={() => handleNavigate('LEVEL_SELECT')}
-          onClans={() => handleNavigate('PROFILE')}
-          onLeaderboard={() => handleNavigate('PROFILE')}
-        />
       </div>
     </div>
   );
@@ -563,10 +577,8 @@ const BottomNav: React.FC<{
   return (
     <div
       style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        position: 'relative',
+        width: '100%',
         height: 78,
         zIndex: 4
       }}
