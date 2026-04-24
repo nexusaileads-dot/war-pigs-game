@@ -2,10 +2,17 @@ import React from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useTelegram } from './TelegramProvider';
 
+type Screen =
+  | 'MENU'
+  | 'CHAR_SELECT'
+  | 'WEAPON_SELECT'
+  | 'LEVEL_SELECT'
+  | 'SHOP'
+  | 'PROFILE'
+  | 'GAME';
+
 interface Props {
-  onNavigate: (
-    screen: 'MENU' | 'CHAR_SELECT' | 'WEAPON_SELECT' | 'LEVEL_SELECT' | 'SHOP' | 'PROFILE' | 'GAME'
-  ) => void;
+  onNavigate: (screen: Screen) => void;
 }
 
 const HOME = '/assets/ui/home';
@@ -24,9 +31,10 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const xp = user?.profile.xp || 1060;
   const currentPigs = user?.profile.currentPigs || 8190;
 
-  const handleNavigate = (
-    screen: 'MENU' | 'CHAR_SELECT' | 'WEAPON_SELECT' | 'LEVEL_SELECT' | 'SHOP' | 'PROFILE' | 'GAME'
-  ) => {
+  const xpTarget = Math.max(2500, level * 1250);
+  const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
+
+  const handleNavigate = (screen: Screen) => {
     try {
       hapticFeedback('medium');
     } catch (error) {
@@ -35,9 +43,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
     onNavigate(screen);
   };
-
-  const xpTarget = Math.max(2500, level * 1250);
-  const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
 
   return (
     <div
@@ -83,7 +88,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             position: 'absolute',
             inset: 0,
             background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.05) 18%, rgba(0,0,0,0.08) 65%, rgba(0,0,0,0.18) 100%)',
+              'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 20%, rgba(0,0,0,0.06) 65%, rgba(0,0,0,0.18) 100%)',
             pointerEvents: 'none'
           }}
         />
@@ -310,7 +315,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
         >
           <div
             style={{
-              width: '118px',
+              width: '120px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start'
@@ -337,14 +342,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain',
-                marginTop: '-8px'
+                marginTop: '-20px'
               }}
             />
 
             <div
               style={{
                 width: '104px',
-                marginTop: '8px',
+                marginTop: '4px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch'
@@ -364,11 +369,11 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
               <div
                 style={{
-                  marginTop: '-2px',
+                  marginTop: '-8px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '3px',
-                  paddingLeft: '2px',
+                  paddingLeft: '4px',
                   color: '#f7ecd0',
                   fontSize: '8px',
                   fontWeight: 800,
@@ -392,7 +397,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               <button
                 type="button"
                 style={{
-                  marginTop: '2px',
+                  marginTop: '-2px',
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
@@ -428,7 +433,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               onClick={() => handleNavigate('CHAR_SELECT')}
               style={{
                 alignSelf: 'center',
-                position: 'relative',
                 width: '100%',
                 maxWidth: '300px',
                 background: 'transparent',
@@ -448,26 +452,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   objectFit: 'contain'
                 }}
               />
-
-              <span
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f6f1df',
-                  fontSize: '24px',
-                  fontWeight: 900,
-                  letterSpacing: '0.7px',
-                  textTransform: 'uppercase',
-                  textShadow: '0 2px 0 rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.45)',
-                  transform: 'translateY(-2px)',
-                  pointerEvents: 'none'
-                }}
-              >
-                PLAY MISSION
-              </span>
             </button>
 
             <div
@@ -537,13 +521,21 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               padding: '4px 4px 0'
             }}
           >
-            <NavItem src={`${NAV}/nav-home-active.png`} alt="Home" onClick={() => handleNavigate('MENU')} />
+            <NavItem
+              src={`${NAV}/nav-home-active.png`}
+              alt="Home"
+              onClick={() => handleNavigate('MENU')}
+            />
             <NavItem
               src={`${NAV}/nav-missions.png`}
               alt="Missions"
               onClick={() => handleNavigate('LEVEL_SELECT')}
             />
-            <NavItem src={`${NAV}/nav-clans.png`} alt="Clans" onClick={() => handleNavigate('PROFILE')} />
+            <NavItem
+              src={`${NAV}/nav-clans.png`}
+              alt="Clans"
+              onClick={() => handleNavigate('PROFILE')}
+            />
             <NavItem
               src={`${NAV}/nav-leaderboard.png`}
               alt="Leaderboard"
