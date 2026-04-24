@@ -62,7 +62,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           minHeight: '100vh',
           overflow: 'hidden',
           background: '#070707',
-          color: '#fff'
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         {/* Background */}
@@ -92,6 +94,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           }}
         />
 
+        {/* TopBar */}
         <TopBar
           level={level}
           xp={xp}
@@ -101,20 +104,17 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           onSettings={() => handleNavigate('PROFILE')}
         />
 
-        {/* Main content area — ends exactly where the nav begins (bottom: 78) */}
+        {/* Content */}
         <div
           style={{
-            position: 'absolute',
-            top: 76,
-            left: 0,
-            right: 0,
-            bottom: 78,
-            zIndex: 2,
+            flex: 1,
+            position: 'relative',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            minHeight: 0
           }}
         >
-          {/* Branding + Reward (top-left, absolute so it never pushes the bottom stack) */}
+          {/* Top-left branding & reward */}
           <div
             style={{
               position: 'absolute',
@@ -123,7 +123,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               width: 120,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'flex-start'
+              alignItems: 'flex-start',
+              zIndex: 2
             }}
           >
             <img
@@ -150,7 +151,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               }}
             />
 
-            {/* Reward block */}
             <div
               style={{
                 width: 104,
@@ -199,11 +199,10 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 }}
               />
 
-              {/* Claim directly under chest */}
               <button
                 type="button"
                 style={{
-                  marginTop: 0,
+                  marginTop: 4,
                   padding: 0,
                   border: 'none',
                   background: 'transparent',
@@ -228,17 +227,19 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Spacer pushes the bottom stack to the bottom of this container */}
+          {/* Spacer pushes everything below to the absolute bottom */}
           <div style={{ flex: 1, minHeight: 0 }} />
 
-          {/* Bottom stack: Play Mission → Cards → Nav (zero vertical gap) */}
+          {/* Bottom stack: Play Mission → Cards → Nav (ZERO GAP) */}
           <div
             style={{
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 0
+              gap: 0,
+              position: 'relative',
+              zIndex: 2
             }}
           >
             {/* Play Mission */}
@@ -269,7 +270,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Cards — directly under button, no gap */}
+            {/* Cards — directly under Play Mission */}
             <div
               style={{
                 width: '100%',
@@ -301,16 +302,16 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 onClick={() => handleNavigate('SHOP')}
               />
             </div>
+
+            {/* Nav — directly under cards */}
+            <BottomNav
+              onHome={() => handleNavigate('MENU')}
+              onMissions={() => handleNavigate('LEVEL_SELECT')}
+              onClans={() => handleNavigate('PROFILE')}
+              onLeaderboard={() => handleNavigate('PROFILE')}
+            />
           </div>
         </div>
-
-        {/* Nav bar — separate absolute layer so it's always visible and flush under the cards */}
-        <BottomNav
-          onHome={() => handleNavigate('MENU')}
-          onMissions={() => handleNavigate('LEVEL_SELECT')}
-          onClans={() => handleNavigate('PROFILE')}
-          onLeaderboard={() => handleNavigate('PROFILE')}
-        />
       </div>
     </div>
   );
@@ -327,17 +328,14 @@ const TopBar: React.FC<{
   return (
     <div
       style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
         height: 76,
         zIndex: 3,
         display: 'grid',
         gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
         background: 'rgba(10,10,10,0.72)',
-        backdropFilter: 'blur(2px)'
+        backdropFilter: 'blur(2px)',
+        flexShrink: 0
       }}
     >
       <div style={topCellStyle}>
@@ -558,11 +556,9 @@ const BottomNav: React.FC<{
   return (
     <div
       style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        width: '100%',
         height: 78,
+        position: 'relative',
         zIndex: 4
       }}
     >
