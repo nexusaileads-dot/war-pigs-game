@@ -8,13 +8,13 @@ interface Props {
   ) => void;
 }
 
-const HOME_ASSET = '/assets/ui/home';
-const TOPBAR_ASSET = `${HOME_ASSET}/topbar`;
-const BRANDING_ASSET = `${HOME_ASSET}/branding`;
-const REWARD_ASSET = `${HOME_ASSET}/reward`;
-const CTA_ASSET = `${HOME_ASSET}/cta`;
-const CARDS_ASSET = `${HOME_ASSET}/cards`;
-const NAV_ASSET = `${HOME_ASSET}/nav`;
+const HOME = '/assets/ui/home';
+const TOPBAR = `${HOME}/topbar`;
+const BRANDING = `${HOME}/branding`;
+const REWARD = `${HOME}/reward`;
+const CTA = `${HOME}/cta`;
+const CARDS = `${HOME}/cards`;
+const NAV = `${HOME}/nav`;
 
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const { user } = useGameStore();
@@ -36,124 +36,409 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
     onNavigate(screen);
   };
 
+  const xpTarget = Math.max(2500, level * 1250);
+  const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
+
   return (
     <div
       style={{
         width: '100%',
         minHeight: '100vh',
+        background: '#030303',
         display: 'flex',
-        justifyContent: 'center',
-        background: '#040404'
+        justifyContent: 'center'
       }}
     >
       <div
         style={{
+          position: 'relative',
           width: '100%',
           maxWidth: '430px',
           height: '100dvh',
           minHeight: '100vh',
-          position: 'relative',
           overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#090909',
-          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,0.12)), url(${HOME_ASSET}/main-background.png)`,
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center top',
-          backgroundSize: '100% 100%'
+          background: '#070707',
+          color: '#fff'
         }}
       >
-        <TopBar
-          level={level}
-          xp={xp}
-          currentPigs={currentPigs}
-          onSettings={() => handleNavigate('PROFILE')}
+        <img
+          src={`${HOME}/main-background.png`}
+          alt=""
+          draggable={false}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center center',
+            display: 'block',
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
         />
 
-        <main
+        <div
           style={{
-            position: 'relative',
-            zIndex: 1,
-            flex: 1,
-            minHeight: 0,
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.05) 18%, rgba(0,0,0,0.08) 65%, rgba(0,0,0,0.18) 100%)',
+            pointerEvents: 'none'
+          }}
+        />
+
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '76px',
+            zIndex: 3,
+            display: 'grid',
+            gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(10,10,10,0.72)',
+            backdropFilter: 'blur(2px)'
+          }}
+        >
+          <div style={topCellStyle}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '44px 1fr',
+                gap: '8px',
+                alignItems: 'center',
+                height: '100%',
+                padding: '8px 10px'
+              }}
+            >
+              <img
+                src={`${TOPBAR}/player-rank-badge.png`}
+                alt="Player rank"
+                draggable={false}
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  objectFit: 'contain',
+                  display: 'block'
+                }}
+              />
+
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                    lineHeight: 1.1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  General Pig
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    color: '#f2ede0',
+                    textTransform: 'uppercase',
+                    marginTop: '2px'
+                  }}
+                >
+                  Level {level}
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: '5px',
+                    alignItems: 'center',
+                    marginTop: '6px'
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '8px',
+                      background: 'rgba(255,255,255,0.12)',
+                      borderRadius: '999px',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${xpProgress}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #ffb300 0%, #ff7e00 100%)'
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: '8px',
+                      fontWeight: 800,
+                      color: '#e2e2e2',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {xp} / {xpTarget} XP
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={topCellStyle}>
+            <div
+              style={{
+                position: 'relative',
+                height: '100%',
+                padding: '8px'
+              }}
+            >
+              <img
+                src={`${TOPBAR}/topbar-panel.png`}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '8px',
+                  right: '8px',
+                  bottom: '8px',
+                  width: 'calc(100% - 16px)',
+                  height: 'calc(100% - 16px)',
+                  objectFit: 'fill',
+                  display: 'block'
+                }}
+              />
+
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0 10px'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '50%',
+                      background:
+                        'radial-gradient(circle at 35% 35%, #ffd14d 0%, #ffb323 55%, #8a4e00 100%)',
+                      boxShadow: '0 0 0 1px rgba(255,255,255,0.12)'
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 900,
+                      color: '#fff1c9'
+                    }}
+                  >
+                    {currentPigs}
+                  </span>
+                </div>
+
+                <img
+                  src={`${TOPBAR}/plus-button.png`}
+                  alt="Add"
+                  draggable={false}
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    objectFit: 'contain',
+                    display: 'block'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <button style={iconCellStyle} type="button">
+            <img
+              src={`${TOPBAR}/mail-icon.png`}
+              alt="Mail"
+              draggable={false}
+              style={{ width: '22px', height: '22px', objectFit: 'contain', display: 'block' }}
+            />
+            <div style={badgeStyle}>2</div>
+          </button>
+
+          <button style={iconCellStyle} type="button" onClick={() => handleNavigate('PROFILE')}>
+            <img
+              src={`${TOPBAR}/settings-icon.png`}
+              alt="Settings"
+              draggable={false}
+              style={{ width: '22px', height: '22px', objectFit: 'contain', display: 'block' }}
+            />
+          </button>
+        </div>
+
+        <div
+          style={{
+            position: 'absolute',
+            top: '76px',
+            left: 0,
+            right: 0,
+            bottom: '78px',
+            zIndex: 2,
+            padding: '8px 12px 6px',
             display: 'flex',
             flexDirection: 'column',
-            padding: '6px 10px 0'
+            justifyContent: 'space-between'
           }}
         >
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '112px 1fr',
-              gap: '4px',
-              alignItems: 'start'
+              width: '118px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start'
             }}
           >
+            <img
+              src={`${BRANDING}/war-pigs-logo.png`}
+              alt="War Pigs"
+              draggable={false}
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+            />
+
+            <img
+              src={`${BRANDING}/subtitle-banner.png`}
+              alt="Tactical Swine Warfare"
+              draggable={false}
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                objectFit: 'contain',
+                marginTop: '-8px'
+              }}
+            />
+
             <div
               style={{
+                width: '104px',
+                marginTop: '8px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'flex-start',
-                gap: '2px'
+                alignItems: 'stretch'
               }}
             >
               <img
-                src={`${BRANDING_ASSET}/war-pigs-logo.png`}
-                alt="War Pigs"
+                src={`${REWARD}/reward-chest.png`}
+                alt="Daily reward"
                 draggable={false}
                 style={{
                   width: '100%',
-                  maxWidth: '104px',
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain'
                 }}
               />
 
-              <img
-                src={`${BRANDING_ASSET}/subtitle-banner.png`}
-                alt="Tactical Swine Warfare"
-                draggable={false}
+              <div
                 style={{
-                  width: '100%',
-                  maxWidth: '104px',
-                  height: 'auto',
-                  display: 'block',
-                  objectFit: 'contain'
+                  marginTop: '-2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  paddingLeft: '2px',
+                  color: '#f7ecd0',
+                  fontSize: '8px',
+                  fontWeight: 800,
+                  lineHeight: 1
                 }}
-              />
+              >
+                <img
+                  src={`${REWARD}/timer-icon.png`}
+                  alt=""
+                  draggable={false}
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    objectFit: 'contain',
+                    display: 'block'
+                  }}
+                />
+                <span>23:59:12</span>
+              </div>
 
-              <DailyRewardCard />
+              <button
+                type="button"
+                style={{
+                  marginTop: '2px',
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                <img
+                  src={`${REWARD}/claim-button.png`}
+                  alt="Claim"
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    display: 'block',
+                    objectFit: 'contain'
+                  }}
+                />
+              </button>
             </div>
-
-            <div />
           </div>
-
-          <div style={{ flex: 1 }} />
 
           <div
             style={{
+              width: '100%',
               display: 'flex',
-              justifyContent: 'center',
-              marginBottom: '4px'
+              flexDirection: 'column',
+              gap: '8px'
             }}
           >
             <button
+              type="button"
               onClick={() => handleNavigate('CHAR_SELECT')}
               style={{
+                alignSelf: 'center',
+                position: 'relative',
+                width: '100%',
+                maxWidth: '300px',
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
-                margin: 0,
-                cursor: 'pointer',
-                width: '100%',
-                maxWidth: '286px',
-                position: 'relative',
-                display: 'block'
+                cursor: 'pointer'
               }}
             >
               <img
-                src={`${CTA_ASSET}/play-mission-button.png`}
+                src={`${CTA}/play-mission-button.png`}
                 alt="Play Mission"
                 draggable={false}
                 style={{
@@ -163,6 +448,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   objectFit: 'contain'
                 }}
               />
+
               <span
                 style={{
                   position: 'absolute',
@@ -170,195 +456,71 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#f6f0df',
+                  color: '#f6f1df',
+                  fontSize: '24px',
                   fontWeight: 900,
-                  fontSize: '23px',
-                  letterSpacing: '0.8px',
-                  textShadow:
-                    '0 2px 0 rgba(0,0,0,0.88), 0 0 8px rgba(0,0,0,0.45)',
-                  pointerEvents: 'none',
-                  transform: 'translateY(-2px)'
+                  letterSpacing: '0.7px',
+                  textTransform: 'uppercase',
+                  textShadow: '0 2px 0 rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.45)',
+                  transform: 'translateY(-2px)',
+                  pointerEvents: 'none'
                 }}
               >
                 PLAY MISSION
               </span>
             </button>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '3px',
-              marginBottom: '0'
-            }}
-          >
-            <FeatureCard
-              src={`${CARDS_ASSET}/armory-card.png`}
-              alt="Armory"
-              onClick={() => handleNavigate('WEAPON_SELECT')}
-            />
-            <FeatureCard
-              src={`${CARDS_ASSET}/units-card.png`}
-              alt="Units"
-              onClick={() => handleNavigate('CHAR_SELECT')}
-            />
-            <FeatureCard
-              src={`${CARDS_ASSET}/pvp-card.png`}
-              alt="PVP"
-              onClick={() => handleNavigate('PROFILE')}
-            />
-            <FeatureCard
-              src={`${CARDS_ASSET}/shop-card.png`}
-              alt="Shop"
-              onClick={() => handleNavigate('SHOP')}
-            />
-          </div>
-        </main>
-
-        <BottomNav
-          onHome={() => handleNavigate('MENU')}
-          onMissions={() => handleNavigate('LEVEL_SELECT')}
-          onClans={() => handleNavigate('PROFILE')}
-          onLeaderboard={() => handleNavigate('PROFILE')}
-        />
-      </div>
-    </div>
-  );
-};
-
-const TopBar: React.FC<{
-  level: number;
-  xp: number;
-  currentPigs: number;
-  onSettings: () => void;
-}> = ({ level, xp, currentPigs, onSettings }) => {
-  const xpTarget = Math.max(2500, level * 1250);
-  const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        zIndex: 2,
-        display: 'grid',
-        gridTemplateColumns: '1.6fr 1.05fr 0.55fr 0.55fr',
-        minHeight: '76px',
-        borderBottom: '1px solid rgba(160,117,39,0.22)'
-      }}
-    >
-      <div style={topCellStyle}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '44px 1fr',
-            gap: '8px',
-            alignItems: 'center',
-            height: '100%',
-            padding: '8px 10px'
-          }}
-        >
-          <img
-            src={`${TOPBAR_ASSET}/player-rank-badge.png`}
-            alt="Player rank"
-            draggable={false}
-            style={{
-              width: '42px',
-              height: '42px',
-              objectFit: 'contain',
-              display: 'block'
-            }}
-          />
-
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 900,
-                lineHeight: 1.05,
-                textTransform: 'uppercase',
-                letterSpacing: '0.4px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              General Pig
-            </div>
-
-            <div
-              style={{
-                marginTop: '2px',
-                fontSize: '9px',
-                fontWeight: 800,
-                color: '#e6e1d5',
-                textTransform: 'uppercase'
-              }}
-            >
-              Level {level}
-            </div>
 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1fr auto',
-                gap: '5px',
-                alignItems: 'center',
-                marginTop: '6px'
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '4px',
+                alignItems: 'end'
               }}
             >
-              <div
-                style={{
-                  height: '8px',
-                  borderRadius: '999px',
-                  overflow: 'hidden',
-                  background: 'rgba(255,255,255,0.11)',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05)'
-                }}
-              >
-                <div
-                  style={{
-                    width: `${xpProgress}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #ffb400 0%, #ff7c00 100%)'
-                  }}
-                />
-              </div>
-
-              <div
-                style={{
-                  fontSize: '8px',
-                  fontWeight: 800,
-                  color: '#d7d7d7',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {xp} / {xpTarget} XP
-              </div>
+              <MenuCard
+                src={`${CARDS}/armory-card.png`}
+                alt="Armory"
+                onClick={() => handleNavigate('WEAPON_SELECT')}
+              />
+              <MenuCard
+                src={`${CARDS}/units-card.png`}
+                alt="Units"
+                onClick={() => handleNavigate('CHAR_SELECT')}
+              />
+              <MenuCard
+                src={`${CARDS}/pvp-card.png`}
+                alt="PVP"
+                onClick={() => handleNavigate('PROFILE')}
+              />
+              <MenuCard
+                src={`${CARDS}/shop-card.png`}
+                alt="Shop"
+                onClick={() => handleNavigate('SHOP')}
+              />
             </div>
           </div>
         </div>
-      </div>
 
-      <div style={topCellStyle}>
         <div
           style={{
-            height: '100%',
-            position: 'relative',
-            padding: '9px 8px',
-            display: 'flex',
-            alignItems: 'center'
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: '78px',
+            zIndex: 4
           }}
         >
           <img
-            src={`${TOPBAR_ASSET}/topbar-panel.png`}
+            src={`${NAV}/bottom-nav-bar.png`}
             alt=""
             draggable={false}
             style={{
               position: 'absolute',
-              inset: '9px 8px',
-              width: 'calc(100% - 16px)',
-              height: 'calc(100% - 18px)',
+              inset: 0,
+              width: '100%',
+              height: '100%',
               objectFit: 'fill',
               display: 'block'
             }}
@@ -368,211 +530,48 @@ const TopBar: React.FC<{
             style={{
               position: 'relative',
               zIndex: 1,
-              width: '100%',
-              display: 'flex',
+              height: '100%',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 9px'
+              padding: '4px 4px 0'
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px'
-              }}
-            >
-              <div
-                style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  background:
-                    'radial-gradient(circle at 35% 35%, #ffd04f 0%, #ffac20 58%, #8f4900 100%)',
-                  boxShadow: '0 0 0 1px rgba(255,255,255,0.12)'
-                }}
-              />
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 900,
-                  color: '#fff0c7',
-                  letterSpacing: '0.3px'
-                }}
-              >
-                {currentPigs}
-              </span>
-            </div>
-
-            <img
-              src={`${TOPBAR_ASSET}/plus-button.png`}
-              alt="Add"
-              draggable={false}
-              style={{
-                width: '20px',
-                height: '20px',
-                objectFit: 'contain',
-                display: 'block'
-              }}
+            <NavItem src={`${NAV}/nav-home-active.png`} alt="Home" onClick={() => handleNavigate('MENU')} />
+            <NavItem
+              src={`${NAV}/nav-missions.png`}
+              alt="Missions"
+              onClick={() => handleNavigate('LEVEL_SELECT')}
+            />
+            <NavItem src={`${NAV}/nav-clans.png`} alt="Clans" onClick={() => handleNavigate('PROFILE')} />
+            <NavItem
+              src={`${NAV}/nav-leaderboard.png`}
+              alt="Leaderboard"
+              onClick={() => handleNavigate('PROFILE')}
             />
           </div>
         </div>
       </div>
-
-      <IconPanel icon={`${TOPBAR_ASSET}/mail-icon.png`} badgeCount={2} />
-      <IconPanel icon={`${TOPBAR_ASSET}/settings-icon.png`} onClick={onSettings} />
     </div>
   );
 };
 
-const IconPanel: React.FC<{
-  icon: string;
-  badgeCount?: number;
-  onClick?: () => void;
-}> = ({ icon, badgeCount, onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...topCellStyle,
-        cursor: onClick ? 'pointer' : 'default',
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 0
-      }}
-    >
-      <img
-        src={icon}
-        alt=""
-        draggable={false}
-        style={{
-          width: '22px',
-          height: '22px',
-          objectFit: 'contain',
-          display: 'block'
-        }}
-      />
-
-      {typeof badgeCount === 'number' && badgeCount > 0 ? (
-        <div
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            minWidth: '16px',
-            height: '16px',
-            borderRadius: '999px',
-            background: '#d62f18',
-            color: '#fff',
-            fontSize: '9px',
-            fontWeight: 900,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 4px',
-            boxShadow: '0 0 0 2px rgba(0,0,0,0.42)'
-          }}
-        >
-          {badgeCount}
-        </div>
-      ) : null}
-    </button>
-  );
-};
-
-const DailyRewardCard: React.FC = () => {
-  return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '100px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px'
-      }}
-    >
-      <img
-        src={`${REWARD_ASSET}/reward-chest.png`}
-        alt="Daily reward"
-        draggable={false}
-        style={{
-          width: '100%',
-          height: 'auto',
-          display: 'block',
-          objectFit: 'contain'
-        }}
-      />
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '3px',
-          color: '#f2e7c4',
-          fontSize: '8px',
-          fontWeight: 800,
-          lineHeight: 1
-        }}
-      >
-        <img
-          src={`${REWARD_ASSET}/timer-icon.png`}
-          alt=""
-          draggable={false}
-          style={{
-            width: '10px',
-            height: '10px',
-            objectFit: 'contain',
-            display: 'block'
-          }}
-        />
-        <span>23:59:12</span>
-      </div>
-
-      <button
-        style={{
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-          margin: 0,
-          cursor: 'pointer',
-          display: 'block',
-          width: '100%'
-        }}
-      >
-        <img
-          src={`${REWARD_ASSET}/claim-button.png`}
-          alt="Claim"
-          draggable={false}
-          style={{
-            width: '100%',
-            height: 'auto',
-            display: 'block',
-            objectFit: 'contain'
-          }}
-        />
-      </button>
-    </div>
-  );
-};
-
-const FeatureCard: React.FC<{
+const MenuCard: React.FC<{
   src: string;
   alt: string;
   onClick: () => void;
 }> = ({ src, alt, onClick }) => {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
-        background: 'transparent',
-        border: 'none',
+        width: '100%',
         padding: 0,
-        margin: 0,
+        border: 'none',
+        background: 'transparent',
         cursor: 'pointer',
-        display: 'block',
-        width: '100%'
+        display: 'block'
       }}
     >
       <img
@@ -587,65 +586,6 @@ const FeatureCard: React.FC<{
         }}
       />
     </button>
-  );
-};
-
-const BottomNav: React.FC<{
-  onHome: () => void;
-  onMissions: () => void;
-  onClans: () => void;
-  onLeaderboard: () => void;
-}> = ({ onHome, onMissions, onClans, onLeaderboard }) => {
-  return (
-    <div
-      style={{
-        position: 'relative',
-        zIndex: 2,
-        marginTop: 'auto'
-      }}
-    >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          minHeight: '72px'
-        }}
-      >
-        <img
-          src={`${NAV_ASSET}/bottom-nav-bar.png`}
-          alt=""
-          draggable={false}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'fill',
-            display: 'block'
-          }}
-        />
-
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            alignItems: 'end',
-            padding: '6px 4px 2px'
-          }}
-        >
-          <NavItem src={`${NAV_ASSET}/nav-home-active.png`} alt="Home" onClick={onHome} />
-          <NavItem src={`${NAV_ASSET}/nav-missions.png`} alt="Missions" onClick={onMissions} />
-          <NavItem src={`${NAV_ASSET}/nav-clans.png`} alt="Clans" onClick={onClans} />
-          <NavItem
-            src={`${NAV_ASSET}/nav-leaderboard.png`}
-            alt="Leaderboard"
-            onClick={onLeaderboard}
-          />
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -656,16 +596,18 @@ const NavItem: React.FC<{
 }> = ({ src, alt, onClick }) => {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
-        background: 'transparent',
+        width: '100%',
+        height: '100%',
         border: 'none',
+        background: 'transparent',
         padding: 0,
-        margin: 0,
-        cursor: 'pointer',
         display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center'
+        cursor: 'pointer'
       }}
     >
       <img
@@ -673,8 +615,8 @@ const NavItem: React.FC<{
         alt={alt}
         draggable={false}
         style={{
-          width: '100%',
-          maxWidth: '68px',
+          width: '72px',
+          maxWidth: '100%',
           height: 'auto',
           display: 'block',
           objectFit: 'contain'
@@ -686,7 +628,37 @@ const NavItem: React.FC<{
 
 const topCellStyle: React.CSSProperties = {
   minHeight: '76px',
-  background: 'linear-gradient(180deg, rgba(18,18,18,0.96) 0%, rgba(10,10,10,0.95) 100%)',
-  borderRight: '1px solid rgba(160,117,39,0.22)',
+  borderRight: '1px solid rgba(255,255,255,0.08)',
   boxSizing: 'border-box'
+};
+
+const iconCellStyle: React.CSSProperties = {
+  minHeight: '76px',
+  border: 'none',
+  borderRight: '1px solid rgba(255,255,255,0.08)',
+  background: 'transparent',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  position: 'relative',
+  cursor: 'pointer',
+  padding: 0
+};
+
+const badgeStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '10px',
+  right: '10px',
+  minWidth: '16px',
+  height: '16px',
+  padding: '0 4px',
+  borderRadius: '999px',
+  background: '#d92a17',
+  color: '#fff',
+  fontSize: '9px',
+  fontWeight: 900,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 0 0 2px rgba(0,0,0,0.35)'
 };
