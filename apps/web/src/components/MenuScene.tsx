@@ -65,6 +65,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           color: '#fff'
         }}
       >
+        {/* Background */}
         <img
           src={`${HOME}/main-background.png`}
           alt=""
@@ -81,7 +82,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             userSelect: 'none'
           }}
         />
-
         <div
           style={{
             position: 'absolute',
@@ -101,17 +101,20 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           onSettings={() => handleNavigate('PROFILE')}
         />
 
+        {/* Main content area — ends exactly where the nav begins (bottom: 78) */}
         <div
           style={{
             position: 'absolute',
             top: 76,
             left: 0,
             right: 0,
-            bottom: 0,
-            zIndex: 2
+            bottom: 78,
+            zIndex: 2,
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
-          {/* Top-left branding + reward */}
+          {/* Branding + Reward (top-left, absolute so it never pushes the bottom stack) */}
           <div
             style={{
               position: 'absolute',
@@ -134,7 +137,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 objectFit: 'contain'
               }}
             />
-
             <img
               src={`${BRANDING}/subtitle-banner.png`}
               alt="Tactical Swine Warfare"
@@ -143,10 +145,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 width: '100%',
                 height: 'auto',
                 display: 'block',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                marginTop: 4
               }}
             />
 
+            {/* Reward block */}
             <div
               style={{
                 width: 104,
@@ -156,7 +160,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 alignItems: 'stretch'
               }}
             >
-              {/* Timer above chest */}
               <div
                 style={{
                   display: 'flex',
@@ -167,7 +170,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   fontSize: 8,
                   fontWeight: 800,
                   lineHeight: 1,
-                  marginBottom: 2
+                  marginBottom: 4
                 }}
               >
                 <img
@@ -225,16 +228,17 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Bottom stack: CTA → Cards → Nav (ZERO GAP) */}
+          {/* Spacer pushes the bottom stack to the bottom of this container */}
+          <div style={{ flex: 1, minHeight: 0 }} />
+
+          {/* Bottom stack: Play Mission → Cards → Nav (zero vertical gap) */}
           <div
             style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
+              width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: 0
             }}
           >
             {/* Play Mission */}
@@ -265,7 +269,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Cards grid — directly under button, no gap */}
+            {/* Cards — directly under button, no gap */}
             <div
               style={{
                 width: '100%',
@@ -273,8 +277,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
                 gap: 4,
-                alignItems: 'end',
-                margin: 0
+                alignItems: 'end'
               }}
             >
               <MenuCard
@@ -298,16 +301,16 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 onClick={() => handleNavigate('SHOP')}
               />
             </div>
-
-            {/* Nav — directly under cards, no gap */}
-            <BottomNav
-              onHome={() => handleNavigate('MENU')}
-              onMissions={() => handleNavigate('LEVEL_SELECT')}
-              onClans={() => handleNavigate('PROFILE')}
-              onLeaderboard={() => handleNavigate('PROFILE')}
-            />
           </div>
         </div>
+
+        {/* Nav bar — separate absolute layer so it's always visible and flush under the cards */}
+        <BottomNav
+          onHome={() => handleNavigate('MENU')}
+          onMissions={() => handleNavigate('LEVEL_SELECT')}
+          onClans={() => handleNavigate('PROFILE')}
+          onLeaderboard={() => handleNavigate('PROFILE')}
+        />
       </div>
     </div>
   );
@@ -359,7 +362,6 @@ const TopBar: React.FC<{
               display: 'block'
             }}
           />
-
           <div style={{ minWidth: 0 }}>
             <div
               style={{
@@ -375,7 +377,6 @@ const TopBar: React.FC<{
             >
               General Pig
             </div>
-
             <div
               style={{
                 fontSize: 9,
@@ -387,7 +388,6 @@ const TopBar: React.FC<{
             >
               Level {level}
             </div>
-
             <div
               style={{
                 display: 'grid',
@@ -413,7 +413,6 @@ const TopBar: React.FC<{
                   }}
                 />
               </div>
-
               <div
                 style={{
                   fontSize: 8,
@@ -430,13 +429,7 @@ const TopBar: React.FC<{
       </div>
 
       <div style={topCellStyle}>
-        <div
-          style={{
-            position: 'relative',
-            height: '100%',
-            padding: 8
-          }}
-        >
+        <div style={{ position: 'relative', height: '100%', padding: 8 }}>
           <img
             src={`${TOPBAR}/topbar-panel.png`}
             alt=""
@@ -453,7 +446,6 @@ const TopBar: React.FC<{
               display: 'block'
             }}
           />
-
           <div
             style={{
               position: 'relative',
@@ -465,13 +457,7 @@ const TopBar: React.FC<{
               padding: '0 10px'
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div
                 style={{
                   width: 26,
@@ -492,7 +478,6 @@ const TopBar: React.FC<{
                 {currentPigs}
               </span>
             </div>
-
             <img
               src={`${TOPBAR}/plus-button.png`}
               alt="Add"
@@ -573,8 +558,10 @@ const BottomNav: React.FC<{
   return (
     <div
       style={{
-        position: 'relative',
-        width: '100%',
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
         height: 78,
         zIndex: 4
       }}
@@ -592,7 +579,6 @@ const BottomNav: React.FC<{
           display: 'block'
         }}
       />
-
       <div
         style={{
           position: 'relative',
