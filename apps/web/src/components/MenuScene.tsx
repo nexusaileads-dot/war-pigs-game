@@ -184,15 +184,18 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 <span>23:59:12</span>
               </div>
             </div>
+          </div>
 
-            <div
-              style={{
-                marginTop: 10,
-                width: '100%'
-              }}
-            >
-              <WalletButton />
-            </div>
+          <div
+            style={{
+              position: 'absolute',
+              top: 18,
+              right: 12,
+              zIndex: 20,
+              pointerEvents: 'auto'
+            }}
+          >
+            <WalletButton />
           </div>
 
           <div style={{ flex: 1, minHeight: 0 }} />
