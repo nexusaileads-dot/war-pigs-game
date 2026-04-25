@@ -206,11 +206,10 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
 
   return (
     <div
+      className="mobile-scroll-screen"
       style={{
         padding: '20px',
         color: '#fff',
-        minHeight: '100vh',
-        overflowY: 'auto',
         background: '#0a0a0a',
         boxSizing: 'border-box'
       }}
