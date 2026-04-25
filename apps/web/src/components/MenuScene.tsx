@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useTelegram } from './TelegramProvider';
+import { WalletButton } from './WalletButton';
 
 type Screen =
   | 'MENU'
@@ -135,23 +136,10 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               }}
             />
 
-            <img
-              src={`${BRANDING}/subtitle-banner.png`}
-              alt="Tactical Swine Warfare"
-              draggable={false}
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block',
-                objectFit: 'contain',
-                marginTop: '-20px'
-              }}
-            />
-
             <div
               style={{
                 width: 104,
-                marginTop: 6,
+                marginTop: 8,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch'
@@ -195,32 +183,15 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 />
                 <span>23:59:12</span>
               </div>
+            </div>
 
-              <button
-                type="button"
-                style={{
-                  marginTop: '-4px',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  width: '100%',
-                  display: 'block',
-                  lineHeight: 0
-                }}
-              >
-                <img
-                  src={`${REWARD}/claim-button.png`}
-                  alt="Claim"
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    objectFit: 'contain'
-                  }}
-                />
-              </button>
+            <div
+              style={{
+                marginTop: 10,
+                width: '100%'
+              }}
+            >
+              <WalletButton />
             </div>
           </div>
 
