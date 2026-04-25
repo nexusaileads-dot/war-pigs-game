@@ -22,37 +22,38 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     const userId = request.user.userId;
 
-    const [charOwnership, weaponOwnership, level, profile, existingActiveRun] = await Promise.all([
-      prisma.inventoryItem.findFirst({
-        where: {
-          userId,
-          itemType: 'CHARACTER',
-          characterId
-        }
-      }),
-      prisma.inventoryItem.findFirst({
-        where: {
-          userId,
-          itemType: 'WEAPON',
-          weaponId
-        }
-      }),
-      prisma.level.findUnique({
-        where: { id: levelId }
-      }),
-      prisma.profile.findUnique({
-        where: { userId }
-      }),
-      prisma.gameRun.findFirst({
-        where: {
-          userId,
-          status: 'ACTIVE'
-        },
-        orderBy: {
-          startedAt: 'desc'
-        }
-      })
-    ]);
+    const [charOwnership, weaponOwnership, level, profile, existingActiveRun] =
+      await Promise.all([
+        prisma.inventoryItem.findFirst({
+          where: {
+            userId,
+            itemType: 'CHARACTER',
+            characterId
+          }
+        }),
+        prisma.inventoryItem.findFirst({
+          where: {
+            userId,
+            itemType: 'WEAPON',
+            weaponId
+          }
+        }),
+        prisma.level.findUnique({
+          where: { id: levelId }
+        }),
+        prisma.profile.findUnique({
+          where: { userId }
+        }),
+        prisma.gameRun.findFirst({
+          where: {
+            userId,
+            status: 'ACTIVE'
+          },
+          orderBy: {
+            startedAt: 'desc'
+          }
+        })
+      ]);
 
     if (!charOwnership || !weaponOwnership) {
       return reply.status(400).send({ error: 'Character or weapon not owned' });
@@ -70,27 +71,55 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Level not unlocked' });
     }
 
-    if (existingActiveRun) {
-      await prisma.gameRun.update({
-        where: { id: existingActiveRun.id },
+    const run = await prisma.$transaction(async (tx) => {
+      if (existingActiveRun) {
+        await tx.gameRun.update({
+          where: { id: existingActiveRun.id },
+          data: {
+            status: 'FAILED',
+            endedAt: new Date()
+          }
+        });
+      }
+
+      await tx.inventoryItem.update({
+        where: { id: charOwnership.id },
         data: {
-          status: 'FAILED',
-          endedAt: new Date()
+          timesUsed: {
+            increment: 1
+          }
         }
       });
-    }
 
-    const run = await prisma.gameRun.create({
-      data: {
-        userId,
-        levelId,
-        characterId,
-        weaponId,
-        status: 'ACTIVE'
-      },
-      include: {
-        level: true
-      }
+      await tx.inventoryItem.update({
+        where: { id: weaponOwnership.id },
+        data: {
+          timesUsed: {
+            increment: 1
+          }
+        }
+      });
+
+      await tx.profile.update({
+        where: { userId },
+        data: {
+          equippedCharacterId: characterId,
+          equippedWeaponId: weaponId
+        }
+      });
+
+      return tx.gameRun.create({
+        data: {
+          userId,
+          levelId,
+          characterId,
+          weaponId,
+          status: 'ACTIVE'
+        },
+        include: {
+          level: true
+        }
+      });
     });
 
     const sessionToken = await gameSession.createSession(run.id, {
@@ -107,7 +136,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
         id: run.id,
         characterId: run.characterId,
         weaponId: run.weaponId,
-        levelId: run.levelId
+        levelId: run.levelId,
+        characterUpgradeLevel: charOwnership.upgradeLevel || 0,
+        weaponUpgradeLevel: weaponOwnership.upgradeLevel || 0
       },
       sessionToken
     };
@@ -341,4 +372,4 @@ export async function gameRoutes(fastify: FastifyInstance) {
       totalEarned: player.totalPigsEarned
     }));
   });
-      }
+        }
