@@ -17,7 +17,94 @@ type Screen =
   | 'LEVEL_SELECT'
   | 'SHOP'
   | 'PROFILE'
+  | 'PVP'
+  | 'CLANS'
+  | 'LEADERBOARD'
   | 'GAME';
+
+const ComingSoon: React.FC<{
+  title: string;
+  subtitle: string;
+  onBack: () => void;
+}> = ({ title, subtitle, onBack }) => {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#fff',
+        padding: '20px',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
+      <button
+        onClick={onBack}
+        style={{
+          padding: '10px 20px',
+          marginBottom: '20px',
+          background: '#444',
+          border: '2px solid #ff6b35',
+          color: '#fff',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontWeight: 'bold',
+          alignSelf: 'flex-start'
+        }}
+      >
+        BACK
+      </button>
+
+      <div
+        style={{
+          maxWidth: '620px',
+          margin: '80px auto 0',
+          padding: '28px',
+          borderRadius: '16px',
+          border: '2px solid #2e2e2e',
+          background: '#151515',
+          textAlign: 'center'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '14px',
+            color: '#ffb74d',
+            fontWeight: 800,
+            letterSpacing: '0.08em',
+            marginBottom: '10px',
+            textTransform: 'uppercase'
+          }}
+        >
+          War Pigs
+        </div>
+
+        <h1
+          style={{
+            margin: '0 0 12px 0',
+            fontSize: '28px',
+            color: '#ff6b35',
+            textTransform: 'uppercase'
+          }}
+        >
+          {title}
+        </h1>
+
+        <p
+          style={{
+            margin: 0,
+            color: '#bdbdbd',
+            fontSize: '14px',
+            lineHeight: 1.6
+          }}
+        >
+          {subtitle}
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const { initAuth, isLoading, user, refreshProfile } = useGameStore();
@@ -141,6 +228,36 @@ export default function App() {
       screen = <Profile onBack={() => setCurrentScreen('MENU')} />;
       break;
 
+    case 'PVP':
+      screen = (
+        <ComingSoon
+          title="PVP Coming Soon"
+          subtitle="Head-to-head battles, wagers, ranked matchmaking, and reward systems are still under construction."
+          onBack={() => setCurrentScreen('MENU')}
+        />
+      );
+      break;
+
+    case 'CLANS':
+      screen = (
+        <ComingSoon
+          title="Clans Coming Soon"
+          subtitle="Clan creation, shared progression, and team competition features are planned but not live yet."
+          onBack={() => setCurrentScreen('MENU')}
+        />
+      );
+      break;
+
+    case 'LEADERBOARD':
+      screen = (
+        <ComingSoon
+          title="Leaderboard Coming Soon"
+          subtitle="Global rankings, season points, and top commander standings will be added in a later update."
+          onBack={() => setCurrentScreen('MENU')}
+        />
+      );
+      break;
+
     case 'GAME':
       screen = <GameCanvas onExit={handleGameExit} />;
       break;
@@ -155,4 +272,4 @@ export default function App() {
       <TelegramProvider>{screen}</TelegramProvider>
     </SolanaWalletProvider>
   );
-        }
+            }
