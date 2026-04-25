@@ -21,6 +21,8 @@ type StartRunResponse = {
     characterId?: string;
     weaponId?: string;
     levelId?: string;
+    characterUpgradeLevel?: number;
+    weaponUpgradeLevel?: number;
   };
   sessionToken?: string;
 };
@@ -72,11 +74,16 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   }, []);
 
   const summary = useMemo(() => {
-    const unlocked = levels.filter((l) => l.unlocked).length;
-    const completed = levels.filter((l) => l.completed).length;
-    const bossCount = levels.filter((l) => l.isBossLevel).length;
+    const unlocked = levels.filter((level) => level.unlocked).length;
+    const completed = levels.filter((level) => level.completed).length;
+    const bossCount = levels.filter((level) => level.isBossLevel).length;
 
-    return { unlocked, completed, bossCount, total: levels.length };
+    return {
+      unlocked,
+      completed,
+      bossCount,
+      total: levels.length
+    };
   }, [levels]);
 
   const handleStart = async (levelId: string) => {
@@ -113,7 +120,19 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         return;
       }
 
-      sessionStorage.setItem('currentRun', JSON.stringify(payload));
+      const currentRunPayload = {
+        run: {
+          id: payload.run.id,
+          characterId: payload.run.characterId,
+          weaponId: payload.run.weaponId,
+          levelId: payload.run.levelId,
+          characterUpgradeLevel: Number(payload.run.characterUpgradeLevel ?? 0),
+          weaponUpgradeLevel: Number(payload.run.weaponUpgradeLevel ?? 0)
+        },
+        sessionToken: payload.sessionToken
+      };
+
+      sessionStorage.setItem('currentRun', JSON.stringify(currentRunPayload));
       onStart();
     } catch (error) {
       console.error('[LevelSelect] Failed to start mission:', error);
@@ -129,7 +148,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         style={{
           padding: '20px',
           color: '#fff',
-          height: '100%',
+          minHeight: '100vh',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -147,7 +166,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         style={{
           padding: '20px',
           color: '#fff',
-          height: '100%',
+          minHeight: '100vh',
           background: '#0a0a0a'
         }}
       >
@@ -190,9 +209,10 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
       style={{
         padding: '20px',
         color: '#fff',
-        height: '100%',
+        minHeight: '100vh',
         overflowY: 'auto',
-        background: '#0a0a0a'
+        background: '#0a0a0a',
+        boxSizing: 'border-box'
       }}
     >
       <button
@@ -232,54 +252,10 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
           flexWrap: 'wrap'
         }}
       >
-        <div
-          style={{
-            background: '#161616',
-            border: '1px solid #2d2d2d',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            color: '#ddd',
-            fontSize: '14px'
-          }}
-        >
-          Missions: <span style={{ color: '#fff', fontWeight: 700 }}>{summary.total}</span>
-        </div>
-        <div
-          style={{
-            background: '#161616',
-            border: '1px solid #2d2d2d',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            color: '#ddd',
-            fontSize: '14px'
-          }}
-        >
-          Unlocked: <span style={{ color: '#4caf50', fontWeight: 700 }}>{summary.unlocked}</span>
-        </div>
-        <div
-          style={{
-            background: '#161616',
-            border: '1px solid #2d2d2d',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            color: '#ddd',
-            fontSize: '14px'
-          }}
-        >
-          Completed: <span style={{ color: '#ff6b35', fontWeight: 700 }}>{summary.completed}</span>
-        </div>
-        <div
-          style={{
-            background: '#161616',
-            border: '1px solid #2d2d2d',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            color: '#ddd',
-            fontSize: '14px'
-          }}
-        >
-          Boss Ops: <span style={{ color: '#ffd54f', fontWeight: 700 }}>{summary.bossCount}</span>
-        </div>
+        <SummaryPill label="Missions" value={summary.total} color="#fff" />
+        <SummaryPill label="Unlocked" value={summary.unlocked} color="#4caf50" />
+        <SummaryPill label="Completed" value={summary.completed} color="#ff6b35" />
+        <SummaryPill label="Boss Ops" value={summary.bossCount} color="#ffd54f" />
       </div>
 
       <div
@@ -335,35 +311,21 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                     </h3>
 
                     {level.isBossLevel ? (
-                      <span
-                        style={{
-                          background: '#4b1616',
-                          color: '#ffd54f',
-                          border: '1px solid #8b0000',
-                          borderRadius: '999px',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700
-                        }}
-                      >
-                        BOSS
-                      </span>
+                      <Badge
+                        text="BOSS"
+                        background="#4b1616"
+                        color="#ffd54f"
+                        border="#8b0000"
+                      />
                     ) : null}
 
                     {level.completed ? (
-                      <span
-                        style={{
-                          background: '#18361c',
-                          color: '#7ee787',
-                          border: '1px solid #2e7d32',
-                          borderRadius: '999px',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700
-                        }}
-                      >
-                        COMPLETED
-                      </span>
+                      <Badge
+                        text="COMPLETED"
+                        background="#18361c"
+                        color="#7ee787"
+                        border="#2e7d32"
+                      />
                     ) : null}
                   </div>
 
@@ -381,18 +343,27 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                   >
                     <div style={{ color: '#ddd' }}>
                       Difficulty:{' '}
-                      <span style={{ color: '#ffb74d', fontWeight: 700 }}>{level.difficulty}</span>
+                      <span style={{ color: '#ffb74d', fontWeight: 700 }}>
+                        {level.difficulty}
+                      </span>
                     </div>
+
                     <div style={{ color: '#ddd' }}>
-                      Waves: <span style={{ color: '#fff', fontWeight: 700 }}>{level.waves}</span>
+                      Waves:{' '}
+                      <span style={{ color: '#fff', fontWeight: 700 }}>{level.waves}</span>
                     </div>
+
                     <div style={{ color: '#ddd' }}>
                       Reward:{' '}
-                      <span style={{ color: '#ffd700', fontWeight: 700 }}>{level.baseReward} $PIGS</span>
+                      <span style={{ color: '#ffd700', fontWeight: 700 }}>
+                        {level.baseReward} $PIGS
+                      </span>
                     </div>
+
                     {!level.unlocked ? (
                       <div style={{ color: '#ff8a80' }}>
-                        Requires Level <span style={{ fontWeight: 700 }}>{level.unlockRequirement}</span>
+                        Requires Level{' '}
+                        <span style={{ fontWeight: 700 }}>{level.unlockRequirement}</span>
                       </div>
                     ) : (
                       <div style={{ color: '#9e9e9e' }}>Ready for deployment</div>
@@ -436,5 +407,49 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         })}
       </div>
     </div>
+  );
+};
+
+const SummaryPill: React.FC<{ label: string; value: number; color: string }> = ({
+  label,
+  value,
+  color
+}) => {
+  return (
+    <div
+      style={{
+        background: '#161616',
+        border: '1px solid #2d2d2d',
+        borderRadius: '10px',
+        padding: '10px 14px',
+        color: '#ddd',
+        fontSize: '14px'
+      }}
+    >
+      {label}: <span style={{ color, fontWeight: 700 }}>{value}</span>
+    </div>
+  );
+};
+
+const Badge: React.FC<{
+  text: string;
+  background: string;
+  color: string;
+  border: string;
+}> = ({ text, background, color, border }) => {
+  return (
+    <span
+      style={{
+        background,
+        color,
+        border: `1px solid ${border}`,
+        borderRadius: '999px',
+        padding: '2px 8px',
+        fontSize: '11px',
+        fontWeight: 700
+      }}
+    >
+      {text}
+    </span>
   );
 };
