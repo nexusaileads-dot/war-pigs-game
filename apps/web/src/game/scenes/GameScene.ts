@@ -8,6 +8,8 @@ type CurrentRunPayload = {
     characterId: string;
     weaponId: string;
     levelId: string;
+    characterUpgradeLevel?: number;
+    weaponUpgradeLevel?: number;
   };
   sessionToken: string;
 };
@@ -196,9 +198,12 @@ export class GameScene extends Phaser.Scene {
   private progressBarFill?: Phaser.GameObjects.Rectangle;
 
   private currentCharacterId = 'grunt_bacon';
+  private characterUpgradeLevel = 0;
+  private weaponUpgradeLevel = 0;
+
   private abilityCooldownMs = 6000;
   private lastAbilityUseTime = -99999;
-  private abilityLabel = 'TACTICAL BURST';
+  private abilityLabel = 'MUD SLOW';
   private abilityActiveUntil = 0;
   private bossSpawned = false;
   private bossDefeated = false;
@@ -221,7 +226,7 @@ export class GameScene extends Phaser.Scene {
   private fireButtonRing?: Phaser.GameObjects.Arc;
   private fireButtonThumb?: Phaser.GameObjects.Arc;
 
-  private weaponSprite?: Phaser.GameObjects.Image;
+  private weaponObject?: Phaser.GameObjects.Image | Phaser.GameObjects.Container;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -257,20 +262,26 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.currentCharacterId = this.runData.run.characterId;
+    this.characterUpgradeLevel = Math.max(0, Number(this.runData.run.characterUpgradeLevel ?? 0));
+    this.weaponUpgradeLevel = Math.max(0, Number(this.runData.run.weaponUpgradeLevel ?? 0));
+
     this.configureCharacterAbility();
 
-    const characterStats =
+    const baseCharacterStats =
       CHARACTER_STATS[this.runData.run.characterId] ?? CHARACTER_STATS.grunt_bacon;
-    this.maxHealth = characterStats.maxHealth;
-    this.health = characterStats.maxHealth;
-    this.playerSpeed = characterStats.speed;
 
-    this.weaponConfig =
-      WEAPON_CONFIGS[this.runData.run.weaponId] ?? WEAPON_CONFIGS.oink_pistol;
+    const upgradedCharacterStats = this.applyCharacterUpgrades(baseCharacterStats);
+
+    this.maxHealth = upgradedCharacterStats.maxHealth;
+    this.health = upgradedCharacterStats.maxHealth;
+    this.playerSpeed = upgradedCharacterStats.speed;
+
+    const baseWeaponConfig = WEAPON_CONFIGS[this.runData.run.weaponId] ?? WEAPON_CONFIGS.oink_pistol;
+    this.weaponConfig = this.applyWeaponUpgrades(baseWeaponConfig);
 
     this.createBackground();
 
-    if (!this.createPlayer(characterStats.scale)) return;
+    if (!this.createPlayer(upgradedCharacterStats.scale)) return;
     if (!this.createInput()) return;
     if (!this.createGroups()) return;
 
@@ -484,6 +495,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setCollideWorldBounds(false);
     enemy.setData('hp', stats.hp);
     enemy.setData('moveSpeed', stats.speed);
+    enemy.setData('baseMoveSpeed', stats.speed);
     enemy.setData('contactDamage', stats.contactDamage);
     enemy.setData('enemyKey', enemyKey);
     enemy.setData('isBoss', false);
@@ -521,6 +533,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setTint(0xffe0a3);
     enemy.setData('hp', boss.hp);
     enemy.setData('moveSpeed', boss.speed);
+    enemy.setData('baseMoveSpeed', boss.speed);
     enemy.setData('contactDamage', boss.contactDamage);
     enemy.setData('enemyKey', boss.key);
     enemy.setData('isBoss', true);
@@ -573,7 +586,7 @@ export class GameScene extends Phaser.Scene {
     this.createHitEffect(hitX, hitY, projectileKey);
 
     if (projectileKey === 'rocket') {
-      this.applySplashDamage(hitX, hitY, 85, damage);
+      this.applySplashDamage(hitX, hitY, 85 + this.weaponUpgradeLevel * 8, damage);
     }
 
     if (!enemy.active) return;
@@ -762,12 +775,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setRoundPixels(false);
-
-    const screenW = this.scale.width || 1600;
-    const screenH = this.scale.height || 900;
-    const isSmallScreen = screenW < 900 || screenH < 600;
-
-    this.cameras.main.setZoom(isSmallScreen ? 0.9 : 0.96);
+    this.updateCameraZoom();
 
     return true;
   }
@@ -823,35 +831,55 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createWeaponSprite() {
-    const weaponKey = this.textures.exists(this.runData.run.weaponId)
-      ? this.runData.run.weaponId
-      : this.textures.exists('oink_pistol')
-        ? 'oink_pistol'
-        : null;
-
-    if (!weaponKey) return;
-
-    this.weaponSprite = this.add.image(this.player.x, this.player.y, weaponKey);
-    this.weaponSprite.setDepth(12);
-    this.weaponSprite.setOrigin(0.25, 0.5);
-
+    const weaponKey = this.textures.exists(this.runData.run.weaponId) ? this.runData.run.weaponId : null;
     const size = this.weaponConfig.weaponScale ?? { width: 40, height: 18 };
-    this.weaponSprite.setDisplaySize(size.width, size.height);
+
+    if (weaponKey) {
+      const image = this.add.image(this.player.x, this.player.y, weaponKey);
+      image.setDepth(12);
+      image.setOrigin(0.25, 0.5);
+      image.setDisplaySize(size.width, size.height);
+      this.weaponObject = image;
+      return;
+    }
+
+    const barrel = this.add.rectangle(size.width * 0.35, 0, size.width, size.height, 0x3a3a3a, 1);
+    barrel.setStrokeStyle(2, 0x111111, 1);
+
+    const muzzle = this.add.rectangle(size.width * 0.92, 0, 10, size.height * 0.55, 0x171717, 1);
+    const grip = this.add.rectangle(-4, 8, 8, 16, 0x6b3a1e, 1);
+    grip.setRotation(0.45);
+
+    const highlight = this.add.rectangle(size.width * 0.36, -4, size.width * 0.72, 3, 0x8a8a8a, 0.85);
+
+    const container = this.add.container(this.player.x, this.player.y, [
+      grip,
+      barrel,
+      muzzle,
+      highlight
+    ]);
+    container.setDepth(12);
+    this.weaponObject = container;
   }
 
   private updateWeaponSprite(angle: number) {
-    if (!this.weaponSprite || !this.player?.active) return;
+    if (!this.weaponObject || !this.player?.active) return;
 
     const handDistance = 14;
     const x = this.player.x + Math.cos(angle) * handDistance;
     const y = this.player.y + Math.sin(angle) * handDistance;
 
-    this.weaponSprite.setPosition(x, y);
-    this.weaponSprite.setRotation(angle);
+    this.weaponObject.setPosition(x, y);
+    this.weaponObject.setRotation(angle);
 
     const facingLeft = Math.cos(angle) < 0;
-    this.weaponSprite.setFlipY(facingLeft);
-    this.weaponSprite.setDepth(facingLeft ? 9 : 12);
+    this.weaponObject.setDepth(facingLeft ? 9 : 12);
+
+    if (this.weaponObject instanceof Phaser.GameObjects.Image) {
+      this.weaponObject.setFlipY(facingLeft);
+    } else {
+      this.weaponObject.setScale(1, facingLeft ? -1 : 1);
+    }
   }
 
   private applyMovementLean() {
@@ -864,11 +892,15 @@ export class GameScene extends Phaser.Scene {
 
     if (speed < 8) {
       this.player.setRotation(0);
+      this.player.setScale(1);
       return;
     }
 
     const lean = Phaser.Math.Clamp(vx / this.playerSpeed, -1, 1) * 0.08;
+    const pulse = 1 + Math.sin(this.time.now * 0.018) * 0.025;
+
     this.player.setRotation(lean);
+    this.player.setScale(pulse, 1 / pulse);
   }
 
   private registerCollisions() {
@@ -930,7 +962,7 @@ export class GameScene extends Phaser.Scene {
       if (this.movePointerId === pointer.id) {
         this.movePointerId = null;
         this.moveVector.set(0, 0);
-        this.player.stopMovement();
+        this.player.setVelocity(0, 0);
         this.resetJoystickVisual();
       }
 
@@ -1014,10 +1046,27 @@ export class GameScene extends Phaser.Scene {
     if (this.fireButtonThumb) {
       this.fireButtonThumb.setPosition(fireX, fireY);
     }
+
+    this.updateCameraZoom();
+  }
+
+  private updateCameraZoom() {
+    const width = this.scale.width || 1600;
+    const height = this.scale.height || 900;
+    const isSmallScreen = width < 900 || height < 600;
+    this.cameras.main.setZoom(isSmallScreen ? 0.86 : 0.92);
   }
 
   private updateTouchMovement() {
-    this.player.setMoveVector(this.moveVector.x, this.moveVector.y, this.playerSpeed);
+    let vx = this.moveVector.x * this.playerSpeed;
+    let vy = this.moveVector.y * this.playerSpeed;
+
+    if (vx !== 0 && vy !== 0) {
+      vx *= Math.SQRT1_2;
+      vy *= Math.SQRT1_2;
+    }
+
+    this.player.setVelocity(vx, vy);
   }
 
   private updateTouchAim() {
@@ -1031,10 +1080,7 @@ export class GameScene extends Phaser.Scene {
     this.wantsToShoot = true;
 
     const normalized = this.fireVector.clone().normalize();
-    this.aimWorldPoint.set(
-      this.player.x + normalized.x * 300,
-      this.player.y + normalized.y * 300
-    );
+    this.aimWorldPoint.set(this.player.x + normalized.x * 300, this.player.y + normalized.y * 300);
   }
 
   private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
@@ -1046,7 +1092,7 @@ export class GameScene extends Phaser.Scene {
 
     if (distance <= 0.0001) {
       this.moveVector.set(0, 0);
-      this.player.stopMovement();
+      this.player.setVelocity(0, 0);
       return;
     }
 
@@ -1230,7 +1276,8 @@ export class GameScene extends Phaser.Scene {
     const abilityStatus = abilityReady ? 'READY' : `${cooldownLeft}s`;
 
     this.hudText.setText([
-      `WPN ${this.runData?.run?.weaponId || 'default'}`,
+      `WPN +${this.weaponUpgradeLevel}`,
+      `UNIT +${this.characterUpgradeLevel}`,
       `ABL ${abilityStatus}`
     ]);
 
@@ -1317,6 +1364,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private applyCharacterUpgrades(stats: CharacterStats): CharacterStats {
+    return {
+      ...stats,
+      speed: stats.speed + this.characterUpgradeLevel * 6,
+      maxHealth: stats.maxHealth + this.characterUpgradeLevel * 10
+    };
+  }
+
+  private applyWeaponUpgrades(config: WeaponConfig): WeaponConfig {
+    const fireRateReduction = Math.min(0.22, this.weaponUpgradeLevel * 0.04);
+
+    return {
+      ...config,
+      damage: config.damage + this.weaponUpgradeLevel,
+      fireRate: Math.max(60, Math.floor(config.fireRate * (1 - fireRateReduction))),
+      bulletSpeed: config.bulletSpeed + this.weaponUpgradeLevel * 35,
+      projectileLifetime: config.projectileLifetime + this.weaponUpgradeLevel * 70,
+      pierce: (config.pierce ?? 0) + (this.weaponUpgradeLevel >= 4 ? 1 : 0)
+    };
+  }
+
   private configureCharacterAbility() {
     switch (this.currentCharacterId) {
       case 'iron_tusk':
@@ -1340,10 +1408,12 @@ export class GameScene extends Phaser.Scene {
         this.abilityCooldownMs = 8000;
         break;
       default:
-        this.abilityLabel = 'BATTLE STIM';
+        this.abilityLabel = 'MUD SLOW';
         this.abilityCooldownMs = 6000;
         break;
     }
+
+    this.abilityCooldownMs = Math.max(2200, this.abilityCooldownMs - this.characterUpgradeLevel * 350);
   }
 
   private useCharacterAbility() {
@@ -1369,15 +1439,43 @@ export class GameScene extends Phaser.Scene {
         this.useRallyOrder();
         break;
       default:
-        this.useBattleStim();
+        this.useMudSlow();
         break;
     }
 
     this.updateHud();
   }
 
+  private useMudSlow() {
+    const radius = 150 + this.characterUpgradeLevel * 22;
+    const duration = 1600 + this.characterUpgradeLevel * 250;
+    const slowFactor = Math.max(0.25, 0.55 - this.characterUpgradeLevel * 0.04);
+
+    this.createAreaPulse(this.player.x, this.player.y, radius, 0x7b5e2f);
+    this.showFloatingText(this.player.x, this.player.y - 50, 'MUD SLOW', '#d7b46a');
+
+    this.enemies.getChildren().forEach((enemyObject) => {
+      const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) return;
+
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      if (distance > radius) return;
+
+      const baseSpeed = enemy.getData('baseMoveSpeed') ?? enemy.getData('moveSpeed') ?? 100;
+      enemy.setData('moveSpeed', baseSpeed * slowFactor);
+      enemy.setTint(0x8d6e63);
+
+      this.time.delayedCall(duration, () => {
+        if (!enemy.active) return;
+        enemy.setData('moveSpeed', baseSpeed);
+        enemy.clearTint();
+      });
+    });
+  }
+
   private useIronSlam() {
-    const radius = 150;
+    const radius = 150 + this.characterUpgradeLevel * 18;
+    const slamDamage = 2 + Math.floor(this.characterUpgradeLevel / 2);
 
     this.cameras.main.shake(140, 0.012);
     this.createAreaPulse(this.player.x, this.player.y, radius, 0xb0bec5);
@@ -1386,21 +1484,16 @@ export class GameScene extends Phaser.Scene {
       const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
       if (!enemy.active) return;
 
-      const distance = Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
-        enemy.x,
-        enemy.y
-      );
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
 
       if (distance <= radius) {
         const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
         if (body) {
           const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-          this.physics.velocityFromRotation(angle, 420, body.velocity);
+          this.physics.velocityFromRotation(angle, 420 + this.characterUpgradeLevel * 30, body.velocity);
         }
 
-        const nextHp = (enemy.getData('hp') ?? 1) - 2;
+        const nextHp = (enemy.getData('hp') ?? 1) - slamDamage;
         if (nextHp <= 0) {
           enemy.destroy();
           this.kills += enemy.getData('rewardKills') ?? 1;
@@ -1419,22 +1512,25 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
     if (!body) return;
 
-    this.physics.velocityFromRotation(aimAngle, 640, body.velocity);
-    this.createAreaPulse(this.player.x, this.player.y, 60, 0x81c784);
+    this.physics.velocityFromRotation(aimAngle, 640 + this.characterUpgradeLevel * 45, body.velocity);
+    this.createAreaPulse(this.player.x, this.player.y, 60 + this.characterUpgradeLevel * 8, 0x81c784);
     this.showFloatingText(this.player.x, this.player.y - 50, 'DASH', '#81c784');
   }
 
   private useFocusMode() {
-    this.abilityActiveUntil = this.time.now + 3500;
+    this.abilityActiveUntil = this.time.now + 3500 + this.characterUpgradeLevel * 300;
     this.player.setTint(0xd1c4e9);
     this.showFloatingText(this.player.x, this.player.y - 50, 'FOCUS', '#d1c4e9');
   }
 
   private useDemolitionBurst() {
-    this.createAreaPulse(this.player.x, this.player.y, 85, 0xffb74d);
+    this.createAreaPulse(this.player.x, this.player.y, 85 + this.characterUpgradeLevel * 12, 0xffb74d);
 
-    const angles = [-0.6, -0.3, 0, 0.3, 0.6];
-    angles.forEach((offset) => {
+    const shotCount = 5 + Math.min(3, this.characterUpgradeLevel);
+    const center = (shotCount - 1) / 2;
+
+    for (let i = 0; i < shotCount; i += 1) {
+      const offset = (i - center) * 0.22;
       const baseAngle = this.player.getData('aimAngle') || 0;
       const shotAngle = baseAngle + offset;
       const muzzle = this.getMuzzlePosition(shotAngle);
@@ -1444,7 +1540,7 @@ export class GameScene extends Phaser.Scene {
         | Phaser.Physics.Arcade.Sprite
         | null;
 
-      if (!bullet) return;
+      if (!bullet) continue;
 
       bullet.setTexture(this.textures.exists('rocket') ? 'rocket' : 'bullet');
       bullet.setActive(true);
@@ -1454,18 +1550,18 @@ export class GameScene extends Phaser.Scene {
       bullet.setDepth(50);
       bullet.setDisplaySize(24, 14);
       bullet.setTint(0xffaa33);
-      bullet.setData('damage', 2);
+      bullet.setData('damage', 2 + Math.floor(this.characterUpgradeLevel / 2));
       bullet.setData('projectileKey', 'rocket');
       bullet.setData('pierceLeft', 0);
 
       const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-      if (!body) return;
+      if (!body) continue;
 
       body.enable = true;
       body.reset(muzzle.x, muzzle.y);
       body.setAllowGravity(false);
 
-      this.physics.velocityFromRotation(shotAngle, 520, body.velocity);
+      this.physics.velocityFromRotation(shotAngle, 520 + this.characterUpgradeLevel * 25, body.velocity);
       bullet.setRotation(shotAngle);
 
       this.time.delayedCall(700, () => {
@@ -1474,21 +1570,15 @@ export class GameScene extends Phaser.Scene {
         bullet.setVisible(false);
         body.stop();
       });
-    });
+    }
 
     this.showFloatingText(this.player.x, this.player.y - 50, 'DEMOLITION', '#ffb74d');
   }
 
   private useRallyOrder() {
-    this.abilityActiveUntil = this.time.now + 4500;
+    this.abilityActiveUntil = this.time.now + 4500 + this.characterUpgradeLevel * 300;
     this.player.setTint(0xffd54f);
     this.showFloatingText(this.player.x, this.player.y - 50, 'RALLY', '#ffeb3b');
-  }
-
-  private useBattleStim() {
-    this.abilityActiveUntil = this.time.now + 3500;
-    this.player.setTint(0xff8a65);
-    this.showFloatingText(this.player.x, this.player.y - 50, 'STIM', '#ff8a65');
   }
 
   private updateAbilityState() {
@@ -1500,15 +1590,11 @@ export class GameScene extends Phaser.Scene {
 
   private getEffectiveFireRate() {
     if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
-      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.55));
+      return Math.max(50, Math.floor(this.weaponConfig.fireRate * 0.55));
     }
 
     if (this.currentCharacterId === 'general_goldsnout' && this.abilityActiveUntil > this.time.now) {
-      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.7));
-    }
-
-    if (this.currentCharacterId === 'grunt_bacon' && this.abilityActiveUntil > this.time.now) {
-      return Math.max(60, Math.floor(this.weaponConfig.fireRate * 0.8));
+      return Math.max(50, Math.floor(this.weaponConfig.fireRate * 0.7));
     }
 
     return this.weaponConfig.fireRate;
@@ -1526,11 +1612,11 @@ export class GameScene extends Phaser.Scene {
 
   private getDamageBonus() {
     if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
-      return 1;
+      return 1 + Math.floor(this.characterUpgradeLevel / 2);
     }
 
     if (this.currentCharacterId === 'general_goldsnout' && this.abilityActiveUntil > this.time.now) {
-      return 1;
+      return 1 + Math.floor(this.characterUpgradeLevel / 3);
     }
 
     return 0;
@@ -1538,7 +1624,7 @@ export class GameScene extends Phaser.Scene {
 
   private getProjectileSpeedBonus() {
     if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
-      return 180;
+      return 180 + this.characterUpgradeLevel * 20;
     }
 
     return 0;
@@ -1546,7 +1632,7 @@ export class GameScene extends Phaser.Scene {
 
   private getExtraPierce() {
     if (this.currentCharacterId === 'precision_squeal' && this.abilityActiveUntil > this.time.now) {
-      return 1;
+      return 1 + (this.characterUpgradeLevel >= 4 ? 1 : 0);
     }
 
     return 0;
@@ -1597,9 +1683,11 @@ export class GameScene extends Phaser.Scene {
     this.input.off('pointerup');
     this.spawnTimer?.remove(false);
     this.scale.off('resize', this.handleResize, this);
-    this.weaponSprite?.destroy();
+    this.weaponObject?.destroy();
     this.fireButtonBase?.destroy();
     this.fireButtonRing?.destroy();
     this.fireButtonThumb?.destroy();
+    this.joystickBase?.destroy();
+    this.joystickThumb?.destroy();
   }
-  }
+}
