@@ -73,18 +73,19 @@ model PlayerStats {
 }
 
 model InventoryItem {
-  id          String            @id @default(uuid())
-  userId      String
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String            @id @default(uuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  itemType    InventoryItemType
-  characterId String?
-  weaponId    String?
-  timesUsed   Int               @default(0)
-  acquiredAt  DateTime          @default(now())
+  itemType     InventoryItemType
+  characterId  String?
+  weaponId     String?
+  upgradeLevel Int               @default(0)
+  timesUsed    Int               @default(0)
+  acquiredAt   DateTime          @default(now())
 
-  character   Character?        @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
-  weapon      Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
+  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
+  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
 
   @@unique([userId, characterId])
   @@unique([userId, weaponId])
