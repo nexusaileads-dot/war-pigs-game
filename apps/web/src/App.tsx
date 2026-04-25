@@ -8,7 +8,6 @@ import { LevelSelect } from './components/LevelSelect';
 import { Shop } from './components/Shop';
 import { Profile } from './components/Profile';
 import { GameCanvas } from './game/GameCanvas';
-import { SolanaWalletProvider } from './providers/SolanaWalletProvider';
 
 type Screen =
   | 'MENU'
@@ -267,9 +266,5 @@ export default function App() {
       break;
   }
 
-  return (
-    <SolanaWalletProvider>
-      <TelegramProvider>{screen}</TelegramProvider>
-    </SolanaWalletProvider>
-  );
-            }
+  return <TelegramProvider>{screen}</TelegramProvider>;
+        }
