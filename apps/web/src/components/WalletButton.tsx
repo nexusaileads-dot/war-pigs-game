@@ -1,68 +1,40 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useGameStore } from '../store/gameStore';
 
-const shortenAddress = (address: string) => {
-  if (address.length <= 10) return address;
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-};
-
 export const WalletButton: React.FC = () => {
-  const { connected, publicKey, wallet, connect, disconnect, connecting, disconnecting } =
-    useWallet();
-
+  const { connected, publicKey, wallet } = useWallet();
   const { setConnectedWallet, clearConnectedWallet } = useGameStore();
 
-  const address = useMemo(() => publicKey?.toBase58() || null, [publicKey]);
-
   useEffect(() => {
-    if (connected && address) {
-      setConnectedWallet(address, wallet?.adapter?.name || 'Unknown');
+    if (connected && publicKey) {
+      setConnectedWallet(publicKey.toBase58(), wallet?.adapter?.name || 'Unknown');
       return;
     }
 
     clearConnectedWallet();
-  }, [connected, address, wallet, setConnectedWallet, clearConnectedWallet]);
-
-  const handleClick = async () => {
-    try {
-      if (connected) {
-        await disconnect();
-        return;
-      }
-
-      await connect();
-    } catch (error) {
-      console.error('[WalletButton] Wallet action failed:', error);
-    }
-  };
-
-  const label = connected && address
-    ? shortenAddress(address)
-    : connecting
-      ? 'CONNECTING...'
-      : disconnecting
-        ? 'DISCONNECTING...'
-        : 'CONNECT WALLET';
+  }, [connected, publicKey, wallet, setConnectedWallet, clearConnectedWallet]);
 
   return (
-    <button
-      type="button"
-      onClick={() => void handleClick()}
-      style={{
-        padding: '10px 14px',
-        borderRadius: '10px',
-        border: '2px solid #7c4dff',
-        background: connected ? '#2a1f46' : '#141414',
-        color: '#ffffff',
-        fontWeight: 800,
-        fontSize: '12px',
-        letterSpacing: '0.04em',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap'
-      }}
-    >
-      {label}
-    </button>
+    <div style={{ display: 'inline-flex' }}>
+      <WalletMultiButton
+        style={{
+          height: '40px',
+          borderRadius: '10px',
+          background: '#2a1f46',
+          color: '#ffffff',
+          fontWeight: 800,
+          fontSize: '12px',
+          letterSpacing: '0.04em',
+          padding: '0 14px',
+          border: '2px solid #7c4dff',
+          fontFamily: 'inherit',
+          lineHeight: 1,
+          whiteSpace: 'nowrap',
+          cursor: 'pointer'
+        }}
+      />
+    </div>
   );
 };
