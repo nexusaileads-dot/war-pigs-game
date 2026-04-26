@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/global.css';
+import { GameNoticeProvider } from './components/GameNoticeProvider';
 
 declare global {
   interface Window {
@@ -38,6 +39,8 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <GameNoticeProvider>
+      <App />
+    </GameNoticeProvider>
   </React.StrictMode>
 );
