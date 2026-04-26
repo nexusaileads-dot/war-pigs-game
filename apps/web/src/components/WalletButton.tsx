@@ -1,11 +1,19 @@
 import React from 'react';
+import { useGameNotice } from './GameNoticeProvider';
 
 export const WalletButton: React.FC = () => {
+  const { showNotice } = useGameNotice();
+
   return (
     <button
       type="button"
       onClick={() => {
-        alert('Wallet connect will be added after current deployment repairs are complete.');
+        showNotice({
+          title: 'Wallet Connect',
+          message:
+            'Wallet connection is temporarily disabled while gameplay repairs are being deployed.',
+          variant: 'info'
+        });
       }}
       style={{
         padding: '10px 14px',
@@ -17,7 +25,8 @@ export const WalletButton: React.FC = () => {
         fontSize: '12px',
         letterSpacing: '0.04em',
         cursor: 'pointer',
-        whiteSpace: 'nowrap'
+        whiteSpace: 'nowrap',
+        boxShadow: '0 0 14px rgba(124, 77, 255, 0.35)'
       }}
     >
       CONNECT WALLET
