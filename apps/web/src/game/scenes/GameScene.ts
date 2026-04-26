@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PigPlayer } from '../entities/PigPlayer';
 import { apiClient } from '../../api/client';
+import { getLevelDefinition, LevelDefinition, LevelEnemyKind } from '../levels';
 
 type CurrentRunPayload = {
   run: {
@@ -34,12 +35,10 @@ type CharacterStats = {
   jumpVelocity: number;
 };
 
-type EnemyKind = 'soldier' | 'heavy' | 'drone' | 'helicopter' | 'tank';
-
 type EnemyConfig = {
   key: string;
   fallbackKey: string;
-  kind: EnemyKind;
+  kind: LevelEnemyKind;
   hp: number;
   speed: number;
   width: number;
@@ -48,13 +47,6 @@ type EnemyConfig = {
   rewardKills: number;
   flying?: boolean;
 };
-
-const WORLD_WIDTH = 5400;
-const WORLD_HEIGHT = 760;
-const GROUND_Y = 650;
-const STAGE_END_X = 5100;
-const KILL_TARGET = 18;
-const WORLD_GRAVITY = 1850;
 
 const MOVE_STICK_MARGIN = 78;
 const MOVE_STICK_BASE_RADIUS = 38;
@@ -164,8 +156,8 @@ const CHARACTER_STATS: Record<string, CharacterStats> = {
   general_goldsnout: { speed: 270, maxHealth: 125, scale: 78, jumpVelocity: 700 }
 };
 
-const ENEMY_CONFIGS: EnemyConfig[] = [
-  {
+const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
+  soldier: {
     key: 'wolf_grunt',
     fallbackKey: 'fallback_enemy_soldier',
     kind: 'soldier',
@@ -176,18 +168,7 @@ const ENEMY_CONFIGS: EnemyConfig[] = [
     contactDamage: 10,
     rewardKills: 1
   },
-  {
-    key: 'wolf_soldier',
-    fallbackKey: 'fallback_enemy_soldier',
-    kind: 'soldier',
-    hp: 3,
-    speed: 105,
-    width: 62,
-    height: 74,
-    contactDamage: 12,
-    rewardKills: 1
-  },
-  {
+  heavy: {
     key: 'wolf_heavy',
     fallbackKey: 'fallback_enemy_heavy',
     kind: 'heavy',
@@ -198,7 +179,7 @@ const ENEMY_CONFIGS: EnemyConfig[] = [
     contactDamage: 16,
     rewardKills: 2
   },
-  {
+  drone: {
     key: 'cyber_fox',
     fallbackKey: 'fallback_drone',
     kind: 'drone',
@@ -210,18 +191,30 @@ const ENEMY_CONFIGS: EnemyConfig[] = [
     rewardKills: 1,
     flying: true
   },
-  {
+  helicopter: {
+    key: 'helicopter',
+    fallbackKey: 'fallback_helicopter',
+    kind: 'helicopter',
+    hp: 8,
+    speed: 90,
+    width: 120,
+    height: 58,
+    contactDamage: 18,
+    rewardKills: 3,
+    flying: true
+  },
+  tank: {
     key: 'alpha_wolfgang',
     fallbackKey: 'fallback_tank',
     kind: 'tank',
-    hp: 20,
+    hp: 22,
     speed: 54,
     width: 150,
     height: 100,
     contactDamage: 22,
     rewardKills: 5
   }
-];
+};
 
 export class GameScene extends Phaser.Scene {
   player!: PigPlayer;
@@ -249,8 +242,9 @@ export class GameScene extends Phaser.Scene {
   maxHealth = 100;
   playerSpeed = 240;
   jumpVelocity = 690;
-  killTarget = KILL_TARGET;
   isFinishing = false;
+
+  private level: LevelDefinition = getLevelDefinition();
 
   private currentCharacterId = 'grunt_bacon';
   private characterUpgradeLevel = 0;
@@ -311,12 +305,8 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.createFallbackTextures();
 
-    this.physics.world.gravity.y = WORLD_GRAVITY;
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-    this.cameras.main.setBackgroundColor('#f0b66d');
-
     const storedRun = sessionStorage.getItem('currentRun');
+
     if (!storedRun) {
       this.showFatalMessage('RUN DATA MISSING');
       this.forceDefeat();
@@ -338,6 +328,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.level = getLevelDefinition(this.runData.run.levelId);
+
+    this.physics.world.gravity.y = this.level.gravity;
+    this.physics.world.setBounds(0, 0, this.level.worldWidth, this.level.worldHeight);
+    this.cameras.main.setBackgroundColor(this.level.backgroundColor);
+
     this.currentCharacterId = this.runData.run.characterId;
     this.characterUpgradeLevel = Math.max(0, Number(this.runData.run.characterUpgradeLevel ?? 0));
     this.weaponUpgradeLevel = Math.max(0, Number(this.runData.run.weaponUpgradeLevel ?? 0));
@@ -346,6 +342,7 @@ export class GameScene extends Phaser.Scene {
 
     const baseCharacterStats =
       CHARACTER_STATS[this.runData.run.characterId] ?? CHARACTER_STATS.grunt_bacon;
+
     const characterStats = this.applyCharacterUpgrades(baseCharacterStats);
 
     this.maxHealth = characterStats.maxHealth;
@@ -369,7 +366,6 @@ export class GameScene extends Phaser.Scene {
     this.createPauseButton();
 
     this.registerCollisions();
-
     this.spawnInitialEnemies();
 
     this.spawnTimer = this.time.addEvent({
@@ -389,6 +385,7 @@ export class GameScene extends Phaser.Scene {
     this.setupPointerControls();
     this.handleResize(this.scale.gameSize);
     this.updateHud();
+    this.showMissionIntro();
 
     this.scale.on('resize', this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
@@ -407,10 +404,29 @@ export class GameScene extends Phaser.Scene {
     this.checkStageProgress();
     this.updateHud();
 
-    if (this.player.y > WORLD_HEIGHT + 120) {
+    if (this.player.y > this.level.worldHeight + 120) {
       this.health = 0;
       this.failMission();
     }
+  }
+
+  private showMissionIntro() {
+    if (!this.missionText) return;
+
+    this.missionText.setText(this.level.title.toUpperCase());
+    this.missionText.setVisible(true);
+
+    this.time.delayedCall(1600, () => {
+      if (!this.isFinishing && this.missionText) {
+        this.missionText.setText(this.level.subtitle.toUpperCase());
+      }
+    });
+
+    this.time.delayedCall(3200, () => {
+      if (!this.isFinishing && this.missionText) {
+        this.missionText.setVisible(false);
+      }
+    });
   }
 
   private createFallbackTextures() {
@@ -456,22 +472,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBackground() {
-    if (this.textures.exists('background')) {
-      const bg = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'background');
-      bg.setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-      bg.setDepth(-20);
+    this.add
+      .rectangle(
+        this.level.worldWidth / 2,
+        this.level.worldHeight / 2,
+        this.level.worldWidth,
+        this.level.worldHeight,
+        this.level.backgroundColor
+      )
+      .setDepth(-40);
+
+    if (this.textures.exists('side_level_1_bg')) {
+      const bg = this.add.image(this.level.worldWidth / 2, this.level.worldHeight / 2, 'side_level_1_bg');
+      bg.setDisplaySize(this.level.worldWidth, this.level.worldHeight);
+      bg.setDepth(-38);
+      bg.setScrollFactor(0.55);
+    } else if (this.textures.exists('background')) {
+      const bg = this.add.image(this.level.worldWidth / 2, this.level.worldHeight / 2, 'background');
+      bg.setDisplaySize(this.level.worldWidth, this.level.worldHeight);
+      bg.setDepth(-38);
       bg.setScrollFactor(0.55);
     }
 
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0xf0b66d)
-      .setDepth(-40);
-
-    this.add.circle(3950, 125, 62, 0xfff6d7, 1).setDepth(-35).setScrollFactor(0.4);
+    this.add
+      .circle(this.level.worldWidth * 0.72, 125, 62, this.level.sunColor, 1)
+      .setDepth(-35)
+      .setScrollFactor(0.4);
 
     for (let i = 0; i < 18; i += 1) {
       const x = i * 360 + 100;
       const h = Phaser.Math.Between(140, 260);
-      const y = GROUND_Y - 80 - h / 2;
+      const y = this.level.groundY - 80 - h / 2;
 
       this.add
         .rectangle(x, y, Phaser.Math.Between(180, 320), h, 0x756b59, 0.26)
@@ -493,37 +524,37 @@ export class GameScene extends Phaser.Scene {
   private createStage() {
     this.platforms = this.physics.add.staticGroup();
 
-    this.createPlatform(WORLD_WIDTH / 2, GROUND_Y + 44, WORLD_WIDTH, 90, 0x3c2b21);
-    this.createPlatform(WORLD_WIDTH / 2, GROUND_Y, WORLD_WIDTH, 28, 0xb8a07d);
+    this.level.platforms.forEach((platform) => {
+      this.createPlatform(
+        platform.x,
+        platform.y,
+        platform.width,
+        platform.height,
+        platform.color ?? 0x7b704c
+      );
+    });
 
-    this.createPlatform(720, 500, 420, 34, 0x7b704c);
-    this.createPlatform(1250, 390, 440, 34, 0x6c744a);
-    this.createPlatform(1780, 535, 360, 34, 0x9a7c5a);
-    this.createPlatform(2260, 430, 460, 34, 0x7b704c);
-    this.createPlatform(2820, 520, 360, 34, 0x9a7c5a);
-    this.createPlatform(3360, 385, 440, 34, 0x6c744a);
-    this.createPlatform(3970, 520, 480, 34, 0x7b704c);
-    this.createPlatform(4550, 420, 440, 34, 0x9a7c5a);
+    this.level.crates.forEach((crate) => {
+      this.createCrate(crate.x, crate.y);
+    });
 
-    this.createCrate(960, 460);
-    this.createCrate(1510, 350);
-    this.createCrate(2440, 390);
-    this.createCrate(3120, 480);
-    this.createCrate(4300, 380);
-
-    this.createDecorationBuilding(360, GROUND_Y - 138, 420, 260, 0xd0c8b8);
-    this.createDecorationBuilding(1480, GROUND_Y - 164, 520, 310, 0xcfc5ad);
-    this.createDecorationBuilding(2600, GROUND_Y - 145, 480, 270, 0xd6d0c1);
-    this.createDecorationBuilding(3900, GROUND_Y - 180, 540, 340, 0xd4ccc0);
-    this.createDecorationBuilding(5000, GROUND_Y - 145, 400, 270, 0xc9c1af);
+    this.level.buildings.forEach((building) => {
+      this.createDecorationBuilding(
+        building.x,
+        building.y,
+        building.width,
+        building.height,
+        building.color ?? 0xd0c8b8
+      );
+    });
 
     this.add
-      .rectangle(STAGE_END_X, GROUND_Y - 78, 64, 116, 0xffd166, 0.9)
+      .rectangle(this.level.extractionX, this.level.groundY - 78, 64, 116, 0xffd166, 0.9)
       .setStrokeStyle(3, 0x5a3200, 1)
       .setDepth(3);
 
     this.add
-      .text(STAGE_END_X, GROUND_Y - 150, 'EXTRACTION', {
+      .text(this.level.extractionX, this.level.groundY - 150, 'EXTRACTION', {
         fontSize: '18px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -552,15 +583,8 @@ export class GameScene extends Phaser.Scene {
     const crate = this.createPlatform(x, y, 72, 72, 0x9b7448);
     crate.setDepth(2);
 
-    this.add
-      .line(x, y, -30, -30, 30, 30, 0x4b2d13, 0.65)
-      .setLineWidth(4)
-      .setDepth(3);
-
-    this.add
-      .line(x, y, 30, -30, -30, 30, 0x4b2d13, 0.65)
-      .setLineWidth(4)
-      .setDepth(3);
+    this.add.line(x, y, -30, -30, 30, 30, 0x4b2d13, 0.65).setLineWidth(4).setDepth(3);
+    this.add.line(x, y, 30, -30, -30, 30, 0x4b2d13, 0.65).setLineWidth(4).setDepth(3);
   }
 
   private createDecorationBuilding(
@@ -579,9 +603,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(-1);
     }
 
-    this.add
-      .rectangle(x + width * 0.25, y + height * 0.25, 76, 112, 0x5f6d56, 0.9)
-      .setDepth(-1);
+    this.add.rectangle(x + width * 0.25, y + height * 0.25, 76, 112, 0x5f6d56, 0.9).setDepth(-1);
   }
 
   private createPlayer(scale: number): boolean {
@@ -591,12 +613,13 @@ export class GameScene extends Phaser.Scene {
         ? 'player'
         : 'fallback_player';
 
-    this.player = new PigPlayer(this, 150, GROUND_Y - 140, characterKey);
+    this.player = new PigPlayer(this, 150, this.level.groundY - 140, characterKey);
     this.player.setDisplaySize(scale, scale);
     this.player.setDepth(20);
     this.player.setCollideWorldBounds(true);
 
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+
     if (body) {
       body.setAllowGravity(true);
       body.setGravityY(0);
@@ -607,7 +630,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cameras.main.startFollow(this.player, true, 0.13, 0.16);
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.cameras.main.setBounds(0, 0, this.level.worldWidth, this.level.worldHeight);
     this.cameras.main.setRoundPixels(false);
     this.updateCameraZoom();
 
@@ -622,7 +645,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.input.addPointer(4);
-
     this.cursors = this.input.keyboard.createCursorKeys();
 
     this.wasd = this.input.keyboard.addKeys({
@@ -659,6 +681,7 @@ export class GameScene extends Phaser.Scene {
   private registerCollisions() {
     this.physics.add.collider(this.player, this.platforms, () => {
       const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+
       if (body?.blocked.down || body?.touching.down) {
         this.canDoubleJump = true;
       }
@@ -800,24 +823,21 @@ export class GameScene extends Phaser.Scene {
     const x = this.scale.width - 54;
     const y = 56;
 
-    const outer = this.add
-      .circle(0, 0, 32, 0x111111, 0.76)
-      .setStrokeStyle(4, 0xffb347, 0.75);
+    const outer = this.add.circle(0, 0, 32, 0x111111, 0.76).setStrokeStyle(4, 0xffb347, 0.75);
 
-    const icon = this.add.text(0, -3, 'Ⅱ', {
-      fontSize: '28px',
-      color: '#ffb347',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    const icon = this.add
+      .text(0, -3, 'Ⅱ', {
+        fontSize: '28px',
+        color: '#ffb347',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
 
     this.pauseButton = this.add.container(x, y, [outer, icon]);
     this.pauseButton.setScrollFactor(0);
     this.pauseButton.setDepth(1300);
     this.pauseButton.setSize(64, 64);
-    this.pauseButton.setInteractive(
-      new Phaser.Geom.Circle(0, 0, 34),
-      Phaser.Geom.Circle.Contains
-    );
+    this.pauseButton.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
     this.pauseButton.on('pointerdown', () => {
       this.scene.pause();
@@ -1117,7 +1137,6 @@ export class GameScene extends Phaser.Scene {
 
     if (this.firePointerId !== null && this.fireVector.length() > FIRE_DEADZONE) {
       const normalized = this.fireVector.clone().normalize();
-
       this.aimAngle = Phaser.Math.Angle.Between(0, 0, normalized.x, normalized.y);
 
       if (Math.abs(normalized.x) > 0.18) {
@@ -1174,6 +1193,7 @@ export class GameScene extends Phaser.Scene {
     const effectiveFireRate = this.getEffectiveFireRate();
 
     if (now - this.lastShotTime < effectiveFireRate) return;
+
     this.lastShotTime = now;
 
     const burst = this.weaponConfig.burst ?? 1;
@@ -1181,17 +1201,12 @@ export class GameScene extends Phaser.Scene {
     const damageBoost = this.getDamageBonus();
     const speedBoost = this.getProjectileSpeedBonus();
     const extraPierce = this.getExtraPierce();
-
     const muzzle = this.getMuzzlePosition(this.aimAngle);
 
     for (let i = 0; i < burst; i += 1) {
       const projectileKey = this.resolveProjectileKey();
 
-      const bullet = this.projectiles.get(
-        muzzle.x,
-        muzzle.y,
-        projectileKey
-      ) as Phaser.Physics.Arcade.Image | null;
+      const bullet = this.projectiles.get(muzzle.x, muzzle.y, projectileKey) as Phaser.Physics.Arcade.Image | null;
 
       if (!bullet) continue;
 
@@ -1232,6 +1247,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setData('damage', this.weaponConfig.damage + damageBoost);
       bullet.setData('projectileKey', projectileKey);
       bullet.setData('pierceLeft', (this.weaponConfig.pierce ?? 0) + extraPierce);
+      bullet.setData('enemyProjectile', false);
 
       if (projectileKey.includes('plasma')) {
         bullet.setTint(0x66e0ff);
@@ -1275,10 +1291,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createMuzzleFlash(x: number, y: number, angle: number) {
-    const flash = this.add
-      .triangle(x, y, 0, -8, 28, 0, 0, 8, 0xffd166, 0.9)
-      .setDepth(50)
-      .setRotation(angle);
+    const flash = this.add.triangle(x, y, 0, -8, 28, 0, 0, 8, 0xffd166, 0.9).setDepth(50).setRotation(angle);
 
     this.tweens.add({
       targets: flash,
@@ -1291,45 +1304,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnInitialEnemies() {
-    const spawns = [
-      { x: 620, y: GROUND_Y - 120, index: 0 },
-      { x: 980, y: 450, index: 0 },
-      { x: 1320, y: 310, index: 3 },
-      { x: 1720, y: GROUND_Y - 120, index: 1 },
-      { x: 2240, y: 350, index: 3 },
-      { x: 2700, y: GROUND_Y - 120, index: 2 },
-      { x: 3300, y: 300, index: 3 },
-      { x: 3820, y: GROUND_Y - 120, index: 1 },
-      { x: 4380, y: 330, index: 3 }
-    ];
-
-    spawns.forEach((spawn) => {
-      this.createEnemy(ENEMY_CONFIGS[spawn.index], spawn.x, spawn.y);
+    this.level.initialEnemies.forEach((spawn) => {
+      this.createEnemy(ENEMY_CONFIGS[spawn.kind], spawn.x, spawn.y);
     });
   }
 
   private spawnEnemyAhead() {
     if (this.isFinishing || !this.player?.active) return;
 
-    if (!this.bossSpawned && (this.player.x > 4200 || this.kills >= this.killTarget - 5)) {
+    if (!this.bossSpawned && (this.player.x > this.level.boss.triggerX || this.kills >= this.level.killTarget - 4)) {
       this.spawnBoss();
       return;
     }
 
     const cameraRight = this.cameras.main.scrollX + this.scale.width / this.cameras.main.zoom;
-    const spawnX = Phaser.Math.Clamp(cameraRight + Phaser.Math.Between(160, 380), 500, STAGE_END_X - 220);
+
+    const spawnX = Phaser.Math.Clamp(
+      cameraRight + Phaser.Math.Between(160, 380),
+      500,
+      this.level.extractionX - 220
+    );
 
     const roll = Math.random();
-    const config =
-      roll > 0.82
-        ? ENEMY_CONFIGS[3]
-        : roll > 0.63
-          ? ENEMY_CONFIGS[2]
-          : roll > 0.35
-            ? ENEMY_CONFIGS[1]
-            : ENEMY_CONFIGS[0];
+    const kind: LevelEnemyKind =
+      roll > 0.86
+        ? 'drone'
+        : roll > 0.66
+          ? 'heavy'
+          : 'soldier';
 
-    const y = config.flying ? Phaser.Math.Between(230, 430) : GROUND_Y - 120;
+    const config = ENEMY_CONFIGS[kind];
+    const y = config.flying ? Phaser.Math.Between(230, 430) : this.level.groundY - 120;
 
     this.createEnemy(config, spawnX, y);
   }
@@ -1339,13 +1344,13 @@ export class GameScene extends Phaser.Scene {
 
     this.bossSpawned = true;
 
-    const bossConfig = ENEMY_CONFIGS.find((enemy) => enemy.kind === 'tank') ?? ENEMY_CONFIGS[4];
+    const bossConfig = ENEMY_CONFIGS[this.level.boss.kind];
+    const boss = this.createEnemy(bossConfig, this.level.boss.x, this.level.boss.y);
 
-    const boss = this.createEnemy(bossConfig, Math.min(STAGE_END_X - 420, this.player.x + 720), GROUND_Y - 130);
     boss.setTint(0xffe0a3);
     boss.setData('isBoss', true);
 
-    this.missionText?.setText('BOSS INCOMING');
+    this.missionText?.setText(this.level.boss.title);
     this.missionText?.setVisible(true);
 
     this.time.delayedCall(1600, () => {
@@ -1355,7 +1360,6 @@ export class GameScene extends Phaser.Scene {
 
   private createEnemy(config: EnemyConfig, x: number, y: number) {
     const textureKey = this.textures.exists(config.key) ? config.key : config.fallbackKey;
-
     const enemy = this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite;
 
     enemy.setTexture(textureKey);
@@ -1374,10 +1378,10 @@ export class GameScene extends Phaser.Scene {
     enemy.setData('rewardKills', config.rewardKills);
     enemy.setData('kind', config.kind);
     enemy.setData('flying', Boolean(config.flying));
-    enemy.setData('lastShotAt', 0);
     enemy.setData('isBoss', false);
 
     const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
+
     if (body) {
       body.enable = true;
       body.reset(x, y);
@@ -1399,7 +1403,7 @@ export class GameScene extends Phaser.Scene {
       const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
       if (!body) return;
 
-      const kind = enemy.getData('kind') as EnemyKind;
+      const kind = enemy.getData('kind') as LevelEnemyKind;
       const speed = enemy.getData('moveSpeed') ?? 80;
       const direction = this.player.x >= enemy.x ? 1 : -1;
       const distanceX = Math.abs(this.player.x - enemy.x);
@@ -1407,12 +1411,11 @@ export class GameScene extends Phaser.Scene {
       enemy.setFlipX(direction < 0);
 
       if (enemy.getData('flying')) {
-        const targetY = Phaser.Math.Clamp(this.player.y - 80, 180, GROUND_Y - 160);
+        const targetY = Phaser.Math.Clamp(this.player.y - 80, 180, this.level.groundY - 160);
         const yDirection = targetY > enemy.y ? 1 : -1;
 
         body.setVelocityX(direction * speed);
         body.setVelocityY(Math.abs(targetY - enemy.y) > 16 ? yDirection * speed * 0.55 : 0);
-
         enemy.rotation = Math.sin(this.time.now * 0.012 + enemy.x) * 0.08;
         return;
       }
@@ -1440,18 +1443,19 @@ export class GameScene extends Phaser.Scene {
       const distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
       if (distance > 780) return;
 
-      const kind = enemy.getData('kind') as EnemyKind;
-      if (kind === 'heavy' || kind === 'drone' || kind === 'tank') {
+      const kind = enemy.getData('kind') as LevelEnemyKind;
+
+      if (kind === 'heavy' || kind === 'drone' || kind === 'tank' || kind === 'helicopter') {
         this.enemyShoot(enemy, kind);
-      } else if (Math.random() > 0.55) {
+      } else if (Math.random() > 0.58) {
         this.enemyShoot(enemy, kind);
       }
     });
   }
 
-  private enemyShoot(enemy: Phaser.Physics.Arcade.Sprite, kind: EnemyKind) {
+  private enemyShoot(enemy: Phaser.Physics.Arcade.Sprite, kind: LevelEnemyKind) {
     const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
-    const speed = kind === 'tank' ? 520 : kind === 'drone' ? 460 : 420;
+    const speed = kind === 'tank' ? 520 : kind === 'drone' || kind === 'helicopter' ? 460 : 420;
 
     const bullet = this.projectiles.get(enemy.x, enemy.y, 'fallback_bullet') as Phaser.Physics.Arcade.Image;
     if (!bullet) return;
@@ -1513,7 +1517,6 @@ export class GameScene extends Phaser.Scene {
     const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
 
     if (!bullet.active || !enemy.active || this.isFinishing) return;
-
     if (bullet.getData('enemyProjectile')) return;
 
     const hitX = enemy.x;
@@ -1565,7 +1568,10 @@ export class GameScene extends Phaser.Scene {
     enemy.destroy();
 
     this.kills += rewardKills;
-    if (isBoss) this.bossDefeated = true;
+
+    if (isBoss) {
+      this.bossDefeated = true;
+    }
 
     this.emitKillsUpdate();
     this.updateHud();
@@ -1577,7 +1583,7 @@ export class GameScene extends Phaser.Scene {
       isBoss ? '#ffe082' : '#ffd166'
     );
 
-    if (this.kills >= this.killTarget) {
+    if (this.kills >= this.level.killTarget) {
       this.missionText?.setText('EXTRACTION OPEN');
       this.missionText?.setVisible(true);
 
@@ -1586,8 +1592,13 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    if (isBoss || this.kills >= this.killTarget + 4) {
-      void this.finishGame();
+    if (isBoss) {
+      this.missionText?.setText('MINI TANK DESTROYED');
+      this.missionText?.setVisible(true);
+
+      this.time.delayedCall(1300, () => {
+        if (!this.isFinishing) this.missionText?.setVisible(false);
+      });
     }
   }
 
@@ -1604,6 +1615,7 @@ export class GameScene extends Phaser.Scene {
       enemy.destroy();
     } else {
       const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
+
       if (body) {
         body.setVelocityX(this.player.x > enemy.x ? -260 : 260);
       }
@@ -1618,12 +1630,14 @@ export class GameScene extends Phaser.Scene {
     this.health = Math.max(0, this.health - damage);
 
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+
     if (body) {
       body.setVelocityX(this.facingDirection === 1 ? -240 : 240);
       body.setVelocityY(-220);
     }
 
     this.player.setTintFill(0xffffff);
+
     this.time.delayedCall(80, () => {
       if (this.player?.active) this.player.clearTint();
     });
@@ -1649,16 +1663,28 @@ export class GameScene extends Phaser.Scene {
   private checkStageProgress() {
     if (this.stageCompleted) return;
 
-    if (this.player.x >= STAGE_END_X - 80 && (this.kills >= this.killTarget || this.bossDefeated)) {
+    const extractionReached = this.player.x >= this.level.extractionX - 80;
+    const objectiveMet = this.kills >= this.level.killTarget || this.bossDefeated;
+
+    if (extractionReached && objectiveMet) {
       this.stageCompleted = true;
       void this.finishGame();
+    }
+
+    if (extractionReached && !objectiveMet) {
+      this.missionText?.setText(`CLEAR ${this.level.killTarget - this.kills} MORE`);
+      this.missionText?.setVisible(true);
+
+      this.time.delayedCall(800, () => {
+        if (!this.isFinishing) this.missionText?.setVisible(false);
+      });
     }
   }
 
   async finishGame() {
     if (this.isFinishing) return;
-    this.isFinishing = true;
 
+    this.isFinishing = true;
     this.spawnTimer?.remove(false);
     this.enemyFireTimer?.remove(false);
     this.enemies.clear(true, true);
@@ -1672,7 +1698,7 @@ export class GameScene extends Phaser.Scene {
       await apiClient.post('/api/game/complete', {
         runId: this.runData.run.id,
         sessionToken: this.runData.sessionToken,
-        clientHash: 'side-scroller-v1',
+        clientHash: 'level-1-side-scroller-v1',
         stats: {
           kills: this.kills,
           damageDealt: this.kills * 40,
@@ -1754,8 +1780,9 @@ export class GameScene extends Phaser.Scene {
     const abilityStatus = abilityReady ? 'READY' : `${cooldownLeft}s`;
 
     this.hudText.setText([
+      `LEVEL 1: ${this.level.title.toUpperCase()}`,
       `SCORE ${String(this.kills * 100).padStart(6, '0')}`,
-      `KILLS ${this.kills}/${this.killTarget}`,
+      `KILLS ${this.kills}/${this.level.killTarget}`,
       `WPN +${this.weaponUpgradeLevel}  UNIT +${this.characterUpgradeLevel}`,
       `${this.abilityLabel} ${abilityStatus}`
     ]);
@@ -1766,7 +1793,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.progressBarFill) {
-      const progress = Phaser.Math.Clamp(this.kills / this.killTarget, 0, 1);
+      const progress = Phaser.Math.Clamp(this.kills / this.level.killTarget, 0, 1);
       this.progressBarFill.width = 160 * progress;
     }
   }
@@ -1909,22 +1936,27 @@ export class GameScene extends Phaser.Scene {
         this.abilityLabel = 'IRON SLAM';
         this.abilityCooldownMs = 7000;
         break;
+
       case 'swift_hoof':
         this.abilityLabel = 'SCOUT DASH';
         this.abilityCooldownMs = 4500;
         break;
+
       case 'precision_squeal':
         this.abilityLabel = 'FOCUS MODE';
         this.abilityCooldownMs = 7000;
         break;
+
       case 'blast_ham':
         this.abilityLabel = 'DEMOLITION';
         this.abilityCooldownMs = 6500;
         break;
+
       case 'general_goldsnout':
         this.abilityLabel = 'RALLY';
         this.abilityCooldownMs = 8000;
         break;
+
       default:
         this.abilityLabel = 'MUD SLOW';
         this.abilityCooldownMs = 6000;
@@ -1944,18 +1976,23 @@ export class GameScene extends Phaser.Scene {
       case 'iron_tusk':
         this.useIronSlam();
         break;
+
       case 'swift_hoof':
         this.useScoutDash();
         break;
+
       case 'precision_squeal':
         this.useFocusMode();
         break;
+
       case 'blast_ham':
         this.useDemolitionBurst();
         break;
+
       case 'general_goldsnout':
         this.useRallyOrder();
         break;
+
       default:
         this.useMudSlow();
         break;
@@ -2065,6 +2102,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setData('damage', 2 + Math.floor(this.characterUpgradeLevel / 2));
       bullet.setData('projectileKey', 'fallback_rocket');
       bullet.setData('pierceLeft', 0);
+      bullet.setData('enemyProjectile', false);
 
       const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
       if (!body) continue;
@@ -2225,6 +2263,7 @@ export class GameScene extends Phaser.Scene {
 
   private resetJoystickVisual() {
     if (!this.joystickThumb) return;
+
     this.joystickThumb.setPosition(MOVE_STICK_MARGIN, this.scale.height - MOVE_STICK_MARGIN);
     this.jumpHeld = false;
   }
