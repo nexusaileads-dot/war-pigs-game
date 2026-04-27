@@ -64,7 +64,7 @@ const JUMP_BUTTON_MARGIN_Y = 148;
 const ABILITY_BUTTON_MARGIN_X = 138;
 const ABILITY_BUTTON_MARGIN_Y = 150;
 
-const FIRE_DEADZONE = 0.18;
+const FIRE_DRAG_DEADZONE = 0.22;
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
@@ -265,15 +265,18 @@ export class GameScene extends Phaser.Scene {
   private stageCompleted = false;
   private bossSpawned = false;
   private bossDefeated = false;
+  private isPaused = false;
 
   private spawnTimer?: Phaser.Time.TimerEvent;
   private enemyFireTimer?: Phaser.Time.TimerEvent;
 
   private hudText?: Phaser.GameObjects.Text;
   private missionText?: Phaser.GameObjects.Text;
+  private pauseOverlay?: Phaser.GameObjects.Container;
   private progressBarFill?: Phaser.GameObjects.Rectangle;
   private healthBarFill?: Phaser.GameObjects.Rectangle;
   private pauseButton?: Phaser.GameObjects.Container;
+  private pauseButtonText?: Phaser.GameObjects.Text;
 
   private weaponObject?: Phaser.GameObjects.Image | Phaser.GameObjects.Container;
 
@@ -393,7 +396,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-    if (!this.player || !this.player.active || this.isFinishing) return;
+    if (!this.player || !this.player.active || this.isFinishing || this.isPaused) return;
 
     this.handleKeyboardInput();
     this.updatePlayerMovement();
@@ -483,7 +486,11 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-40);
 
     if (this.textures.exists('side_level_1_bg')) {
-      const bg = this.add.image(this.level.worldWidth / 2, this.level.worldHeight / 2, 'side_level_1_bg');
+      const bg = this.add.image(
+        this.level.worldWidth / 2,
+        this.level.worldHeight / 2,
+        'side_level_1_bg'
+      );
       bg.setDisplaySize(this.level.worldWidth, this.level.worldHeight);
       bg.setDepth(-38);
       bg.setScrollFactor(0.55);
@@ -625,8 +632,9 @@ export class GameScene extends Phaser.Scene {
       body.setGravityY(0);
       body.setDragX(1300);
       body.setMaxVelocity(this.playerSpeed * 1.18, 1100);
-      body.setSize(scale * 0.56, scale * 0.86);
-      body.setOffset(scale * 0.22, scale * 0.12);
+
+      body.setSize(scale * 0.5, scale * 0.68);
+      body.setOffset(scale * 0.25, scale * 0.2);
     }
 
     this.cameras.main.startFollow(this.player, true, 0.13, 0.16);
@@ -758,49 +766,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHud() {
-    this.add
-      .circle(72, 74, 48, 0x111111, 0.82)
-      .setScrollFactor(0)
-      .setDepth(1000)
-      .setStrokeStyle(5, 0x555555, 0.9);
-
-    this.add
-      .circle(72, 74, 36, 0x6b3a1e, 0.95)
-      .setScrollFactor(0)
-      .setDepth(1001)
-      .setStrokeStyle(2, 0xff6b35, 0.85);
-
     this.hudText = this.add
-      .text(130, 35, '', {
-        fontSize: '13px',
+      .text(14, 14, '', {
+        fontSize: '12px',
         color: '#ffffff',
         fontStyle: 'bold',
-        backgroundColor: '#00000099',
-        padding: { left: 8, right: 8, top: 4, bottom: 4 }
+        backgroundColor: '#000000aa',
+        padding: { left: 8, right: 8, top: 5, bottom: 5 }
       })
       .setScrollFactor(0)
       .setDepth(1000);
 
     this.add
-      .rectangle(130, 94, 160, 12, 0x1b1b1b, 0.92)
+      .rectangle(14, 92, 180, 12, 0x1b1b1b, 0.92)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(1000);
 
     this.healthBarFill = this.add
-      .rectangle(130, 94, 160, 12, 0xff4d4f, 1)
+      .rectangle(14, 92, 180, 12, 0xff4d4f, 1)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(1001);
 
     this.add
-      .rectangle(130, 112, 160, 9, 0x1b1b1b, 0.92)
+      .rectangle(14, 110, 180, 9, 0x1b1b1b, 0.92)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(1000);
 
     this.progressBarFill = this.add
-      .rectangle(130, 112, 0, 9, 0xffd166, 1)
+      .rectangle(14, 110, 0, 9, 0xffd166, 1)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(1001);
@@ -823,9 +819,9 @@ export class GameScene extends Phaser.Scene {
     const x = this.scale.width - 54;
     const y = 56;
 
-    const outer = this.add.circle(0, 0, 32, 0x111111, 0.76).setStrokeStyle(4, 0xffb347, 0.75);
+    const outer = this.add.circle(0, 0, 32, 0x111111, 0.78).setStrokeStyle(4, 0xffb347, 0.9);
 
-    const icon = this.add
+    this.pauseButtonText = this.add
       .text(0, -3, 'Ⅱ', {
         fontSize: '28px',
         color: '#ffb347',
@@ -833,28 +829,88 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.pauseButton = this.add.container(x, y, [outer, icon]);
+    this.pauseButton = this.add.container(x, y, [outer, this.pauseButtonText]);
     this.pauseButton.setScrollFactor(0);
     this.pauseButton.setDepth(1300);
     this.pauseButton.setSize(64, 64);
     this.pauseButton.setInteractive(new Phaser.Geom.Circle(0, 0, 34), Phaser.Geom.Circle.Contains);
 
     this.pauseButton.on('pointerdown', () => {
-      this.scene.pause();
-
-      window.dispatchEvent(
-        new CustomEvent('WAR_PIGS_EVENT', {
-          detail: {
-            type: 'STATE_CHANGE',
-            state: 'paused'
-          }
-        })
-      );
+      this.togglePause();
     });
+  }
+
+  private togglePause() {
+    if (this.isFinishing) return;
+
+    this.isPaused = !this.isPaused;
+
+    if (this.isPaused) {
+      this.physics.world.pause();
+      this.spawnTimer?.remove(false);
+      this.enemyFireTimer?.remove(false);
+      this.pauseButtonText?.setText('▶');
+      this.createPauseOverlay();
+      return;
+    }
+
+    this.physics.world.resume();
+
+    this.spawnTimer = this.time.addEvent({
+      delay: 2100,
+      callback: this.spawnEnemyAhead,
+      callbackScope: this,
+      loop: true
+    });
+
+    this.enemyFireTimer = this.time.addEvent({
+      delay: 1250,
+      callback: this.enemyShootCycle,
+      callbackScope: this,
+      loop: true
+    });
+
+    this.pauseButtonText?.setText('Ⅱ');
+    this.pauseOverlay?.destroy();
+    this.pauseOverlay = undefined;
+  }
+
+  private createPauseOverlay() {
+    this.pauseOverlay?.destroy();
+
+    const panel = this.add
+      .rectangle(0, 0, 320, 150, 0x000000, 0.82)
+      .setStrokeStyle(2, 0xffb347, 0.9);
+
+    const title = this.add
+      .text(0, -30, 'PAUSED', {
+        fontSize: '28px',
+        color: '#ffb347',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+
+    const sub = this.add
+      .text(0, 22, 'Tap pause again to resume', {
+        fontSize: '14px',
+        color: '#ffffff'
+      })
+      .setOrigin(0.5);
+
+    this.pauseOverlay = this.add.container(this.scale.width / 2, this.scale.height / 2, [
+      panel,
+      title,
+      sub
+    ]);
+
+    this.pauseOverlay.setScrollFactor(0);
+    this.pauseOverlay.setDepth(1400);
   }
 
   private setupPointerControls() {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.isPaused) return;
+
       const width = this.scale.width;
       const height = this.scale.height;
 
@@ -896,8 +952,10 @@ export class GameScene extends Phaser.Scene {
       if (distanceToFire <= FIRE_BUTTON_RADIUS + 32 && this.firePointerId === null) {
         this.firePointerId = pointer.id;
         this.wantsToShoot = true;
-        this.updateFireVectorFromPointer(pointer);
+        this.fireVector.set(this.facingDirection, 0);
+        this.aimAngle = this.facingDirection === 1 ? 0 : Math.PI;
         this.fireButtonBase?.setAlpha(1);
+        void this.shoot();
         return;
       }
 
@@ -908,6 +966,8 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.isPaused) return;
+
       if (this.movePointerId === pointer.id) {
         this.updateMoveVectorFromPointer(pointer);
         this.updateJoystickVisual(pointer.x, pointer.y);
@@ -958,17 +1018,6 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(3, 0xffb347, 0.7)
       .setScrollFactor(0)
       .setDepth(1200);
-
-    this.add
-      .text(joyX, joyY - 1, '↔', {
-        fontSize: '36px',
-        color: '#ff9f1c',
-        fontStyle: 'bold'
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(1201)
-      .setAlpha(0.75);
 
     this.joystickThumb = this.add
       .circle(joyX, joyY, MOVE_STICK_THUMB_RADIUS, 0xffffff, 0.72)
@@ -1135,7 +1184,7 @@ export class GameScene extends Phaser.Scene {
   private updateAiming() {
     if (!this.player?.active) return;
 
-    if (this.firePointerId !== null && this.fireVector.length() > FIRE_DEADZONE) {
+    if (this.firePointerId !== null && this.fireVector.length() > FIRE_DRAG_DEADZONE) {
       const normalized = this.fireVector.clone().normalize();
       this.aimAngle = Phaser.Math.Angle.Between(0, 0, normalized.x, normalized.y);
 
@@ -1187,7 +1236,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   async shoot() {
-    if (this.isFinishing || !this.player?.active) return;
+    if (this.isFinishing || this.isPaused || !this.player?.active) return;
 
     const now = this.time.now;
     const effectiveFireRate = this.getEffectiveFireRate();
@@ -1201,7 +1250,8 @@ export class GameScene extends Phaser.Scene {
     const damageBoost = this.getDamageBonus();
     const speedBoost = this.getProjectileSpeedBonus();
     const extraPierce = this.getExtraPierce();
-    const muzzle = this.getMuzzlePosition(this.aimAngle);
+    const shootAngle = this.aimAngle || (this.facingDirection === 1 ? 0 : Math.PI);
+    const muzzle = this.getMuzzlePosition(shootAngle);
 
     for (let i = 0; i < burst; i += 1) {
       const projectileKey = this.resolveProjectileKey();
@@ -1234,8 +1284,8 @@ export class GameScene extends Phaser.Scene {
       const randomSpread = spread > 0 ? Phaser.Math.FloatBetween(-spread, spread) : 0;
       const shotAngle =
         burst > 1
-          ? this.aimAngle + randomSpread + (i - (burst - 1) / 2) * 0.045
-          : this.aimAngle + randomSpread;
+          ? shootAngle + randomSpread + (i - (burst - 1) / 2) * 0.045
+          : shootAngle + randomSpread;
 
       this.physics.velocityFromRotation(
         shotAngle,
@@ -1310,7 +1360,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemyAhead() {
-    if (this.isFinishing || !this.player?.active) return;
+    if (this.isFinishing || this.isPaused || !this.player?.active) return;
 
     if (!this.bossSpawned && (this.player.x > this.level.boss.triggerX || this.kills >= this.level.killTarget - 4)) {
       this.spawnBoss();
@@ -1434,7 +1484,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private enemyShootCycle() {
-    if (!this.player?.active || this.isFinishing) return;
+    if (!this.player?.active || this.isFinishing || this.isPaused) return;
 
     this.enemies.getChildren().forEach((enemyObject) => {
       const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
@@ -1698,7 +1748,7 @@ export class GameScene extends Phaser.Scene {
       await apiClient.post('/api/game/complete', {
         runId: this.runData.run.id,
         sessionToken: this.runData.sessionToken,
-        clientHash: 'level-1-side-scroller-v1',
+        clientHash: 'level-1-side-scroller-v2',
         stats: {
           kills: this.kills,
           damageDealt: this.kills * 40,
@@ -1780,21 +1830,20 @@ export class GameScene extends Phaser.Scene {
     const abilityStatus = abilityReady ? 'READY' : `${cooldownLeft}s`;
 
     this.hudText.setText([
-      `LEVEL 1: ${this.level.title.toUpperCase()}`,
+      `LEVEL 1`,
       `SCORE ${String(this.kills * 100).padStart(6, '0')}`,
       `KILLS ${this.kills}/${this.level.killTarget}`,
-      `WPN +${this.weaponUpgradeLevel}  UNIT +${this.characterUpgradeLevel}`,
       `${this.abilityLabel} ${abilityStatus}`
     ]);
 
     if (this.healthBarFill) {
       const healthProgress = Phaser.Math.Clamp(this.health / this.maxHealth, 0, 1);
-      this.healthBarFill.width = 160 * healthProgress;
+      this.healthBarFill.width = 180 * healthProgress;
     }
 
     if (this.progressBarFill) {
       const progress = Phaser.Math.Clamp(this.kills / this.level.killTarget, 0, 1);
-      this.progressBarFill.width = 160 * progress;
+      this.progressBarFill.width = 180 * progress;
     }
   }
 
@@ -2221,7 +2270,7 @@ export class GameScene extends Phaser.Scene {
     const dy = pointer.y - center.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance <= 0.0001) {
+    if (distance < 10) {
       this.fireVector.set(this.facingDirection, 0);
       return;
     }
@@ -2234,7 +2283,7 @@ export class GameScene extends Phaser.Scene {
       (dy / distance) * (clampedDistance / maxDistance)
     );
 
-    if (this.fireVector.length() < FIRE_DEADZONE) {
+    if (this.fireVector.length() < FIRE_DRAG_DEADZONE) {
       this.fireVector.set(this.facingDirection, 0);
     }
   }
@@ -2278,6 +2327,10 @@ export class GameScene extends Phaser.Scene {
 
     if (this.pauseButton) {
       this.pauseButton.setPosition(width - 54, 56);
+    }
+
+    if (this.pauseOverlay) {
+      this.pauseOverlay.setPosition(width / 2, height / 2);
     }
 
     const joyX = MOVE_STICK_MARGIN;
@@ -2328,6 +2381,7 @@ export class GameScene extends Phaser.Scene {
 
     this.weaponObject?.destroy();
     this.pauseButton?.destroy();
+    this.pauseOverlay?.destroy();
 
     this.fireButtonBase?.destroy();
     this.fireButtonRing?.destroy();
@@ -2342,4 +2396,4 @@ export class GameScene extends Phaser.Scene {
     this.joystickBase?.destroy();
     this.joystickThumb?.destroy();
   }
-    }
+  }
