@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
-import { HUD } from '../components/HUD';
 import { useGameStore } from '../store/gameStore';
+import { useGameNotice } from '../components/GameNoticeProvider';
 
 type WarPigsEventDetail =
   | {
       type: 'STATE_CHANGE';
-      state?: 'victory' | 'defeat';
+      state?: 'victory' | 'defeat' | 'paused';
     }
   | {
       type: 'PLAYER_HIT';
@@ -28,14 +28,14 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const isMountedRef = useRef(false);
   const isExitingRef = useRef(false);
 
-  const [health, setHealth] = useState(100);
-  const [kills, setKills] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const [viewport, setViewport] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : GAME_BASE_WIDTH,
     height: typeof window !== 'undefined' ? window.innerHeight : GAME_BASE_HEIGHT
   });
 
-  const { user, refreshProfile } = useGameStore();
+  const { refreshProfile } = useGameStore();
+  const { showNotice } = useGameNotice();
 
   const isLandscape = viewport.width >= viewport.height;
 
@@ -50,6 +50,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     };
 
     updateViewport();
+
     window.addEventListener('resize', updateViewport);
     window.addEventListener('orientationchange', updateViewport);
 
@@ -66,8 +67,14 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     if (gameRef.current) return;
 
     const runDataRaw = sessionStorage.getItem('currentRun');
+
     if (!runDataRaw) {
-      alert('No active mission found.');
+      showNotice({
+        title: 'No Active Mission',
+        message: 'No active mission session was found.',
+        variant: 'warning'
+      });
+
       void onExit();
       return;
     }
@@ -77,20 +84,27 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     } catch (error) {
       console.error('[GameCanvas] Invalid currentRun JSON:', error);
       sessionStorage.removeItem('currentRun');
-      alert('Mission session is corrupted.');
+
+      showNotice({
+        title: 'Mission Error',
+        message: 'Mission session data is corrupted.',
+        variant: 'error'
+      });
+
       void onExit();
       return;
     }
 
-    setHealth(100);
-    setKills(0);
     isExitingRef.current = false;
+    setIsPaused(false);
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: containerRef.current,
       backgroundColor: '#000000',
       pixelArt: false,
+      antialias: true,
+      roundPixels: false,
       width: GAME_BASE_WIDTH,
       height: GAME_BASE_HEIGHT,
       scale: {
@@ -102,8 +116,15 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       physics: {
         default: 'arcade',
         arcade: {
+          gravity: {
+            x: 0,
+            y: 1850
+          },
           debug: false
         }
+      },
+      input: {
+        activePointers: 5
       },
       scene: [BootScene, GameScene]
     };
@@ -112,7 +133,13 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       gameRef.current = new Phaser.Game(config);
     } catch (error) {
       console.error('[GameCanvas] Failed to create Phaser game:', error);
-      alert('Game failed to start.');
+
+      showNotice({
+        title: 'Game Failed',
+        message: 'The mission could not be started.',
+        variant: 'error'
+      });
+
       void onExit();
       return;
     }
@@ -123,6 +150,7 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     };
 
     handleResize();
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
 
@@ -133,16 +161,19 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       if (!detail || isExitingRef.current) return;
 
       if (detail.type === 'PLAYER_HIT') {
-        setHealth((prev) => Math.max(0, prev - (detail.damage ?? 10)));
         return;
       }
 
       if (detail.type === 'KILLS_UPDATE') {
-        setKills(detail.kills ?? 0);
         return;
       }
 
       if (detail.type === 'STATE_CHANGE') {
+        if (detail.state === 'paused') {
+          setIsPaused(true);
+          return;
+        }
+
         isExitingRef.current = true;
         sessionStorage.removeItem('currentRun');
 
@@ -154,7 +185,11 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
           }
 
           if (isMountedRef.current) {
-            alert('MISSION ACCOMPLISHED! +$PIGS added to armory.');
+            showNotice({
+              title: 'Mission Accomplished',
+              message: '+$PIGS added to your armory.',
+              variant: 'success'
+            });
           }
 
           await onExit();
@@ -163,7 +198,11 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
         if (detail.state === 'defeat') {
           if (isMountedRef.current) {
-            alert('KIA. Mission Failed.');
+            showNotice({
+              title: 'Mission Failed',
+              message: 'Your squad was eliminated.',
+              variant: 'error'
+            });
           }
 
           await onExit();
@@ -183,7 +222,33 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         gameRef.current = null;
       }
     };
-  }, [isLandscape, onExit, refreshProfile]);
+  }, [isLandscape, onExit, refreshProfile, showNotice]);
+
+  const resumeGame = () => {
+    if (!gameRef.current) return;
+
+    const scene = gameRef.current.scene.getScene('GameScene');
+
+    if (scene?.scene?.isPaused()) {
+      scene.scene.resume();
+    }
+
+    setIsPaused(false);
+  };
+
+  const quitMission = async () => {
+    if (isExitingRef.current) return;
+
+    isExitingRef.current = true;
+    sessionStorage.removeItem('currentRun');
+
+    if (gameRef.current) {
+      gameRef.current.destroy(true);
+      gameRef.current = null;
+    }
+
+    await onExit();
+  };
 
   return (
     <div
@@ -193,65 +258,13 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         width: '100vw',
         height: '100dvh',
         overflow: 'hidden',
-        background: '#000'
+        background: '#000',
+        touchAction: 'none',
+        userSelect: 'none'
       }}
     >
       {!isLandscape ? (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
-            boxSizing: 'border-box'
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '420px',
-              padding: '28px 22px',
-              border: '2px solid #ff6b35',
-              borderRadius: '16px',
-              background: 'rgba(0,0,0,0.82)',
-              boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
-              textAlign: 'center',
-              color: '#fff'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '42px',
-                marginBottom: '14px'
-              }}
-            >
-              ↺
-            </div>
-            <div
-              style={{
-                fontSize: '24px',
-                fontWeight: 800,
-                color: '#ff6b35',
-                marginBottom: '10px',
-                textTransform: 'uppercase'
-              }}
-            >
-              Rotate Device
-            </div>
-            <div
-              style={{
-                fontSize: '15px',
-                lineHeight: 1.5,
-                color: '#cfcfcf'
-              }}
-            >
-              War Pigs is optimized for landscape mode.
-            </div>
-          </div>
-        </div>
+        <RotateDeviceScreen />
       ) : (
         <>
           <div
@@ -262,17 +275,172 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
               width: '100%',
               height: '100%',
               overflow: 'hidden',
-              background: '#000'
+              background: '#000',
+              touchAction: 'none'
             }}
           />
-          <HUD
-            health={health}
-            maxHealth={100}
-            pigs={user?.profile.currentPigs || 0}
-            kills={kills}
-          />
+
+          {isPaused ? <PauseOverlay onResume={resumeGame} onQuit={() => void quitMission()} /> : null}
         </>
       )}
+    </div>
+  );
+};
+
+const RotateDeviceScreen: React.FC = () => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          padding: '28px 22px',
+          border: '2px solid #ff6b35',
+          borderRadius: '16px',
+          background: 'rgba(0,0,0,0.82)',
+          boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
+          textAlign: 'center',
+          color: '#fff'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '42px',
+            marginBottom: '14px'
+          }}
+        >
+          ↺
+        </div>
+
+        <div
+          style={{
+            fontSize: '24px',
+            fontWeight: 800,
+            color: '#ff6b35',
+            marginBottom: '10px',
+            textTransform: 'uppercase'
+          }}
+        >
+          Rotate Device
+        </div>
+
+        <div
+          style={{
+            fontSize: '15px',
+            lineHeight: 1.5,
+            color: '#cfcfcf'
+          }}
+        >
+          War Pigs side-scroller missions are optimized for landscape mode.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PauseOverlay: React.FC<{
+  onResume: () => void;
+  onQuit: () => void;
+}> = ({ onResume, onQuit }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 20,
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '380px',
+          padding: '22px',
+          borderRadius: '18px',
+          border: '2px solid #ff6b35',
+          background: 'linear-gradient(180deg, #1d1d1d 0%, #090909 100%)',
+          boxShadow: '0 18px 44px rgba(255,107,53,0.25)',
+          color: '#fff',
+          textAlign: 'center'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '28px',
+            fontWeight: 900,
+            color: '#ff6b35',
+            textTransform: 'uppercase',
+            marginBottom: '8px'
+          }}
+        >
+          Paused
+        </div>
+
+        <div
+          style={{
+            fontSize: '14px',
+            color: '#bdbdbd',
+            marginBottom: '18px'
+          }}
+        >
+          Mission is on standby.
+        </div>
+
+        <button
+          type="button"
+          onClick={onResume}
+          style={{
+            width: '100%',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            border: 'none',
+            background: '#ff6b35',
+            color: '#fff',
+            fontWeight: 900,
+            fontSize: '15px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            marginBottom: '10px'
+          }}
+        >
+          Resume
+        </button>
+
+        <button
+          type="button"
+          onClick={onQuit}
+          style={{
+            width: '100%',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            border: '2px solid #555',
+            background: '#151515',
+            color: '#ddd',
+            fontWeight: 900,
+            fontSize: '15px',
+            textTransform: 'uppercase',
+            cursor: 'pointer'
+          }}
+        >
+          Quit Mission
+        </button>
+      </div>
     </div>
   );
 };

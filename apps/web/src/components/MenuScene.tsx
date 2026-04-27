@@ -10,6 +10,9 @@ type Screen =
   | 'LEVEL_SELECT'
   | 'SHOP'
   | 'PROFILE'
+  | 'PVP'
+  | 'CLANS'
+  | 'LEADERBOARD'
   | 'GAME';
 
 interface Props {
@@ -264,7 +267,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               <MenuCard
                 src={`${CARDS}/pvp-card.png`}
                 alt="PVP"
-                onClick={() => handleNavigate('PROFILE')}
+                onClick={() => handleNavigate('PVP')}
               />
               <MenuCard
                 src={`${CARDS}/shop-card.png`}
@@ -276,8 +279,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             <BottomNav
               onHome={() => handleNavigate('MENU')}
               onMissions={() => handleNavigate('LEVEL_SELECT')}
-              onClans={() => handleNavigate('PROFILE')}
-              onLeaderboard={() => handleNavigate('PROFILE')}
+              onClans={() => handleNavigate('CLANS')}
+              onLeaderboard={() => handleNavigate('LEADERBOARD')}
             />
           </div>
         </div>

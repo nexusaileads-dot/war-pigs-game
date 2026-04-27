@@ -6,24 +6,19 @@
 html,
 body,
 #root {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
-  width: 100%;
-  min-height: 100%;
+  background: #000;
+  overflow: hidden;
 }
 
 body {
   font-family: Arial, Helvetica, sans-serif;
-  background: #0a0a0a;
-  color: #ffffff;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-img,
-canvas {
-  display: block;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 button,
@@ -34,44 +29,23 @@ select {
 }
 
 button {
-  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-#root {
-  isolation: isolate;
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1a1a1a;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #ff6b35;
-  border-radius: 4px;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-@keyframes glow {
-  0%,
-  100% {
-    box-shadow: 0 0 5px #ff6b35;
-  }
-
-  50% {
-    box-shadow: 0 0 20px #ff6b35, 0 0 40px #ff6b35;
-  }
+.mobile-scroll-screen {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
 }

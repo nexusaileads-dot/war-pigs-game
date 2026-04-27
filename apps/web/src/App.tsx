@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from './store/gameStore';
 import { TelegramProvider } from './components/TelegramProvider';
+import { AppAlertProvider } from './components/AppAlertProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
@@ -52,55 +53,59 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          width: '100%',
-          minHeight: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: '#0a0a0a',
-          color: '#ff6b35',
-          fontFamily: 'monospace',
-          letterSpacing: '0.05em',
-          padding: '24px',
-          boxSizing: 'border-box'
-        }}
-      >
-        LOADING SWINE CORPS DATA...
-      </div>
+      <AppAlertProvider>
+        <div
+          style={{
+            width: '100%',
+            minHeight: '100vh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: '#0a0a0a',
+            color: '#ff6b35',
+            fontFamily: 'monospace',
+            letterSpacing: '0.05em',
+            padding: '24px',
+            boxSizing: 'border-box'
+          }}
+        >
+          LOADING SWINE CORPS DATA...
+        </div>
+      </AppAlertProvider>
     );
   }
 
   if (!user) {
     return (
-      <div
-        style={{
-          width: '100%',
-          minHeight: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: '#0a0a0a',
-          color: '#ff6b35',
-          fontFamily: 'monospace',
-          textAlign: 'center',
-          padding: '24px',
-          boxSizing: 'border-box'
-        }}
-      >
+      <AppAlertProvider>
         <div
           style={{
-            maxWidth: '520px',
-            padding: '20px',
-            border: '2px solid #ff6b35',
-            borderRadius: '12px',
-            background: '#141414'
+            width: '100%',
+            minHeight: '100vh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: '#0a0a0a',
+            color: '#ff6b35',
+            fontFamily: 'monospace',
+            textAlign: 'center',
+            padding: '24px',
+            boxSizing: 'border-box'
           }}
         >
-          {authFailedMessage}
+          <div
+            style={{
+              maxWidth: '520px',
+              padding: '20px',
+              border: '2px solid #ff6b35',
+              borderRadius: '12px',
+              background: '#141414'
+            }}
+          >
+            {authFailedMessage}
+          </div>
         </div>
-      </div>
+      </AppAlertProvider>
     );
   }
 
@@ -151,8 +156,10 @@ export default function App() {
   }
 
   return (
-    <SolanaWalletProvider>
-      <TelegramProvider>{screen}</TelegramProvider>
-    </SolanaWalletProvider>
+    <AppAlertProvider>
+      <SolanaWalletProvider>
+        <TelegramProvider>{screen}</TelegramProvider>
+      </SolanaWalletProvider>
+    </AppAlertProvider>
   );
-        }
+}
