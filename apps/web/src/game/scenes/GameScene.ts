@@ -166,7 +166,7 @@ const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
     speed: 82,
     width: 74,
     height: 86,
-    contactDamage: 8,
+    contactDamage: 4,
     rewardKills: 1
   },
   heavy: {
@@ -177,7 +177,7 @@ const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
     speed: 62,
     width: 84,
     height: 96,
-    contactDamage: 12,
+    contactDamage: 7,
     rewardKills: 1
   },
   drone: {
@@ -188,7 +188,7 @@ const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
     speed: 110,
     width: 86,
     height: 64,
-    contactDamage: 9,
+    contactDamage: 5,
     rewardKills: 1,
     flying: true
   },
@@ -200,7 +200,7 @@ const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
     speed: 82,
     width: 120,
     height: 70,
-    contactDamage: 14,
+    contactDamage: 8,
     rewardKills: 1,
     flying: true
   },
@@ -212,7 +212,7 @@ const ENEMY_CONFIGS: Record<LevelEnemyKind, EnemyConfig> = {
     speed: 42,
     width: 164,
     height: 104,
-    contactDamage: 16,
+    contactDamage: 10,
     rewardKills: 1
   }
 };
@@ -270,6 +270,8 @@ export class GameScene extends Phaser.Scene {
   private isPaused = false;
   private dynamicSpawnsCreated = 0;
   private lastExtractionWarningAt = -99999;
+  private lastPlayerDamageTime = -99999;
+  private readonly playerHitInvulnerabilityMs = 700;
 
   private spawnTimer?: Phaser.Time.TimerEvent;
   private enemyFireTimer?: Phaser.Time.TimerEvent;
@@ -504,7 +506,11 @@ export class GameScene extends Phaser.Scene {
       const segmentWidth = this.level.worldWidth / 3;
 
       bgKeys.forEach((key, index) => {
-        const bg = this.add.image(segmentWidth * index + segmentWidth / 2, this.level.worldHeight / 2, key);
+        const bg = this.add.image(
+          segmentWidth * index + segmentWidth / 2,
+          this.level.worldHeight / 2,
+          key
+        );
         bg.setDisplaySize(segmentWidth + 8, this.level.worldHeight);
         bg.setDepth(-45);
         bg.setScrollFactor(1);
@@ -1325,7 +1331,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createMuzzleFlash(x: number, y: number, angle: number) {
-    const flash = this.add.triangle(x, y, 0, -8, 28, 0, 0, 8, 0xffd166, 0.9).setDepth(50).setRotation(angle);
+    const flash = this.add
+      .triangle(x, y, 0, -8, 28, 0, 0, 8, 0xffd166, 0.9)
+      .setDepth(50)
+      .setRotation(angle);
 
     this.tweens.add({
       targets: flash,
@@ -1443,7 +1452,7 @@ export class GameScene extends Phaser.Scene {
       const direction = this.player.x >= enemy.x ? 1 : -1;
       const distanceX = Math.abs(this.player.x - enemy.x);
 
-      enemy.setFlipX(direction < 0);
+      enemy.setFlipX(direction > 0);
 
       if (enemy.getData('flying')) {
         const targetY = Phaser.Math.Clamp(this.player.y - 80, 180, this.level.groundY - 160);
@@ -1490,10 +1499,19 @@ export class GameScene extends Phaser.Scene {
 
   private enemyShoot(enemy: Phaser.Physics.Arcade.Sprite, kind: LevelEnemyKind) {
     const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
-    const speed = kind === 'tank' ? 500 : kind === 'drone' || kind === 'helicopter' ? 440 : 390;
+    const speed = kind === 'tank' ? 470 : kind === 'drone' || kind === 'helicopter' ? 410 : 360;
 
     const bullet = this.enemyProjectiles.get(enemy.x, enemy.y, 'fallback_bullet') as Phaser.Physics.Arcade.Image;
     if (!bullet) return;
+
+    const damage =
+      kind === 'tank'
+        ? 7
+        : kind === 'drone' || kind === 'helicopter'
+          ? 4
+          : kind === 'heavy'
+            ? 4
+            : 3;
 
     bullet.setTexture(kind === 'tank' ? 'fallback_rocket' : 'fallback_bullet');
     bullet.setActive(true);
@@ -1502,7 +1520,7 @@ export class GameScene extends Phaser.Scene {
     bullet.setDisplaySize(kind === 'tank' ? 28 : 18, kind === 'tank' ? 12 : 8);
     bullet.setDepth(39);
     bullet.setTint(kind === 'tank' ? 0xff8844 : 0xff4d4f);
-    bullet.setData('damage', kind === 'tank' ? 10 : 6);
+    bullet.setData('damage', damage);
 
     const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
     if (!body) return;
@@ -1581,7 +1599,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!bullet.active || this.isFinishing) return;
 
-    const damage = bullet.getData('damage') ?? 6;
+    const damage = bullet.getData('damage') ?? 3;
 
     bullet.setActive(false);
     bullet.setVisible(false);
@@ -1638,7 +1656,7 @@ export class GameScene extends Phaser.Scene {
     const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
     if (!enemy.active || this.isFinishing) return;
 
-    const damage = enemy.getData('contactDamage') ?? 10;
+    const damage = enemy.getData('contactDamage') ?? 4;
 
     if (enemy.getData('flying')) {
       enemy.destroy();
@@ -1656,28 +1674,37 @@ export class GameScene extends Phaser.Scene {
   private damagePlayer(damage: number) {
     if (this.isFinishing) return;
 
-    this.health = Math.max(0, this.health - damage);
+    if (this.time.now - this.lastPlayerDamageTime < this.playerHitInvulnerabilityMs) {
+      return;
+    }
+
+    this.lastPlayerDamageTime = this.time.now;
+
+    const safeDamage = Math.max(1, Math.min(12, Number(damage) || 1));
+    this.health = Math.max(0, this.health - safeDamage);
 
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
 
     if (body) {
-      body.setVelocityX(this.facingDirection === 1 ? -240 : 240);
-      body.setVelocityY(-220);
+      body.setVelocityX(this.facingDirection === 1 ? -180 : 180);
+      body.setVelocityY(-180);
     }
 
     this.player.setTintFill(0xffffff);
 
     this.time.delayedCall(80, () => {
-      if (this.player?.active) this.player.clearTint();
+      if (this.player?.active && !this.isFinishing) {
+        this.player.clearTint();
+      }
     });
 
-    this.cameras.main.shake(120, 0.01);
+    this.cameras.main.shake(90, 0.007);
 
     window.dispatchEvent(
       new CustomEvent('WAR_PIGS_EVENT', {
         detail: {
           type: 'PLAYER_HIT',
-          damage
+          damage: safeDamage
         }
       })
     );
@@ -1732,7 +1759,7 @@ export class GameScene extends Phaser.Scene {
       await apiClient.post('/api/game/complete', {
         runId: this.runData.run.id,
         sessionToken: this.runData.sessionToken,
-        clientHash: 'level-1-side-scroller-v4',
+        clientHash: 'level-1-side-scroller-v5',
         stats: {
           kills: this.kills,
           damageDealt: this.kills * 40,
@@ -1772,8 +1799,10 @@ export class GameScene extends Phaser.Scene {
     this.weaponObject?.setVisible(false);
 
     if (this.player?.active) {
-      this.player.setVelocity(0, 0);
+      const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
+      body?.stop();
       this.player.setTint(0x777777);
+      this.player.setAlpha(0.75);
     }
 
     if (this.missionText) {
@@ -1781,7 +1810,7 @@ export class GameScene extends Phaser.Scene {
       this.missionText.setVisible(true);
     }
 
-    this.time.delayedCall(900, () => {
+    this.time.delayedCall(1200, () => {
       window.dispatchEvent(
         new CustomEvent('WAR_PIGS_EVENT', {
           detail: {
@@ -2229,27 +2258,6 @@ export class GameScene extends Phaser.Scene {
     return 0;
   }
 
-  private applySplashDamage(x: number, y: number, radius: number, damage: number) {
-    this.enemies.getChildren().forEach((enemyObject) => {
-      const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
-      if (!enemy.active) return;
-
-      const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
-      if (distance > radius) return;
-
-      const splashDamage = Math.max(1, damage - Math.floor(distance / 44));
-      const nextHp = (enemy.getData('hp') ?? 1) - splashDamage;
-
-      if (nextHp <= 0) {
-        this.killEnemy(enemy, enemy.x, enemy.y);
-      } else {
-        enemy.setData('hp', nextHp);
-      }
-    });
-
-    this.updateHud();
-  }
-
   private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
     const baseX = MOVE_STICK_MARGIN;
     const baseY = this.scale.height - MOVE_STICK_MARGIN;
@@ -2401,4 +2409,4 @@ export class GameScene extends Phaser.Scene {
     this.joystickBase?.destroy();
     this.joystickThumb?.destroy();
   }
-}
+  }
