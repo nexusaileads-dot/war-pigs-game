@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import { useGameNotice } from './GameNoticeProvider';
 
-interface ApiLevel {
+interface Level {
   id: string;
   levelNumber: number;
   name: string;
@@ -32,12 +31,10 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   onBack,
   onStart
 }) => {
-  const [levelOne, setLevelOne] = useState<ApiLevel | null>(null);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [startingLevelId, setStartingLevelId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const { showNotice } = useGameNotice();
 
   useEffect(() => {
     const loadLevels = async () => {
@@ -48,12 +45,15 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         const incoming = Array.isArray(res.data) ? res.data : [];
 
         const normalized = incoming
-          .filter((level: Partial<ApiLevel>) => !!level?.id)
-          .map((level: Partial<ApiLevel>) => ({
+          .filter((level: Partial<Level>) => !!level?.id)
+          .map((level: Partial<Level>) => ({
             id: level.id as string,
             levelNumber: Number(level.levelNumber ?? 0),
             name: level.name || 'Outskirts Breach',
-            description: level.description || 'Break through the wolf outpost.',
+            description:
+              level.levelNumber === 1
+                ? 'Clear 6 threats, destroy the mini tank, and reach extraction.'
+                : level.description || 'No description available.',
             difficulty: Number(level.difficulty ?? 1),
             waves: Number(level.waves ?? 1),
             baseReward: Number(level.baseReward ?? 0),
@@ -62,12 +62,10 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
             completed: Boolean(level.completed),
             isBossLevel: Boolean(level.isBossLevel)
           }))
-          .sort((a: ApiLevel, b: ApiLevel) => a.levelNumber - b.levelNumber);
+          .filter((level: Level) => level.levelNumber === 1)
+          .sort((a: Level, b: Level) => a.levelNumber - b.levelNumber);
 
-        const firstLevel =
-          normalized.find((level: ApiLevel) => level.levelNumber === 1) || normalized[0] || null;
-
-        setLevelOne(firstLevel);
+        setLevels(normalized);
       } catch (error) {
         console.error('[LevelSelect] Failed to load levels:', error);
         setLoadError('Failed to load Level 1.');
@@ -79,63 +77,33 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
     void loadLevels();
   }, []);
 
-  const missionStatus = useMemo(() => {
-    if (!levelOne) {
-      return {
-        label: 'Unavailable',
-        color: '#ff8a80'
-      };
-    }
-
-    if (levelOne.completed) {
-      return {
-        label: 'Completed',
-        color: '#7ee787'
-      };
-    }
-
-    if (levelOne.unlocked) {
-      return {
-        label: 'Ready',
-        color: '#ffd166'
-      };
-    }
+  const summary = useMemo(() => {
+    const unlocked = levels.filter((level) => level.unlocked).length;
+    const completed = levels.filter((level) => level.completed).length;
 
     return {
-      label: `Requires Level ${levelOne.unlockRequirement}`,
-      color: '#ff8a80'
+      unlocked,
+      completed,
+      total: levels.length
     };
-  }, [levelOne]);
+  }, [levels]);
 
-  const handleStart = async () => {
-    if (!levelOne || startingLevelId) return;
-
-    if (!levelOne.unlocked) {
-      showNotice({
-        title: 'Mission Locked',
-        message: `Level 1 requires player level ${levelOne.unlockRequirement}.`,
-        variant: 'warning'
-      });
-      return;
-    }
+  const handleStart = async (levelId: string) => {
+    if (startingLevelId) return;
 
     try {
-      setStartingLevelId(levelOne.id);
+      setStartingLevelId(levelId);
 
       const inventoryRes = await apiClient.get('/api/inventory');
       const equipped = inventoryRes.data?.equipped;
 
       if (!equipped?.characterId || !equipped?.weaponId) {
-        showNotice({
-          title: 'Loadout Required',
-          message: 'Equip a unit and weapon before deploying.',
-          variant: 'warning'
-        });
+        alert('Equip a unit and weapon before deployment.');
         return;
       }
 
       const startRes = await apiClient.post<StartRunResponse>('/api/game/start', {
-        levelId: levelOne.id,
+        levelId,
         characterId: equipped.characterId,
         weaponId: equipped.weaponId
       });
@@ -150,37 +118,26 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         !payload?.sessionToken
       ) {
         console.error('[LevelSelect] Invalid start payload:', payload);
-        showNotice({
-          title: 'Mission Error',
-          message: 'Mission session could not be created.',
-          variant: 'error'
-        });
+        alert('Mission session could not be created.');
         return;
       }
 
       sessionStorage.setItem(
         'currentRun',
         JSON.stringify({
+          ...payload,
           run: {
-            id: payload.run.id,
-            characterId: payload.run.characterId,
-            weaponId: payload.run.weaponId,
-            levelId: payload.run.levelId,
-            characterUpgradeLevel: Number(payload.run.characterUpgradeLevel ?? 0),
-            weaponUpgradeLevel: Number(payload.run.weaponUpgradeLevel ?? 0)
-          },
-          sessionToken: payload.sessionToken
+            ...payload.run,
+            characterUpgradeLevel: payload.run.characterUpgradeLevel ?? 0,
+            weaponUpgradeLevel: payload.run.weaponUpgradeLevel ?? 0
+          }
         })
       );
 
       onStart();
     } catch (error) {
       console.error('[LevelSelect] Failed to start Level 1:', error);
-      showNotice({
-        title: 'Deployment Failed',
-        message: 'Failed to start Level 1.',
-        variant: 'error'
-      });
+      alert('Failed to start Level 1.');
     } finally {
       setStartingLevelId(null);
     }
@@ -192,7 +149,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         style={{
           padding: '20px',
           color: '#fff',
-          minHeight: '100vh',
+          height: '100%',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -204,17 +161,29 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
     );
   }
 
-  if (loadError || !levelOne) {
+  if (loadError) {
     return (
       <div
-        className="mobile-scroll-screen"
         style={{
           padding: '20px',
           color: '#fff',
+          height: '100%',
           background: '#0a0a0a'
         }}
       >
-        <button onClick={onBack} style={backButtonStyle}>
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            marginBottom: '20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
           BACK
         </button>
 
@@ -230,211 +199,277 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
             color: '#ff8a80'
           }}
         >
-          {loadError || 'Level 1 is not available from the API.'}
+          {loadError}
         </div>
       </div>
     );
   }
 
-  const isStarting = startingLevelId === levelOne.id;
+  if (levels.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '20px',
+          color: '#fff',
+          height: '100%',
+          background: '#0a0a0a'
+        }}
+      >
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            marginBottom: '20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          BACK
+        </button>
+
+        <div
+          style={{
+            maxWidth: '560px',
+            margin: '80px auto 0',
+            padding: '22px',
+            background: '#151515',
+            border: '2px solid #333',
+            borderRadius: '12px',
+            textAlign: 'center'
+          }}
+        >
+          <h2 style={{ marginTop: 0, color: '#ff6b35' }}>Level 1 Not Found</h2>
+          <p style={{ color: '#bbb', marginBottom: 0 }}>
+            Seed or create mission levelNumber 1 in the API database.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className="mobile-scroll-screen"
       style={{
         padding: '20px',
         color: '#fff',
+        height: '100%',
+        overflowY: 'auto',
         background: '#0a0a0a',
         boxSizing: 'border-box'
       }}
     >
-      <button onClick={onBack} style={backButtonStyle}>
+      <button
+        onClick={onBack}
+        style={{
+          padding: '10px 20px',
+          marginBottom: '20px',
+          background: '#444',
+          border: '2px solid #ff6b35',
+          color: '#fff',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontWeight: 'bold'
+        }}
+      >
         BACK
       </button>
 
-      <div
+      <h2
         style={{
-          maxWidth: '760px',
-          margin: '0 auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '18px'
+          textAlign: 'center',
+          color: '#ff6b35',
+          marginBottom: '12px',
+          textTransform: 'uppercase'
         }}
       >
-        <div
-          style={{
-            padding: '18px',
-            borderRadius: '18px',
-            background: 'linear-gradient(180deg, #24140d 0%, #101010 100%)',
-            border: '2px solid #ff6b35',
-            boxShadow: '0 16px 40px rgba(255,107,53,0.12)'
-          }}
-        >
-          <div
-            style={{
-              fontSize: '12px',
-              fontWeight: 900,
-              color: '#ffd166',
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              marginBottom: '8px'
-            }}
-          >
-            Level 1
-          </div>
+        Level 1
+      </h2>
 
-          <h1
-            style={{
-              margin: 0,
-              color: '#fff',
-              fontSize: '30px',
-              lineHeight: 1.05,
-              textTransform: 'uppercase'
-            }}
-          >
-            Outskirts Breach
-          </h1>
+      <div
+        style={{
+          maxWidth: '860px',
+          margin: '0 auto 18px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '12px',
+          flexWrap: 'wrap'
+        }}
+      >
+        <InfoPill label="Available" value={String(summary.total)} color="#ffffff" />
+        <InfoPill label="Unlocked" value={String(summary.unlocked)} color="#4caf50" />
+        <InfoPill label="Completed" value={String(summary.completed)} color="#ff6b35" />
+      </div>
 
-          <p
-            style={{
-              margin: '10px 0 0',
-              color: '#cfcfcf',
-              fontSize: '15px',
-              lineHeight: 1.45
-            }}
-          >
-            Break through the desert wolf outpost, clear patrols, destroy the mini tank, and reach
-            extraction.
-          </p>
-        </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          maxWidth: '860px',
+          margin: '0 auto'
+        }}
+      >
+        {levels.map((level) => {
+          const isStarting = startingLevelId === level.id;
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: '10px'
-          }}
-        >
-          <InfoCard label="Mission Type" value="Side-Scroller Assault" />
-          <InfoCard label="Objective" value="14 Kills + Extraction" />
-          <InfoCard label="Threats" value="Soldiers, Drones, Mini Tank" />
-          <InfoCard label="Reward" value={`${levelOne.baseReward} $PIGS`} />
-          <InfoCard label="Difficulty" value={String(levelOne.difficulty)} />
-          <InfoCard label="Status" value={missionStatus.label} color={missionStatus.color} />
-        </div>
+          return (
+            <div
+              key={level.id}
+              style={{
+                background: level.unlocked ? '#222' : '#111',
+                padding: '18px',
+                borderRadius: '14px',
+                border: `2px solid ${level.unlocked ? '#ff6b35' : '#222'}`,
+                opacity: level.unlocked ? 1 : 0.55,
+                boxShadow: level.unlocked ? '0 8px 22px rgba(0,0,0,0.28)' : 'none'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '14px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <h3 style={{ margin: 0, color: '#fff' }}>
+                      Level {level.levelNumber}: Outskirts Breach
+                    </h3>
 
-        <div
-          style={{
-            padding: '16px',
-            borderRadius: '14px',
-            background: '#161616',
-            border: '1px solid #333'
-          }}
-        >
-          <h3
-            style={{
-              margin: '0 0 10px',
-              color: '#ff6b35',
-              textTransform: 'uppercase'
-            }}
-          >
-            Mission Plan
-          </h3>
+                    <span
+                      style={{
+                        background: '#4b1616',
+                        color: '#ffd54f',
+                        border: '1px solid #8b0000',
+                        borderRadius: '999px',
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        fontWeight: 700
+                      }}
+                    >
+                      MINI TANK
+                    </span>
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              color: '#d6d6d6',
-              fontSize: '14px',
-              lineHeight: 1.4
-            }}
-          >
-            <div>1. Learn movement, jumping, and shooting in the first outpost section.</div>
-            <div>2. Use crates and rooftops to handle enemy patrols.</div>
-            <div>3. Shoot down drones before they flank you.</div>
-            <div>4. Destroy or survive the mini tank near extraction.</div>
-            <div>5. Reach the extraction marker to complete the level.</div>
-          </div>
-        </div>
+                    {level.completed ? (
+                      <span
+                        style={{
+                          background: '#18361c',
+                          color: '#7ee787',
+                          border: '1px solid #2e7d32',
+                          borderRadius: '999px',
+                          padding: '2px 8px',
+                          fontSize: '11px',
+                          fontWeight: 700
+                        }}
+                      >
+                        COMPLETED
+                      </span>
+                    ) : null}
+                  </div>
 
-        <button
-          type="button"
-          onClick={() => void handleStart()}
-          disabled={isStarting || !levelOne.unlocked}
-          style={{
-            width: '100%',
-            padding: '16px 20px',
-            border: 'none',
-            borderRadius: '16px',
-            background: isStarting || !levelOne.unlocked ? '#555' : '#ff6b35',
-            color: '#fff',
-            fontSize: '16px',
-            fontWeight: 900,
-            letterSpacing: '1px',
-            textTransform: 'uppercase',
-            cursor: isStarting || !levelOne.unlocked ? 'not-allowed' : 'pointer',
-            boxShadow:
-              isStarting || !levelOne.unlocked ? 'none' : '0 14px 34px rgba(255,107,53,0.24)'
-          }}
-        >
-          {isStarting ? 'Deploying...' : 'Deploy Level 1'}
-        </button>
+                  <p style={{ margin: '0 0 12px 0', color: '#bbb', fontSize: '14px' }}>
+                    Clear 4 soldiers, 1 drone, and 1 mini tank. Reach extraction after all threats are removed.
+                  </p>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '8px',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <Spec label="Difficulty" value="1" color="#ffb74d" />
+                    <Spec label="Threats" value="6" color="#fff" />
+                    <Spec label="Objective" value="Extraction" color="#90caf9" />
+                    <Spec label="Reward" value={`${level.baseReward} $PIGS`} color="#ffd700" />
+                  </div>
+                </div>
+
+                {level.unlocked ? (
+                  <button
+                    onClick={() => void handleStart(level.id)}
+                    disabled={!!startingLevelId}
+                    style={{
+                      minWidth: '130px',
+                      padding: '12px 16px',
+                      background: isStarting ? '#555' : '#ff6b35',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      cursor: startingLevelId ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {isStarting ? 'DEPLOYING...' : 'DEPLOY'}
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      background: '#1a1a1a',
+                      color: '#777',
+                      borderRadius: '8px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    LOCKED
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-const InfoCard: React.FC<{ label: string; value: string; color?: string }> = ({
+const InfoPill: React.FC<{ label: string; value: string; color: string }> = ({
   label,
   value,
-  color = '#fff'
+  color
 }) => {
   return (
     <div
       style={{
-        padding: '12px',
-        borderRadius: '12px',
-        background: '#151515',
-        border: '1px solid #2f2f2f',
-        minHeight: '74px'
+        background: '#161616',
+        border: '1px solid #2d2d2d',
+        borderRadius: '10px',
+        padding: '10px 14px',
+        color: '#ddd',
+        fontSize: '14px'
       }}
     >
-      <div
-        style={{
-          color: '#888',
-          fontSize: '10px',
-          fontWeight: 900,
-          letterSpacing: '0.8px',
-          textTransform: 'uppercase',
-          marginBottom: '6px'
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          color,
-          fontSize: '14px',
-          fontWeight: 900,
-          lineHeight: 1.25
-        }}
-      >
-        {value}
-      </div>
+      {label}: <span style={{ color, fontWeight: 700 }}>{value}</span>
     </div>
   );
 };
 
-const backButtonStyle: React.CSSProperties = {
-  padding: '10px 20px',
-  marginBottom: '20px',
-  background: '#444',
-  border: '2px solid #ff6b35',
-  color: '#fff',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  fontWeight: 'bold'
+const Spec: React.FC<{ label: string; value: string; color: string }> = ({
+  label,
+  value,
+  color
+}) => {
+  return (
+    <div style={{ color: '#ddd' }}>
+      {label}: <span style={{ color, fontWeight: 700 }}>{value}</span>
+    </div>
+  );
 };
