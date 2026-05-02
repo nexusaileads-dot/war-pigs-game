@@ -22,7 +22,6 @@ export class BootScene extends Phaser.Scene {
     this.load.image('precision_squeal', '/assets/sprites/Precision-Squeal.png');
     this.load.image('blast_ham', '/assets/sprites/Blast-Ham.png');
     this.load.image('general_goldsnout', '/assets/sprites/General-Goldsnout.png');
-
     this.load.image('player', '/assets/sprites/Grunt-Bacon.png');
 
     this.load.image('oink_pistol', '/assets/sprites/Oink-9-Pistol.png');
@@ -39,16 +38,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image('plasma_globule', '/assets/sprites/Plasma-Globule.png');
     this.load.image('rocket', '/assets/sprites/Rocket.png');
     this.load.image('explosion', '/assets/sprites/Explosion.png');
-
-    this.load.image('wolf_grunt', '/assets/sprites/enemies/level1-soldier.png');
-    this.load.image('wolf_soldier', '/assets/sprites/enemies/level1-soldier.png');
-    this.load.image('wolf_heavy', '/assets/sprites/enemies/level1-soldier.png');
-    this.load.image('cyber_fox', '/assets/sprites/enemies/level1-drone.png');
-    this.load.image('helicopter', '/assets/sprites/enemies/level1-drone.png');
-    this.load.image('alpha_wolfgang', '/assets/sprites/enemies/level1-mini-tank.png');
   }
 
   create() {
     this.scene.start('GameScene');
   }
-                    }
+}
