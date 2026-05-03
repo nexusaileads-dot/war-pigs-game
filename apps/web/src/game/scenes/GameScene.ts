@@ -272,6 +272,8 @@ export class GameScene extends Phaser.Scene {
   private lastExtractionWarningAt = -99999;
   private lastPlayerDamageTime = -99999;
   private readonly playerHitInvulnerabilityMs = 700;
+  private knockbackUntil = 0;
+  private readonly KNOCKBACK_DURATION = 180;
 
   private spawnTimer?: Phaser.Time.TimerEvent;
   private enemyFireTimer?: Phaser.Time.TimerEvent;
@@ -366,7 +368,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.createPlayer(characterStats.scale)) return;
     if (!this.createInput()) return;
-    if (!this.createGroups()) return;
+    this.createGroups();
 
     this.createWeaponSprite();
     this.createHud();
@@ -664,7 +666,7 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
-  private createGroups(): boolean {
+  private createGroups() {
     this.projectiles = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Image,
       defaultKey: 'fallback_bullet',
@@ -685,12 +687,10 @@ export class GameScene extends Phaser.Scene {
       maxSize: 30,
       runChildUpdate: false
     });
-
-    return true;
   }
 
   private registerCollisions() {
-    this.physics.add.collider(this.player, this.platforms, () => {
+    this.physics.add.collider(this.player, this.platforms, (_player, _platform) => {
       const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
 
       if (body?.blocked.down || body?.touching.down) {
@@ -704,7 +704,7 @@ export class GameScene extends Phaser.Scene {
       this.projectiles,
       this.enemies,
       this.handleHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-      undefined,
+      this.canProjectileHitEnemy as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       this
     );
 
@@ -712,7 +712,7 @@ export class GameScene extends Phaser.Scene {
       this.enemyProjectiles,
       this.player,
       this.handleEnemyProjectileHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-      undefined,
+      this.canEnemyProjectileHitPlayer as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       this
     );
 
@@ -723,6 +723,32 @@ export class GameScene extends Phaser.Scene {
       undefined,
       this
     );
+  }
+
+  private canProjectileHitEnemy(
+    bulletObject: Phaser.GameObjects.GameObject,
+    enemyObject: Phaser.GameObjects.GameObject
+  ) {
+    const bullet = bulletObject as Phaser.Physics.Arcade.Image;
+    const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
+    if (!bullet.active || !enemy.active) return false;
+
+    const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+    if (!body || !body.enable) return false;
+
+    const hitTargets = (bullet.getData('hitTargets') as string[] | undefined) ?? [];
+    return !hitTargets.includes(enemy.name);
+  }
+
+  private canEnemyProjectileHitPlayer(
+    bulletObject: Phaser.GameObjects.GameObject,
+    _playerObject: Phaser.GameObjects.GameObject
+  ) {
+    const bullet = bulletObject as Phaser.Physics.Arcade.Image;
+    if (!bullet.active) return false;
+
+    const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+    return !!body && body.enable && !bullet.getData('hasHitPlayer');
   }
 
   private createWeaponSprite() {
@@ -952,13 +978,13 @@ export class GameScene extends Phaser.Scene {
         this.fireVector.set(this.facingDirection, 0);
         this.aimAngle = this.facingDirection === 1 ? 0 : Math.PI;
         this.fireButtonBase?.setAlpha(1);
-        void this.shoot();
+        this.shoot();
         return;
       }
 
-      if (!pointer.wasTouch) {
+      if (!this.isTouchPointer(pointer)) {
         this.wantsToShoot = true;
-        void this.shoot();
+        this.shoot();
       }
     });
 
@@ -1004,6 +1030,10 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (pointer: Phaser.Input.Pointer) => {
       this.input.emit('pointerup', pointer);
     });
+  }
+
+  private isTouchPointer(pointer: Phaser.Input.Pointer): boolean {
+    return pointer.pointerType === 'touch';
   }
 
   private createTouchControls() {
@@ -1120,7 +1150,7 @@ export class GameScene extends Phaser.Scene {
       this.wantsToJump = true;
     }
 
-    if (this.input.activePointer.isDown && !this.input.activePointer.wasTouch) {
+    if (this.input.activePointer.isDown && !this.isTouchPointer(this.input.activePointer)) {
       this.wantsToShoot = true;
     } else if (!this.firePointerId) {
       this.wantsToShoot = false;
@@ -1140,11 +1170,13 @@ export class GameScene extends Phaser.Scene {
       horizontal = Phaser.Math.Clamp(this.moveVector.x, -1, 1);
     }
 
-    if (Math.abs(horizontal) > 0.08) {
+    const isKnockback = this.time.now < this.knockbackUntil;
+
+    if (Math.abs(horizontal) > 0.08 && !isKnockback) {
       body.setVelocityX(horizontal * this.playerSpeed);
       this.facingDirection = horizontal >= 0 ? 1 : -1;
       this.player.setFlipX(this.facingDirection < 0);
-    } else {
+    } else if (!isKnockback) {
       body.setVelocityX(0);
     }
 
@@ -1167,14 +1199,20 @@ export class GameScene extends Phaser.Scene {
       this.wantsToJump = false;
     }
 
-    if (!this.jumpHeld && body.velocity.y < -120 && !onGround) {
+    const isJumpHeld =
+      this.jumpHeld ||
+      this.jumpKey?.isDown ||
+      this.cursors?.up.isDown ||
+      this.wasd?.up.isDown;
+
+    if (!isJumpHeld && body.velocity.y < -120 && !onGround) {
       body.setVelocityY(body.velocity.y * 0.992);
     }
 
     this.applyMovementLean(horizontal, onGround);
 
     if (this.wantsToShoot) {
-      void this.shoot();
+      this.shoot();
     }
   }
 
@@ -1193,7 +1231,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.input.activePointer && this.input.activePointer.isDown && !this.input.activePointer.wasTouch) {
+    if (
+      this.input.activePointer &&
+      this.input.activePointer.isDown &&
+      !this.isTouchPointer(this.input.activePointer)
+    ) {
       this.aimAngle = Phaser.Math.Angle.Between(
         this.player.x,
         this.player.y,
@@ -1226,7 +1268,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setRotation(horizontal * 0.065);
   }
 
-  async shoot() {
+  shoot() {
     if (this.isFinishing || this.isPaused || !this.player?.active) return;
 
     const now = this.time.now;
@@ -1258,6 +1300,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setPosition(muzzle.x, muzzle.y);
       bullet.setDepth(40);
       bullet.clearTint();
+      bullet.setData('hitTargets', []);
       bullet.setDisplaySize(
         this.weaponConfig.bulletSize,
         projectileKey === 'fallback_rocket' || projectileKey === 'rocket'
@@ -1302,10 +1345,7 @@ export class GameScene extends Phaser.Scene {
       this.createMuzzleFlash(muzzle.x, muzzle.y, shotAngle);
 
       this.time.delayedCall(this.weaponConfig.projectileLifetime, () => {
-        if (!bullet.active) return;
-        bullet.setActive(false);
-        bullet.setVisible(false);
-        body.stop();
+        this.deactivateBullet(bullet);
       });
     }
   }
@@ -1413,6 +1453,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setDisplaySize(config.width, config.height);
     enemy.setDepth(config.flying ? 17 : 16);
     enemy.clearTint();
+    enemy.name = `enemy_${this.time.now}_${Math.random().toString(36).slice(2, 7)}`;
 
     enemy.setData('hp', config.hp);
     enemy.setData('maxHp', config.hp);
@@ -1497,21 +1538,27 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private getEnemyProjectileDamage(kind: LevelEnemyKind): number {
+    switch (kind) {
+      case 'tank':
+        return 7;
+      case 'drone':
+      case 'helicopter':
+        return 4;
+      case 'heavy':
+        return 4;
+      default:
+        return 3;
+    }
+  }
+
   private enemyShoot(enemy: Phaser.Physics.Arcade.Sprite, kind: LevelEnemyKind) {
     const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
     const speed = kind === 'tank' ? 470 : kind === 'drone' || kind === 'helicopter' ? 410 : 360;
+    const damage = this.getEnemyProjectileDamage(kind);
 
     const bullet = this.enemyProjectiles.get(enemy.x, enemy.y, 'fallback_bullet') as Phaser.Physics.Arcade.Image;
     if (!bullet) return;
-
-    const damage =
-      kind === 'tank'
-        ? 7
-        : kind === 'drone' || kind === 'helicopter'
-          ? 4
-          : kind === 'heavy'
-            ? 4
-            : 3;
 
     bullet.setTexture(kind === 'tank' ? 'fallback_rocket' : 'fallback_bullet');
     bullet.setActive(true);
@@ -1521,6 +1568,7 @@ export class GameScene extends Phaser.Scene {
     bullet.setDepth(39);
     bullet.setTint(kind === 'tank' ? 0xff8844 : 0xff4d4f);
     bullet.setData('damage', damage);
+    bullet.setData('hasHitPlayer', false);
 
     const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
     if (!body) return;
@@ -1533,10 +1581,7 @@ export class GameScene extends Phaser.Scene {
     bullet.setRotation(angle);
 
     this.time.delayedCall(1600, () => {
-      if (!bullet.active) return;
-      bullet.setActive(false);
-      bullet.setVisible(false);
-      body.stop();
+      this.deactivateBullet(bullet);
     });
   }
 
@@ -1553,19 +1598,23 @@ export class GameScene extends Phaser.Scene {
     const hitY = enemy.y;
     const projectileKey = bullet.getData('projectileKey') ?? 'fallback_bullet';
 
-    const damage = bullet.getData('damage') ?? 1;
-    const currentHp = enemy.getData('hp') ?? 1;
+    const damage = Number(bullet.getData('damage') ?? 1);
+    const currentHp = Number(enemy.getData('hp') ?? 1);
     const nextHp = currentHp - damage;
 
-    const pierceLeft = bullet.getData('pierceLeft') ?? 0;
+    const pierceLeft = Number(bullet.getData('pierceLeft') ?? 0);
+
+    // Track this enemy as hit by this bullet so piercing shots don't double-hit
+    const hitTargets = (bullet.getData('hitTargets') as string[] | undefined) ?? [];
+    if (!hitTargets.includes(enemy.name)) {
+      hitTargets.push(enemy.name);
+      bullet.setData('hitTargets', hitTargets);
+    }
 
     if (pierceLeft > 0 && !String(projectileKey).includes('rocket')) {
       bullet.setData('pierceLeft', pierceLeft - 1);
     } else {
-      bullet.setActive(false);
-      bullet.setVisible(false);
-      const bulletBody = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-      bulletBody?.stop();
+      this.deactivateBullet(bullet);
     }
 
     this.createHitEffect(hitX, hitY, projectileKey);
@@ -1599,17 +1648,15 @@ export class GameScene extends Phaser.Scene {
 
     if (!bullet.active || this.isFinishing) return;
 
-    const damage = bullet.getData('damage') ?? 3;
+    const rawDamage = bullet.getData('damage');
+    const damage = Number(rawDamage ?? 3);
 
-    bullet.setActive(false);
-    bullet.setVisible(false);
-    (bullet.body as Phaser.Physics.Arcade.Body | undefined)?.stop();
-
+    this.deactivateBullet(bullet);
     this.damagePlayer(damage);
   }
 
   private killEnemy(enemy: Phaser.Physics.Arcade.Sprite, x: number, y: number) {
-    const rewardKills = enemy.getData('rewardKills') ?? 1;
+    const rewardKills = Number(enemy.getData('rewardKills') ?? 1);
     const isBoss = enemy.getData('isBoss') === true;
 
     enemy.destroy();
@@ -1656,7 +1703,8 @@ export class GameScene extends Phaser.Scene {
     const enemy = enemyObject as Phaser.Physics.Arcade.Sprite;
     if (!enemy.active || this.isFinishing) return;
 
-    const damage = enemy.getData('contactDamage') ?? 4;
+    const rawDamage = enemy.getData('contactDamage');
+    const damage = Number(rawDamage ?? 4);
 
     if (enemy.getData('flying')) {
       enemy.destroy();
@@ -1689,6 +1737,8 @@ export class GameScene extends Phaser.Scene {
       body.setVelocityX(this.facingDirection === 1 ? -180 : 180);
       body.setVelocityY(-180);
     }
+
+    this.knockbackUntil = this.time.now + this.KNOCKBACK_DURATION;
 
     this.player.setTintFill(0xffffff);
 
@@ -2173,6 +2223,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setData('damage', 2 + Math.floor(this.characterUpgradeLevel / 2));
       bullet.setData('projectileKey', 'fallback_rocket');
       bullet.setData('pierceLeft', 0);
+      bullet.setData('hitTargets', []);
 
       const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
       if (!body) continue;
@@ -2185,10 +2236,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setRotation(shotAngle);
 
       this.time.delayedCall(850, () => {
-        if (!bullet.active) return;
-        bullet.setActive(false);
-        bullet.setVisible(false);
-        body.stop();
+        this.deactivateBullet(bullet);
       });
     }
 
@@ -2379,6 +2427,17 @@ export class GameScene extends Phaser.Scene {
     const isSmallScreen = width < 900 || height < 560;
 
     this.cameras.main.setZoom(isPhonePortrait ? 0.78 : isSmallScreen ? 0.88 : 1);
+  }
+
+  private deactivateBullet(bullet: Phaser.Physics.Arcade.Image) {
+    if (!bullet.active) return;
+    bullet.setActive(false);
+    bullet.setVisible(false);
+    const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
+    if (body) {
+      body.stop();
+      body.enable = false;
+    }
   }
 
   private cleanup() {
