@@ -16,18 +16,23 @@ const server = Fastify({
 
 async function start() {
   try {
+    // Validate critical environment variables
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    if (isProd && !process.env.FRONTEND_URL) {
+      server.log.warn('FRONTEND_URL not set; CORS will deny all origins');
+    }
+
     await server.register(cors, {
-      origin: process.env.FRONTEND_URL || true,
+      origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : (isProd ? false : true),
       credentials: true
     });
 
     const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      server.log.warn('JWT_SECRET is not set. Using development fallback secret.');
-    }
-
     await server.register(jwt, {
-      secret: jwtSecret || 'dev-secret-key-change-in-production'
+      secret: jwtSecret || 'dev-secret-key-change-in-production' // Only used in non-prod after validation
     });
 
     await server.register(rateLimit, {
@@ -59,14 +64,26 @@ async function start() {
           ? ((error as { statusCode: number }).statusCode)
           : 500;
 
+      // Sanitize error messages for client exposure
+      const isClientError = statusCode >= 400 && statusCode < 500;
       reply.status(statusCode).send({
         error: statusCode >= 500 ? 'Internal server error' : error.name || 'Request error',
-        message: error.message
+        message: isClientError ? error.message : 'An unexpected error occurred'
       });
     });
 
     const port = Number(process.env.PORT) || 8080;
     const host = process.env.HOST || '0.0.0.0';
+
+    // Graceful shutdown handlers
+    const signals = ['SIGINT', 'SIGTERM'];
+    signals.forEach(signal => {
+      process.on(signal, async () => {
+        server.log.info(`Received ${signal}, shutting down gracefully`);
+        await server.close();
+        process.exit(0);
+      });
+    });
 
     await server.listen({ port, host });
     server.log.info(`API server listening on ${host}:${port}`);
