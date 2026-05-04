@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@war-pigs/database';
 import { authenticate } from '../middleware/auth';
+import { strictRateLimitConfig } from '../middleware/rateLimiter';
 
 type ShopItemType = 'CHARACTER' | 'WEAPON';
 
@@ -9,23 +10,12 @@ export async function shopRoutes(fastify: FastifyInstance) {
     const userId = request.user.userId;
 
     const [profile, characters, weapons, ownedItems] = await Promise.all([
-      prisma.profile.findUnique({
-        where: { userId }
-      }),
-      prisma.character.findMany({
-        orderBy: [{ unlockLevel: 'asc' }, { pricePigs: 'asc' }]
-      }),
-      prisma.weapon.findMany({
-        orderBy: [{ unlockLevel: 'asc' }, { pricePigs: 'asc' }]
-      }),
+      prisma.profile.findUnique({ where: { userId } }),
+      prisma.character.findMany({ orderBy: [{ unlockLevel: 'asc' }, { pricePigs: 'asc' }] }),
+      prisma.weapon.findMany({ orderBy: [{ unlockLevel: 'asc' }, { pricePigs: 'asc' }] }),
       prisma.inventoryItem.findMany({
         where: { userId },
-        select: {
-          itemType: true,
-          characterId: true,
-          weaponId: true,
-          upgradeLevel: true
-        }
+        select: { itemType: true, characterId: true, weaponId: true, upgradeLevel: true }
       })
     ]);
 
@@ -61,12 +51,13 @@ export async function shopRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.post('/buy', { preHandler: authenticate }, async (request, reply) => {
+  // Apply strict rate limiting to the buy endpoint
+  fastify.post('/buy', { preHandler: [authenticate, (request, reply, done) => {
+    (reply.context.config as any).rateLimit = strictRateLimitConfig;
+    done();
+  }] }, async (request, reply) => {
     const userId = request.user.userId;
-    const { itemType, itemId } = request.body as {
-      itemType?: ShopItemType;
-      itemId?: string;
-    };
+    const { itemType, itemId } = request.body as { itemType?: ShopItemType; itemId?: string };
 
     if (!itemType || !itemId) {
       return reply.status(400).send({ error: 'Missing itemType or itemId' });
@@ -78,12 +69,8 @@ export async function shopRoutes(fastify: FastifyInstance) {
 
     const item =
       itemType === 'CHARACTER'
-        ? await prisma.character.findUnique({
-            where: { characterId: itemId }
-          })
-        : await prisma.weapon.findUnique({
-            where: { weaponId: itemId }
-          });
+        ? await prisma.character.findUnique({ where: { characterId: itemId } })
+        : await prisma.weapon.findUnique({ where: { weaponId: itemId } });
 
     if (!item) {
       return reply.status(404).send({ error: 'Item not found' });
@@ -91,65 +78,42 @@ export async function shopRoutes(fastify: FastifyInstance) {
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const profile = await tx.profile.findUnique({
-          where: { userId }
-        });
+        const profile = await tx.profile.findUnique({ where: { userId } });
 
-        if (!profile) {
-          throw new Error('PROFILE_NOT_FOUND');
-        }
+        if (!profile) throw new Error('PROFILE_NOT_FOUND');
 
         const existing = await tx.inventoryItem.findFirst({
           where:
             itemType === 'CHARACTER'
-              ? {
-                  userId,
-                  itemType: 'CHARACTER',
-                  characterId: itemId
-                }
-              : {
-                  userId,
-                  itemType: 'WEAPON',
-                  weaponId: itemId
-                }
+              ? { userId, itemType: 'CHARACTER', characterId: itemId }
+              : { userId, itemType: 'WEAPON', weaponId: itemId }
         });
 
-        if (existing) {
-          throw new Error('ITEM_ALREADY_OWNED');
+        if (existing) throw new Error('ITEM_ALREADY_OWNED');
+        if (profile.level < item.unlockLevel) throw new Error('LEVEL_REQUIREMENT_NOT_MET');
+        if (profile.currentPigs < item.pricePigs) throw new Error('INSUFFICIENT_PIGS');
+
+        // Auto-equip if slot is empty
+        const updateData: any = { currentPigs: { decrement: item.pricePigs } };
+        if (itemType === 'CHARACTER' && !profile.equippedCharacterId) {
+          updateData.equippedCharacterId = itemId;
+        }
+        if (itemType === 'WEAPON' && !profile.equippedWeaponId) {
+          updateData.equippedWeaponId = itemId;
         }
 
-        if (profile.level < item.unlockLevel) {
-          throw new Error('LEVEL_REQUIREMENT_NOT_MET');
-        }
-
-        if (profile.currentPigs < item.pricePigs) {
-          throw new Error('INSUFFICIENT_PIGS');
-        }
-
-        const updatedProfile = await tx.profile.update({
-          where: { userId },
-          data: {
-            currentPigs: {
-              decrement: item.pricePigs
-            },
-            ...(itemType === 'CHARACTER' && !profile.equippedCharacterId
-              ? { equippedCharacterId: itemId }
-              : {}),
-            ...(itemType === 'WEAPON' && !profile.equippedWeaponId
-              ? { equippedWeaponId: itemId }
-              : {})
-          }
-        });
-
-        const inventoryItem = await tx.inventoryItem.create({
-          data: {
-            userId,
-            itemType,
-            characterId: itemType === 'CHARACTER' ? itemId : null,
-            weaponId: itemType === 'WEAPON' ? itemId : null,
-            upgradeLevel: 0
-          }
-        });
+        const [updatedProfile, inventoryItem] = await Promise.all([
+          tx.profile.update({ where: { userId }, data: updateData }),
+          tx.inventoryItem.create({
+            data: {
+              userId,
+              itemType,
+              characterId: itemType === 'CHARACTER' ? itemId : null,
+              weaponId: itemType === 'WEAPON' ? itemId : null,
+              upgradeLevel: 0
+            }
+          })
+        ]);
 
         await tx.transaction.create({
           data: {
@@ -187,20 +151,15 @@ export async function shopRoutes(fastify: FastifyInstance) {
       };
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'PROFILE_NOT_FOUND') {
-          return reply.status(404).send({ error: 'Profile not found' });
-        }
-
-        if (error.message === 'ITEM_ALREADY_OWNED') {
-          return reply.status(400).send({ error: 'Item already owned' });
-        }
-
-        if (error.message === 'LEVEL_REQUIREMENT_NOT_MET') {
-          return reply.status(403).send({ error: 'Level requirement not met' });
-        }
-
-        if (error.message === 'INSUFFICIENT_PIGS') {
-          return reply.status(400).send({ error: 'Insufficient PIGS' });
+        switch (error.message) {
+          case 'PROFILE_NOT_FOUND':
+            return reply.status(404).send({ error: 'Profile not found' });
+          case 'ITEM_ALREADY_OWNED':
+            return reply.status(409).send({ error: 'Item already owned' }); // 409 Conflict
+          case 'LEVEL_REQUIREMENT_NOT_MET':
+            return reply.status(403).send({ error: 'Level requirement not met' });
+          case 'INSUFFICIENT_PIGS':
+            return reply.status(402).send({ error: 'Insufficient PIGS' }); // 402 Payment Required
         }
       }
 
@@ -208,4 +167,4 @@ export async function shopRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Purchase failed' });
     }
   });
-            }
+}
