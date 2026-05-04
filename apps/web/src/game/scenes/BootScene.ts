@@ -1,46 +1,127 @@
 import Phaser from 'phaser';
 
+// Typed asset keys to prevent runtime typos
+export const ASSET_KEYS = {
+  // Backgrounds
+  BG_LEVEL1_LEFT: 'level1_bg_left',
+  BG_LEVEL1_MIDDLE: 'level1_bg_middle',
+  BG_LEVEL1_RIGHT: 'level1_bg_right',
+  
+  // Enemies
+  ENEMY_SOLDIER_L1: 'level1_soldier',
+  ENEMY_DRONE_L1: 'level1_drone',
+  ENEMY_MINI_TANK_L1: 'level1_mini_tank',
+  
+  // Characters
+  CHAR_GRUNT_BACON: 'grunt_bacon',
+  CHAR_IRON_TUSK: 'iron_tusk',
+  CHAR_SWIFT_HOOF: 'swift_hoof',
+  CHAR_PRECISION_SQUEAL: 'precision_squeal',
+  CHAR_BLAST_HAM: 'blast_ham',
+  CHAR_GENERAL_GOLDSNOUT: 'general_goldsnout',
+  
+  // Weapons
+  WPN_OINK_PISTOL: 'oink_pistol',
+  WPN_SOW_MACHINEGUN: 'sow_machinegun',
+  WPN_BOAR_RIFLE: 'boar_rifle',
+  WPN_TUSK_SHOTGUN: 'tusk_shotgun',
+  WPN_SNIPER_SWINE: 'sniper_swine',
+  WPN_BELCHA_MINIGUN: 'belcha_minigun',
+  WPN_PLASMA_PORKER: 'plasma_porker',
+  WPN_BACON_BLASTER: 'bacon_blaster',
+  
+  // Projectiles & VFX
+  PROJ_BULLET: 'bullet',
+  PROJ_SNIPER: 'sniper_bullet',
+  PROJ_PLASMA: 'plasma_globule',
+  PROJ_ROCKET: 'rocket',
+  VFX_EXPLOSION: 'explosion'
+} as const;
+
 export class BootScene extends Phaser.Scene {
+  private progressText!: Phaser.GameObjects.Text;
+
   constructor() {
     super({ key: 'BootScene' });
   }
 
   preload() {
-    this.load.setPath('');
+    // Dynamic base URL for subpath deployments
+    const baseUrl = import.meta.env.BASE_URL || '/';
+    this.load.setBaseURL(baseUrl);
+    this.load.setPath('assets');
 
-    this.load.image('level1_bg_left', '/assets/backgrounds/level1-left.png');
-    this.load.image('level1_bg_middle', '/assets/backgrounds/level1-middle.png');
-    this.load.image('level1_bg_right', '/assets/backgrounds/level1-right.png');
+    // Progress feedback
+    this.progressText = this.add.text(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY,
+      'Loading assets: 0%',
+      { font: '24px monospace', color: '#ff6b35', backgroundColor: '#1a1a1a', padding: { x: 12, y: 6 } }
+    ).setOrigin(0.5);
 
-    this.load.image('level1_soldier', '/assets/sprites/enemies/level1-soldier.png');
-    this.load.image('level1_drone', '/assets/sprites/enemies/level1-drone.png');
-    this.load.image('level1_mini_tank', '/assets/sprites/enemies/level1-mini-tank.png');
+    // Track load progress
+    this.load.on('progress', (value: number) => {
+      this.progressText.setText(`Loading assets: ${Math.round(value * 100)}%`);
+    });
 
-    this.load.image('grunt_bacon', '/assets/sprites/Grunt-Bacon.png');
-    this.load.image('iron_tusk', '/assets/sprites/Iron-Tusk.png');
-    this.load.image('swift_hoof', '/assets/sprites/Swift-Hoof.png');
-    this.load.image('precision_squeal', '/assets/sprites/Precision-Squeal.png');
-    this.load.image('blast_ham', '/assets/sprites/Blast-Ham.png');
-    this.load.image('general_goldsnout', '/assets/sprites/General-Goldsnout.png');
-    this.load.image('player', '/assets/sprites/Grunt-Bacon.png');
+    // Handle individual asset load errors (dev-only halt)
+    this.load.on('fileloaderror', (file: Phaser.Loader.File) => {
+      console.error(`[BootScene] Failed to load asset: ${file.key} from ${file.url}`);
+      if (import.meta.env.DEV) {
+        this.progressText.setColor('#ff0000').setText(`MISSING: ${file.key}`);
+      }
+    });
 
-    this.load.image('oink_pistol', '/assets/sprites/Oink-9-Pistol.png');
-    this.load.image('sow_machinegun', '/assets/sprites/Sow-MP5.png');
-    this.load.image('boar_rifle', '/assets/sprites/Boar-AR15.png');
-    this.load.image('tusk_shotgun', '/assets/sprites/Double-Tusk-Shotgun.png');
-    this.load.image('sniper_swine', '/assets/sprites/Longbore-Sniper.png');
-    this.load.image('belcha_minigun', '/assets/sprites/Belcha-Minigun.png');
-    this.load.image('plasma_porker', '/assets/sprites/Plasma-Porker-X.png');
-    this.load.image('bacon_blaster', '/assets/sprites/Bacon-Blaster-9000.png');
+    // Backgrounds
+    this.load.image(ASSET_KEYS.BG_LEVEL1_LEFT, 'backgrounds/level1-left.png');
+    this.load.image(ASSET_KEYS.BG_LEVEL1_MIDDLE, 'backgrounds/level1-middle.png');
+    this.load.image(ASSET_KEYS.BG_LEVEL1_RIGHT, 'backgrounds/level1-right.png');
 
-    this.load.image('bullet', '/assets/sprites/Standard-Bullet.png');
-    this.load.image('sniper_bullet', '/assets/sprites/Sniper-Round.png');
-    this.load.image('plasma_globule', '/assets/sprites/Plasma-Globule.png');
-    this.load.image('rocket', '/assets/sprites/Rocket.png');
-    this.load.image('explosion', '/assets/sprites/Explosion.png');
+    // Enemies
+    this.load.image(ASSET_KEYS.ENEMY_SOLDIER_L1, 'sprites/enemies/level1-soldier.png');
+    this.load.image(ASSET_KEYS.ENEMY_DRONE_L1, 'sprites/enemies/level1-drone.png');
+    this.load.image(ASSET_KEYS.ENEMY_MINI_TANK_L1, 'sprites/enemies/level1-mini-tank.png');
+
+    // Characters
+    this.load.image(ASSET_KEYS.CHAR_GRUNT_BACON, 'sprites/Grunt-Bacon.png');
+    this.load.image(ASSET_KEYS.CHAR_IRON_TUSK, 'sprites/Iron-Tusk.png');
+    this.load.image(ASSET_KEYS.CHAR_SWIFT_HOOF, 'sprites/Swift-Hoof.png');
+    this.load.image(ASSET_KEYS.CHAR_PRECISION_SQUEAL, 'sprites/Precision-Squeal.png');
+    this.load.image(ASSET_KEYS.CHAR_BLAST_HAM, 'sprites/Blast-Ham.png');
+    this.load.image(ASSET_KEYS.CHAR_GENERAL_GOLDSNOUT, 'sprites/General-Goldsnout.png');
+
+    // Weapons
+    this.load.image(ASSET_KEYS.WPN_OINK_PISTOL, 'sprites/Oink-9-Pistol.png');
+    this.load.image(ASSET_KEYS.WPN_SOW_MACHINEGUN, 'sprites/Sow-MP5.png');
+    this.load.image(ASSET_KEYS.WPN_BOAR_RIFLE, 'sprites/Boar-AR15.png');
+    this.load.image(ASSET_KEYS.WPN_TUSK_SHOTGUN, 'sprites/Double-Tusk-Shotgun.png');
+    this.load.image(ASSET_KEYS.WPN_SNIPER_SWINE, 'sprites/Longbore-Sniper.png');
+    this.load.image(ASSET_KEYS.WPN_BELCHA_MINIGUN, 'sprites/Belcha-Minigun.png');
+    this.load.image(ASSET_KEYS.WPN_PLASMA_PORKER, 'sprites/Plasma-Porker-X.png');
+    this.load.image(ASSET_KEYS.WPN_BACON_BLASTER, 'sprites/Bacon-Blaster-9000.png');
+
+    // Projectiles & VFX
+    this.load.image(ASSET_KEYS.PROJ_BULLET, 'sprites/Standard-Bullet.png');
+    this.load.image(ASSET_KEYS.PROJ_SNIPER, 'sprites/Sniper-Round.png');
+    this.load.image(ASSET_KEYS.PROJ_PLASMA, 'sprites/Plasma-Globule.png');
+    this.load.image(ASSET_KEYS.PROJ_ROCKET, 'sprites/Rocket.png');
+    this.load.image(ASSET_KEYS.VFX_EXPLOSION, 'sprites/Explosion.png');
+
+    // NOTE: Audio assets to be added in future pass:
+    // this.load.audio('sfx_shot', 'audio/shot.mp3');
+    // this.load.audio('music_level1', 'audio/level1-loop.ogg');
   }
 
   create() {
-    this.scene.start('GameScene');
+    // Ensure all assets are fully loaded before proceeding
+    if (this.load.progress < 1) {
+      this.load.once('complete', () => {
+        this.progressText.destroy();
+        this.scene.start('GameScene');
+      });
+    } else {
+      this.progressText.destroy();
+      this.scene.start('GameScene');
+    }
   }
 }
