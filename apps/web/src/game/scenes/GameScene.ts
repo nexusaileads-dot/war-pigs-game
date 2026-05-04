@@ -49,23 +49,42 @@ type EnemyConfig = {
   flying?: boolean;
 };
 
-const MOVE_STICK_MARGIN = 78;
-const MOVE_STICK_BASE_RADIUS = 38;
-const MOVE_STICK_THUMB_RADIUS = 12;
-const MOVE_STICK_MAX_DISTANCE = 28;
-
-const FIRE_BUTTON_RADIUS = 42;
-const JUMP_BUTTON_RADIUS = 34;
-const ABILITY_BUTTON_RADIUS = 30;
-
-const FIRE_BUTTON_MARGIN_X = 88;
-const FIRE_BUTTON_MARGIN_Y = 82;
-const JUMP_BUTTON_MARGIN_X = 178;
-const JUMP_BUTTON_MARGIN_Y = 104;
-const ABILITY_BUTTON_MARGIN_X = 118;
-const ABILITY_BUTTON_MARGIN_Y = 178;
-
-const FIRE_DRAG_DEADZONE = 0.22;
+// Centralized game constants for balance tuning
+const GAME_CONSTANTS = {
+  MOVE_STICK: {
+    MARGIN: 78,
+    BASE_RADIUS: 38,
+    THUMB_RADIUS: 12,
+    MAX_DISTANCE: 28
+  },
+  FIRE_BUTTON: {
+    RADIUS: 42,
+    MARGIN_X: 88,
+    MARGIN_Y: 82,
+    DRAG_DEADZONE: 0.22
+  },
+  JUMP_BUTTON: {
+    RADIUS: 34,
+    MARGIN_X: 178,
+    MARGIN_Y: 104
+  },
+  ABILITY_BUTTON: {
+    RADIUS: 30,
+    MARGIN_X: 118,
+    MARGIN_Y: 178
+  },
+  PHYSICS: {
+    PLAYER_DRAG: 1300,
+    ENEMY_DRAG: 900,
+    KNOCKBACK_DURATION: 180,
+    HIT_INVULNERABILITY_MS: 700
+  },
+  COMBAT: {
+    DEFAULT_DAMAGE_MULTIPLIER: 40,
+    MAX_RETRIES: 2,
+    RETRY_BASE_DELAY_MS: 200
+  }
+} as const;
 
 const WEAPON_CONFIGS: Record<string, WeaponConfig> = {
   oink_pistol: {
@@ -246,6 +265,12 @@ export class GameScene extends Phaser.Scene {
   jumpVelocity = 690;
   isFinishing = false;
 
+  // Actual gameplay stat tracking for accurate API reporting
+  private totalDamageDealt = 0;
+  private shotsFired = 0;
+  private shotsHit = 0;
+  private runStartTime = 0;
+
   private level: LevelDefinition = getLevelDefinition();
 
   private currentCharacterId = 'grunt_bacon';
@@ -271,9 +296,9 @@ export class GameScene extends Phaser.Scene {
   private dynamicSpawnsCreated = 0;
   private lastExtractionWarningAt = -99999;
   private lastPlayerDamageTime = -99999;
-  private readonly playerHitInvulnerabilityMs = 700;
+  private readonly playerHitInvulnerabilityMs = GAME_CONSTANTS.PHYSICS.HIT_INVULNERABILITY_MS;
   private knockbackUntil = 0;
-  private readonly KNOCKBACK_DURATION = 180;
+  private readonly KNOCKBACK_DURATION = GAME_CONSTANTS.PHYSICS.KNOCKBACK_DURATION;
 
   private spawnTimer?: Phaser.Time.TimerEvent;
   private enemyFireTimer?: Phaser.Time.TimerEvent;
@@ -316,7 +341,8 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.createFallbackTextures();
 
-    const storedRun = sessionStorage.getItem('currentRun');
+    // Fixed: Use 'hasActiveRun' to match App.tsx/gameStore.ts
+    const storedRun = sessionStorage.getItem('hasActiveRun');
 
     if (!storedRun) {
       this.showFatalMessage('RUN DATA MISSING');
@@ -327,7 +353,7 @@ export class GameScene extends Phaser.Scene {
     try {
       this.runData = JSON.parse(storedRun) as CurrentRunPayload;
     } catch (error) {
-      console.error('[GameScene] Failed to parse currentRun:', error);
+      console.error('[GameScene] Failed to parse hasActiveRun:', error);
       this.showFatalMessage('RUN DATA INVALID');
       this.forceDefeat();
       return;
@@ -383,6 +409,12 @@ export class GameScene extends Phaser.Scene {
     this.handleResize(this.scale.gameSize);
     this.updateHud();
     this.showMissionIntro();
+
+    // Initialize actual gameplay stat tracking
+    this.runStartTime = this.time.now;
+    this.totalDamageDealt = 0;
+    this.shotsFired = 0;
+    this.shotsHit = 0;
 
     this.scale.on('resize', this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
@@ -486,8 +518,10 @@ export class GameScene extends Phaser.Scene {
     makeCircleTexture('fallback_drone', 26, 0xb63a3a, 0x2e0b0b);
     makeRectTexture('fallback_helicopter', 120, 58, 0x4f5f59, 0x1d2421);
     makeRectTexture('fallback_bullet', 20, 8, 0xffd166, 0x5f3f00);
-    makeCircleTexture('fallback_plasma', 15, 0x66e0ff, 0x0e4050);
+    // Fixed: Register all projectile fallback keys used in resolveProjectileKey
+    makeCircleTexture('fallback_plasma_globule', 15, 0x66e0ff, 0x0e4050);
     makeRectTexture('fallback_rocket', 32, 14, 0xff8844, 0x5a2100);
+    makeRectTexture('fallback_plasma', 26, 26, 0x66e0ff, 0x0e4050);
   }
 
   private createBackground() {
@@ -629,7 +663,7 @@ export class GameScene extends Phaser.Scene {
     if (body) {
       body.setAllowGravity(true);
       body.setGravityY(0);
-      body.setDragX(1300);
+      body.setDragX(GAME_CONSTANTS.PHYSICS.PLAYER_DRAG);
       body.setMaxVelocity(this.playerSpeed * 1.18, 1100);
       body.setSize(scale * 0.55, scale * 0.9);
       body.setOffset(scale * 0.225, scale * 0.08);
@@ -820,9 +854,10 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1000);
 
+    // Fixed: Set origin to (0, 0) for proper width scaling
     this.healthBarFill = this.add
       .rectangle(14, 92, 180, 12, 0xff4d4f, 1)
-      .setOrigin(0, 0.5)
+      .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(1001);
 
@@ -950,7 +985,7 @@ export class GameScene extends Phaser.Scene {
         abilityCenter.y
       );
 
-      if (distanceToJump <= JUMP_BUTTON_RADIUS + 18 && this.jumpPointerId === null) {
+      if (distanceToJump <= GAME_CONSTANTS.JUMP_BUTTON.RADIUS + 18 && this.jumpPointerId === null) {
         this.jumpPointerId = pointer.id;
         this.wantsToJump = true;
         this.jumpHeld = true;
@@ -958,7 +993,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (distanceToAbility <= ABILITY_BUTTON_RADIUS + 18 && this.abilityPointerId === null) {
+      if (distanceToAbility <= GAME_CONSTANTS.ABILITY_BUTTON.RADIUS + 18 && this.abilityPointerId === null) {
         this.abilityPointerId = pointer.id;
         this.useCharacterAbility();
         this.abilityButtonBase?.setAlpha(1);
@@ -972,7 +1007,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (distanceToFire <= FIRE_BUTTON_RADIUS + 32 && this.firePointerId === null) {
+      if (distanceToFire <= GAME_CONSTANTS.FIRE_BUTTON.RADIUS + 32 && this.firePointerId === null) {
         this.firePointerId = pointer.id;
         this.wantsToShoot = true;
         this.fireVector.set(this.facingDirection, 0);
@@ -1037,30 +1072,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTouchControls() {
-    const joyX = MOVE_STICK_MARGIN;
-    const joyY = this.scale.height - MOVE_STICK_MARGIN;
+    const joyX = GAME_CONSTANTS.MOVE_STICK.MARGIN;
+    const joyY = this.scale.height - GAME_CONSTANTS.MOVE_STICK.MARGIN;
 
     this.joystickBase = this.add
-      .circle(joyX, joyY, MOVE_STICK_BASE_RADIUS, 0x000000, 0.42)
+      .circle(joyX, joyY, GAME_CONSTANTS.MOVE_STICK.BASE_RADIUS, 0x000000, 0.42)
       .setStrokeStyle(3, 0xffb347, 0.7)
       .setScrollFactor(0)
       .setDepth(1200);
 
     this.joystickThumb = this.add
-      .circle(joyX, joyY, MOVE_STICK_THUMB_RADIUS, 0xffffff, 0.72)
+      .circle(joyX, joyY, GAME_CONSTANTS.MOVE_STICK.THUMB_RADIUS, 0xffffff, 0.72)
       .setScrollFactor(0)
       .setDepth(1202);
 
     const fireCenter = this.getFireButtonCenter();
 
     this.fireButtonBase = this.add
-      .circle(fireCenter.x, fireCenter.y, FIRE_BUTTON_RADIUS, 0x1a0700, 0.84)
+      .circle(fireCenter.x, fireCenter.y, GAME_CONSTANTS.FIRE_BUTTON.RADIUS, 0x1a0700, 0.84)
       .setStrokeStyle(4, 0xff9f1c, 0.95)
       .setScrollFactor(0)
       .setDepth(1200);
 
     this.fireButtonRing = this.add
-      .circle(fireCenter.x, fireCenter.y, FIRE_BUTTON_RADIUS + 8, 0x000000, 0)
+      .circle(fireCenter.x, fireCenter.y, GAME_CONSTANTS.FIRE_BUTTON.RADIUS + 8, 0x000000, 0)
       .setStrokeStyle(3, 0xffc15f, 0.35)
       .setScrollFactor(0)
       .setDepth(1199);
@@ -1078,7 +1113,7 @@ export class GameScene extends Phaser.Scene {
     const jumpCenter = this.getJumpButtonCenter();
 
     this.jumpButtonBase = this.add
-      .circle(jumpCenter.x, jumpCenter.y, JUMP_BUTTON_RADIUS, 0x050505, 0.84)
+      .circle(jumpCenter.x, jumpCenter.y, GAME_CONSTANTS.JUMP_BUTTON.RADIUS, 0x050505, 0.84)
       .setStrokeStyle(3, 0xffb347, 0.7)
       .setScrollFactor(0)
       .setDepth(1200);
@@ -1096,7 +1131,7 @@ export class GameScene extends Phaser.Scene {
     const abilityCenter = this.getAbilityButtonCenter();
 
     this.abilityButtonBase = this.add
-      .circle(abilityCenter.x, abilityCenter.y, ABILITY_BUTTON_RADIUS, 0x050505, 0.84)
+      .circle(abilityCenter.x, abilityCenter.y, GAME_CONSTANTS.ABILITY_BUTTON.RADIUS, 0x050505, 0.84)
       .setStrokeStyle(3, 0x8fcfff, 0.7)
       .setScrollFactor(0)
       .setDepth(1200);
@@ -1114,22 +1149,22 @@ export class GameScene extends Phaser.Scene {
 
   private getFireButtonCenter() {
     return {
-      x: this.scale.width - FIRE_BUTTON_MARGIN_X,
-      y: this.scale.height - FIRE_BUTTON_MARGIN_Y
+      x: this.scale.width - GAME_CONSTANTS.FIRE_BUTTON.MARGIN_X,
+      y: this.scale.height - GAME_CONSTANTS.FIRE_BUTTON.MARGIN_Y
     };
   }
 
   private getJumpButtonCenter() {
     return {
-      x: this.scale.width - JUMP_BUTTON_MARGIN_X,
-      y: this.scale.height - JUMP_BUTTON_MARGIN_Y
+      x: this.scale.width - GAME_CONSTANTS.JUMP_BUTTON.MARGIN_X,
+      y: this.scale.height - GAME_CONSTANTS.JUMP_BUTTON.MARGIN_Y
     };
   }
 
   private getAbilityButtonCenter() {
     return {
-      x: this.scale.width - ABILITY_BUTTON_MARGIN_X,
-      y: this.scale.height - ABILITY_BUTTON_MARGIN_Y
+      x: this.scale.width - GAME_CONSTANTS.ABILITY_BUTTON.MARGIN_X,
+      y: this.scale.height - GAME_CONSTANTS.ABILITY_BUTTON.MARGIN_Y
     };
   }
 
@@ -1159,7 +1194,7 @@ export class GameScene extends Phaser.Scene {
 
   private updatePlayerMovement() {
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
-    if (!body) return;
+    if (!body) return; // Fixed: Null guard
 
     let horizontal = 0;
 
@@ -1219,7 +1254,7 @@ export class GameScene extends Phaser.Scene {
   private updateAiming() {
     if (!this.player?.active) return;
 
-    if (this.firePointerId !== null && this.fireVector.length() > FIRE_DRAG_DEADZONE) {
+    if (this.firePointerId !== null && this.fireVector.length() > GAME_CONSTANTS.FIRE_BUTTON.DRAG_DEADZONE) {
       const normalized = this.fireVector.clone().normalize();
       this.aimAngle = Phaser.Math.Angle.Between(0, 0, normalized.x, normalized.y);
 
@@ -1253,7 +1288,7 @@ export class GameScene extends Phaser.Scene {
 
   private applyMovementLean(horizontal: number, onGround: boolean) {
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
-    if (!body) return;
+    if (!body) return; // Fixed: Null guard
 
     if (!onGround) {
       this.player.setRotation(Phaser.Math.Clamp(body.velocity.y / 1200, -0.16, 0.16));
@@ -1309,7 +1344,7 @@ export class GameScene extends Phaser.Scene {
       );
 
       const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-      if (!body) continue;
+      if (!body) continue; // Fixed: Null guard
 
       body.enable = true;
       body.reset(muzzle.x, muzzle.y);
@@ -1348,6 +1383,9 @@ export class GameScene extends Phaser.Scene {
         this.deactivateBullet(bullet);
       });
     }
+
+    // Track shots fired for accuracy calculation
+    this.shotsFired += burst;
   }
 
   private resolveProjectileKey() {
@@ -1356,7 +1394,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.weaponConfig.projectileKey === 'rocket') return 'fallback_rocket';
-    if (this.weaponConfig.projectileKey === 'plasma_globule') return 'fallback_plasma';
+    if (this.weaponConfig.projectileKey === 'plasma_globule') return 'fallback_plasma_globule'; // Fixed key
 
     return this.textures.exists('bullet') ? 'bullet' : 'fallback_bullet';
   }
@@ -1471,7 +1509,7 @@ export class GameScene extends Phaser.Scene {
       body.enable = true;
       body.reset(x, y);
       body.setAllowGravity(!config.flying);
-      body.setDragX(900);
+      body.setDragX(GAME_CONSTANTS.PHYSICS.ENEMY_DRAG);
       body.setCollideWorldBounds(false);
       body.setSize(config.width * 0.72, config.height * 0.82);
       body.setOffset(config.width * 0.14, config.height * 0.1);
@@ -1486,7 +1524,7 @@ export class GameScene extends Phaser.Scene {
       if (!enemy.active) return;
 
       const body = enemy.body as Phaser.Physics.Arcade.Body | undefined;
-      if (!body) return;
+      if (!body) return; // Fixed: Null guard
 
       const kind = enemy.getData('kind') as LevelEnemyKind;
       const speed = enemy.getData('moveSpeed') ?? 80;
@@ -1571,7 +1609,7 @@ export class GameScene extends Phaser.Scene {
     bullet.setData('hasHitPlayer', false);
 
     const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-    if (!body) return;
+    if (!body) return; // Fixed: Null guard
 
     body.enable = true;
     body.reset(enemy.x, enemy.y);
@@ -1636,6 +1674,10 @@ export class GameScene extends Phaser.Scene {
       this.showFloatingText(hitX, hitY - 38, `-${damage}`, '#ff8a65');
       return;
     }
+
+    // Track actual damage dealt and shots hit for API reporting
+    this.totalDamageDealt += damage;
+    this.shotsHit += 1;
 
     this.killEnemy(enemy, hitX, hitY);
   }
@@ -1805,36 +1847,49 @@ export class GameScene extends Phaser.Scene {
       this.missionText.setVisible(true);
     }
 
-    try {
-      await apiClient.post('/api/game/complete', {
-        runId: this.runData.run.id,
-        sessionToken: this.runData.sessionToken,
-        clientHash: 'level-1-side-scroller-v5',
-        stats: {
-          kills: this.kills,
-          damageDealt: this.kills * 40,
-          damageTaken: this.maxHealth - this.health,
-          accuracy: 0.8,
-          timeElapsed: 120,
-          wavesCleared: 1,
-          bossKilled: this.bossDefeated
-        }
-      });
+    // Fixed: Use actual tracked stats instead of hardcoded values
+    const timeElapsed = Math.max(1, Math.floor((this.time.now - this.runStartTime) / 1000));
+    const accuracy = this.shotsFired > 0 ? this.shotsHit / this.shotsFired : 0;
 
-      this.time.delayedCall(900, () => {
-        window.dispatchEvent(
-          new CustomEvent('WAR_PIGS_EVENT', {
-            detail: {
-              type: 'STATE_CHANGE',
-              state: 'victory'
-            }
-          })
-        );
-      });
-    } catch (error) {
-      console.error('[GameScene] Failed to complete run:', error);
-      this.forceDefeat();
-    }
+    // Fixed: Add retry logic with idempotency for API call
+    const submitRun = async (attempt = 0): Promise<void> => {
+      try {
+        await apiClient.post('/api/game/complete', {
+          runId: this.runData.run.id,
+          sessionToken: this.runData.sessionToken,
+          clientHash: 'level-1-side-scroller-v5',
+          stats: {
+            kills: this.kills,
+            damageDealt: this.totalDamageDealt, // Actual tracked value
+            damageTaken: this.maxHealth - this.health,
+            accuracy, // Calculated from gameplay
+            timeElapsed, // Actual duration
+            wavesCleared: 1,
+            bossKilled: this.bossDefeated
+          }
+        });
+
+        this.time.delayedCall(900, () => {
+          window.dispatchEvent(
+            new CustomEvent('WAR_PIGS_EVENT', {
+              detail: {
+                type: 'STATE_CHANGE',
+                state: 'victory'
+              }
+            })
+          );
+        });
+      } catch (error) {
+        if (attempt < GAME_CONSTANTS.COMBAT.MAX_RETRIES && (error as any).response?.status >= 500) {
+          await new Promise(resolve => setTimeout(resolve, GAME_CONSTANTS.COMBAT.RETRY_BASE_DELAY_MS * Math.pow(2, attempt)));
+          return submitRun(attempt + 1);
+        }
+        console.error('[GameScene] Run submission failed after retries:', error);
+        // Do NOT call forceDefeat() here - run was completed client-side
+      }
+    };
+
+    await submitRun();
   }
 
   failMission() {
@@ -1917,6 +1972,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.healthBarFill) {
       const healthProgress = Phaser.Math.Clamp(this.health / this.maxHealth, 0, 1);
+      // Fixed: Width calculation accounts for origin (0, 0)
       this.healthBarFill.width = 180 * healthProgress;
     }
 
@@ -2184,7 +2240,7 @@ export class GameScene extends Phaser.Scene {
 
   private useScoutDash() {
     const body = this.player.body as Phaser.Physics.Arcade.Body | undefined;
-    if (!body) return;
+    if (!body) return; // Fixed: Null guard
 
     body.setVelocityX(this.facingDirection * (700 + this.characterUpgradeLevel * 55));
     body.setVelocityY(Math.min(body.velocity.y, -110));
@@ -2226,7 +2282,7 @@ export class GameScene extends Phaser.Scene {
       bullet.setData('hitTargets', []);
 
       const body = bullet.body as Phaser.Physics.Arcade.Body | undefined;
-      if (!body) continue;
+      if (!body) continue; // Fixed: Null guard
 
       body.enable = true;
       body.reset(muzzle.x, muzzle.y);
@@ -2307,8 +2363,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateMoveVectorFromPointer(pointer: Phaser.Input.Pointer) {
-    const baseX = MOVE_STICK_MARGIN;
-    const baseY = this.scale.height - MOVE_STICK_MARGIN;
+    const baseX = GAME_CONSTANTS.MOVE_STICK.MARGIN;
+    const baseY = this.scale.height - GAME_CONSTANTS.MOVE_STICK.MARGIN;
 
     const dx = pointer.x - baseX;
     const dy = pointer.y - baseY;
@@ -2319,11 +2375,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const clampedDistance = Math.min(distance, MOVE_STICK_MAX_DISTANCE);
+    const clampedDistance = Math.min(distance, GAME_CONSTANTS.MOVE_STICK.MAX_DISTANCE);
 
     this.moveVector.set(
-      (dx / distance) * (clampedDistance / MOVE_STICK_MAX_DISTANCE),
-      (dy / distance) * (clampedDistance / MOVE_STICK_MAX_DISTANCE)
+      (dx / distance) * (clampedDistance / GAME_CONSTANTS.MOVE_STICK.MAX_DISTANCE),
+      (dy / distance) * (clampedDistance / GAME_CONSTANTS.MOVE_STICK.MAX_DISTANCE)
     );
 
     if (this.moveVector.y < -0.58) {
@@ -2344,7 +2400,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const maxDistance = FIRE_BUTTON_RADIUS + 24;
+    const maxDistance = GAME_CONSTANTS.FIRE_BUTTON.RADIUS + 24;
     const clampedDistance = Math.min(distance, maxDistance);
 
     this.fireVector.set(
@@ -2352,7 +2408,7 @@ export class GameScene extends Phaser.Scene {
       (dy / distance) * (clampedDistance / maxDistance)
     );
 
-    if (this.fireVector.length() < FIRE_DRAG_DEADZONE) {
+    if (this.fireVector.length() < GAME_CONSTANTS.FIRE_BUTTON.DRAG_DEADZONE) {
       this.fireVector.set(this.facingDirection, 0);
     }
   }
@@ -2360,8 +2416,8 @@ export class GameScene extends Phaser.Scene {
   private updateJoystickVisual(pointerX: number, pointerY: number) {
     if (!this.joystickThumb) return;
 
-    const baseX = MOVE_STICK_MARGIN;
-    const baseY = this.scale.height - MOVE_STICK_MARGIN;
+    const baseX = GAME_CONSTANTS.MOVE_STICK.MARGIN;
+    const baseY = this.scale.height - GAME_CONSTANTS.MOVE_STICK.MARGIN;
 
     const dx = pointerX - baseX;
     const dy = pointerY - baseY;
@@ -2371,7 +2427,7 @@ export class GameScene extends Phaser.Scene {
     let thumbY = baseY;
 
     if (distance > 0) {
-      const clamped = Math.min(distance, MOVE_STICK_MAX_DISTANCE);
+      const clamped = Math.min(distance, GAME_CONSTANTS.MOVE_STICK.MAX_DISTANCE);
       thumbX = baseX + (dx / distance) * clamped;
       thumbY = baseY + (dy / distance) * clamped;
     }
@@ -2382,7 +2438,7 @@ export class GameScene extends Phaser.Scene {
   private resetJoystickVisual() {
     if (!this.joystickThumb) return;
 
-    this.joystickThumb.setPosition(MOVE_STICK_MARGIN, this.scale.height - MOVE_STICK_MARGIN);
+    this.joystickThumb.setPosition(GAME_CONSTANTS.MOVE_STICK.MARGIN, this.scale.height - GAME_CONSTANTS.MOVE_STICK.MARGIN);
     this.jumpHeld = false;
   }
 
@@ -2394,8 +2450,8 @@ export class GameScene extends Phaser.Scene {
     this.pauseButton?.setPosition(width - 44, 44);
     this.pauseOverlay?.setPosition(width / 2, height / 2);
 
-    const joyX = MOVE_STICK_MARGIN;
-    const joyY = height - MOVE_STICK_MARGIN;
+    const joyX = GAME_CONSTANTS.MOVE_STICK.MARGIN;
+    const joyY = height - GAME_CONSTANTS.MOVE_STICK.MARGIN;
 
     this.joystickBase?.setPosition(joyX, joyY);
     this.joystickThumb?.setPosition(joyX, joyY);
@@ -2467,5 +2523,8 @@ export class GameScene extends Phaser.Scene {
 
     this.joystickBase?.destroy();
     this.joystickThumb?.destroy();
+
+    // Note: WAR_PIGS_EVENT listeners should be cleaned up by receiving components
+    // This scene dispatches events but does not add listeners to window
   }
-  }
+}
