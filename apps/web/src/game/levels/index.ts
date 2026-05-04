@@ -35,11 +35,16 @@ export type LevelBoss = {
   title: string;
 };
 
+/**
+ * Master level definition schema.
+ * Includes both runtime geometry and backend reward/validation fields.
+ */
 export type LevelDefinition = {
   id: string;
   levelNumber: number;
   title: string;
   subtitle: string;
+  missionBrief?: string;
   worldWidth: number;
   worldHeight: number;
   groundY: number;
@@ -50,6 +55,14 @@ export type LevelDefinition = {
   sunColor: number;
   allowDynamicSpawns: boolean;
   dynamicSpawnLimit: number;
+  unlockRequirement: number; // Player level required to access
+
+  // Backend & Economy Sync (Required by gameRoutes.ts & RewardCalculator)
+  waves: number;
+  difficulty: number;
+  baseReward: number;
+  xpReward: number;
+
   platforms: LevelPlatform[];
   crates: LevelCrate[];
   buildings: LevelBuilding[];
@@ -60,10 +73,11 @@ export type LevelDefinition = {
 const LEVEL_1_GROUND_Y = 650;
 
 export const LEVEL_1: LevelDefinition = {
-  id: 'level_1',
+  id: 'level-1', // Fixed: kebab-case matches backend/DB conventions
   levelNumber: 1,
   title: 'Level 1: Outskirts Breach',
   subtitle: 'Clear 6 threats and reach extraction.',
+  missionBrief: 'Push through the desert outpost, clear enemy patrols, destroy the mini tank, and reach extraction.',
   worldWidth: 4600,
   worldHeight: 760,
   groundY: LEVEL_1_GROUND_Y,
@@ -75,6 +89,13 @@ export const LEVEL_1: LevelDefinition = {
 
   allowDynamicSpawns: false,
   dynamicSpawnLimit: 0,
+  unlockRequirement: 1,
+
+  // Backend sync fields
+  waves: 1,
+  difficulty: 1.0,
+  baseReward: 500,
+  xpReward: 200,
 
   platforms: [
     { x: 2300, y: LEVEL_1_GROUND_Y + 44, width: 4600, height: 90, color: 0x3c2b21 },
@@ -120,10 +141,10 @@ export const LEVEL_1: LevelDefinition = {
 };
 
 const LEVELS: Record<string, LevelDefinition> = {
-  level_1: LEVEL_1
+  'level-1': LEVEL_1
 };
 
 export function getLevelDefinition(levelId?: string | null): LevelDefinition {
   if (!levelId) return LEVEL_1;
   return LEVELS[levelId] || LEVEL_1;
-    }
+}
