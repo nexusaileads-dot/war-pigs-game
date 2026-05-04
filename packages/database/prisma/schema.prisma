@@ -20,7 +20,7 @@ model User {
 
   profile      Profile?
   wallet       Wallet?
-  stats        PlayerStats?
+  stats        PlayerStats?    // Note: Prisma generates prisma.playerStats
   inventory    InventoryItem[]
   runs         GameRun[]
   transactions Transaction[]
@@ -43,6 +43,8 @@ model Profile {
 
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+
+  @@index([totalPigsEarned], map: "idx_profile_earnings_desc")
 }
 
 model Wallet {
@@ -84,11 +86,12 @@ model InventoryItem {
   timesUsed    Int               @default(0)
   acquiredAt   DateTime          @default(now())
 
-  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
-  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
+  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Restrict)
+  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Restrict)
 
-  @@unique([userId, characterId])
-  @@unique([userId, weaponId])
+  // Fixed constraints: includes itemType to prevent NULL-based duplicates
+  @@unique([userId, itemType, characterId])
+  @@unique([userId, itemType, weaponId])
   @@index([userId])
   @@index([characterId])
   @@index([weaponId])
@@ -181,13 +184,14 @@ model Transaction {
   type        TransactionType
   amount      Int
   description String?
-  referenceId String?
-  txHash      String?
+  referenceId String?         // e.g., runId, payoutId
+  txHash      String?         // Solana TX or internal ID
   createdAt   DateTime        @default(now())
 
   @@index([userId])
   @@index([type])
   @@index([referenceId])
+  @@index([createdAt(sort: Desc)])
 }
 
 enum InventoryItemType {
