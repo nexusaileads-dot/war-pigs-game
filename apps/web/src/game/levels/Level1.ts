@@ -2,13 +2,26 @@ import { LevelDefinition } from './types';
 
 export const LEVEL_1: LevelDefinition = {
   id: 'level-1',
+  // Backend sync fields (Required for RewardCalculator & EconomyService)
+  levelNumber: 1,
+  difficulty: 1,
+  waves: 3, // Approximation: 10 initial + dynamic spawns
+  baseReward: 500,
+  xpReward: 200,
+
+  // Gameplay flags (Required by GameScene logic)
+  allowDynamicSpawns: true,
+  dynamicSpawnLimit: 12,
+
   title: 'Outskirts Breach',
   subtitle: 'Break through the wolf outpost.',
-  missionBrief:
-    'Push through the desert outpost, clear enemy patrols, destroy the mini tank, and reach extraction.',
+  missionBrief: 'Push through the desert outpost, clear enemy patrols, destroy the mini tank, and reach extraction.',
   worldWidth: 5400,
   worldHeight: 760,
-  groundY: 650,
+  
+  // Note: groundY is the logical "floor" level for player positioning.
+  // Platform geometry Y coordinates should align such that top surfaces match this value.
+  groundY: 650, 
   extractionX: 5100,
   killTarget: 14,
   gravity: 1850,
@@ -16,9 +29,14 @@ export const LEVEL_1: LevelDefinition = {
   sunColor: 0xfff6d7,
 
   platforms: [
+    // Base floor: Center Y=650, Height=28 -> Top surface at 636.
+    // To match groundY=650 strictly, Y should be 664 (664 - 14 = 650).
+    // Keeping as-is but noting the offset.
+    { x: 2700, y: 664, width: 5400, height: 28, color: 0xb8a07d }, 
+    // Sub-floor/deep ground
     { x: 2700, y: 694, width: 5400, height: 90, color: 0x3c2b21 },
-    { x: 2700, y: 650, width: 5400, height: 28, color: 0xb8a07d },
 
+    // Elevated platforms
     { x: 650, y: 520, width: 360, height: 34, color: 0x7b704c },
     { x: 1050, y: 455, width: 240, height: 34, color: 0x9a7c5a },
     { x: 1380, y: 390, width: 420, height: 34, color: 0x6c744a },
@@ -55,23 +73,24 @@ export const LEVEL_1: LevelDefinition = {
   ],
 
   initialEnemies: [
-    { x: 620, y: 530, kind: 'soldier' },
-    { x: 960, y: 415, kind: 'soldier' },
-    { x: 1320, y: 310, kind: 'drone' },
-    { x: 1720, y: 530, kind: 'soldier' },
-    { x: 2180, y: 360, kind: 'drone' },
-    { x: 2580, y: 530, kind: 'heavy' },
-    { x: 3120, y: 430, kind: 'soldier' },
-    { x: 3420, y: 300, kind: 'drone' },
-    { x: 3820, y: 530, kind: 'soldier' },
-    { x: 4240, y: 340, kind: 'heavy' }
+    // Ground enemies (y ~636 platform top)
+    { x: 620, y: 620, kind: 'soldier' },
+    { x: 960, y: 620, kind: 'soldier' },
+    { x: 1320, y: 310, kind: 'drone' }, // Flying
+    { x: 1720, y: 620, kind: 'soldier' },
+    { x: 2180, y: 360, kind: 'drone' },  // Flying
+    { x: 2580, y: 620, kind: 'heavy' },
+    { x: 3120, y: 620, kind: 'soldier' },
+    { x: 3420, y: 300, kind: 'drone' },  // Flying
+    { x: 3820, y: 620, kind: 'soldier' },
+    { x: 4240, y: 620, kind: 'heavy' }
   ],
 
   boss: {
     triggerX: 4200,
     kind: 'tank',
     x: 4680,
-    y: 520,
+    y: 520, // Boss spawns on elevated platform or ground? Adjust to 620 if ground.
     title: 'MINI TANK INCOMING'
   }
 };
