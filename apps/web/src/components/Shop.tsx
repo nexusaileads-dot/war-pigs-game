@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 
+// --- Types ---
 type ShopCharacter = {
   characterId: string;
   name: string;
@@ -34,6 +35,7 @@ type ShopPayload = {
 
 type ViewMode = 'WEAPONS' | 'CHARACTERS';
 
+// --- Constants & Metadata (Aligned with GameScene.ts logic) ---
 type WeaponMeta = {
   fireRate: string;
   range: string;
@@ -43,589 +45,265 @@ type WeaponMeta = {
 };
 
 type CharacterMeta = {
-  powerName: string;
+  powerName: string; // Must match GameScene.ts abilityLabel
   cooldown: string;
   powerEffect: string;
   upgradeFocus: string;
 };
 
 const WEAPON_META: Record<string, WeaponMeta> = {
-  oink_pistol: {
-    fireRate: 'Balanced',
-    range: 'Medium',
-    projectile: 'Standard Bullet',
-    rarity: 'Common',
-    upgradeFocus: 'Damage / Fire Rate'
-  },
-  sow_machinegun: {
-    fireRate: 'Very Fast',
-    range: 'Medium',
-    projectile: 'Standard Bullet',
-    rarity: 'Rare',
-    upgradeFocus: 'Fire Rate / Stability'
-  },
-  boar_rifle: {
-    fireRate: 'Fast',
-    range: 'Long',
-    projectile: 'Standard Bullet',
-    rarity: 'Rare',
-    upgradeFocus: 'Damage / Range'
-  },
-  tusk_shotgun: {
-    fireRate: 'Slow',
-    range: 'Short',
-    projectile: 'Scatter Shell',
-    rarity: 'Epic',
-    upgradeFocus: 'Pellet Damage / Spread'
-  },
-  sniper_swine: {
-    fireRate: 'Very Slow',
-    range: 'Extreme',
-    projectile: 'Sniper Round',
-    rarity: 'Epic',
-    upgradeFocus: 'Damage / Piercing'
-  },
-  belcha_minigun: {
-    fireRate: 'Extreme',
-    range: 'Medium',
-    projectile: 'Heavy Bullet',
-    rarity: 'Legendary',
-    upgradeFocus: 'Fire Rate / Heat Control'
-  },
-  plasma_porker: {
-    fireRate: 'Medium',
-    range: 'Medium',
-    projectile: 'Plasma Globule',
-    rarity: 'Legendary',
-    upgradeFocus: 'Damage / Splash'
-  },
-  bacon_blaster: {
-    fireRate: 'Slow',
-    range: 'Long',
-    projectile: 'Explosive Rocket',
-    rarity: 'Mythic',
-    upgradeFocus: 'Explosion Damage / Radius'
-  }
+  oink_pistol: { fireRate: 'Balanced', range: 'Medium', projectile: 'Standard Bullet', rarity: 'Common', upgradeFocus: 'Damage / Fire Rate' },
+  sow_machinegun: { fireRate: 'Very Fast', range: 'Medium', projectile: 'Standard Bullet', rarity: 'Rare', upgradeFocus: 'Fire Rate / Stability' },
+  boar_rifle: { fireRate: 'Fast', range: 'Long', projectile: 'Standard Bullet', rarity: 'Rare', upgradeFocus: 'Damage / Range' },
+  tusk_shotgun: { fireRate: 'Slow', range: 'Short', projectile: 'Scatter Shell', rarity: 'Epic', upgradeFocus: 'Pellet Damage / Spread' },
+  sniper_swine: { fireRate: 'Very Slow', range: 'Extreme', projectile: 'Sniper Round', rarity: 'Epic', upgradeFocus: 'Damage / Piercing' },
+  belcha_minigun: { fireRate: 'Extreme', range: 'Medium', projectile: 'Heavy Bullet', rarity: 'Legendary', upgradeFocus: 'Fire Rate / Heat Control' },
+  plasma_porker: { fireRate: 'Medium', range: 'Medium', projectile: 'Plasma Globule', rarity: 'Legendary', upgradeFocus: 'Damage / Splash' },
+  bacon_blaster: { fireRate: 'Slow', range: 'Long', projectile: 'Explosive Rocket', rarity: 'Mythic', upgradeFocus: 'Explosion Damage / Radius' }
 };
 
 const CHARACTER_META: Record<string, CharacterMeta> = {
-  grunt_bacon: {
-    powerName: 'Mud Slow',
-    cooldown: '6s',
-    powerEffect: 'Slows nearby enemies for a short duration.',
-    upgradeFocus: 'Slow Strength / Radius / Duration'
-  },
-  iron_tusk: {
-    powerName: 'Shield Rush',
-    cooldown: '7s',
-    powerEffect: 'Temporary damage reduction with a short shockwave.',
-    upgradeFocus: 'Damage Reduction / Shockwave Radius'
-  },
-  swift_hoof: {
-    powerName: 'Tactical Dash',
-    cooldown: '4.5s',
-    powerEffect: 'Short burst dash with high mobility.',
-    upgradeFocus: 'Dash Distance / Cooldown'
-  },
-  precision_squeal: {
-    powerName: 'Focus Mode',
-    cooldown: '7s',
-    powerEffect: 'Increases precision and burst damage briefly.',
-    upgradeFocus: 'Bonus Damage / Duration / Cooldown'
-  },
-  blast_ham: {
-    powerName: 'Demolition Burst',
-    cooldown: '6.5s',
-    powerEffect: 'Explosion damages nearest enemies.',
-    upgradeFocus: 'Blast Damage / Enemy Count / Radius'
-  },
-  general_goldsnout: {
-    powerName: 'Battle Command',
-    cooldown: '8s',
-    powerEffect: 'Boosts combat efficiency for a short time.',
-    upgradeFocus: 'Buff Strength / Duration / Cooldown'
-  }
+  grunt_bacon: { powerName: 'Mud Slow', cooldown: '6s', powerEffect: 'Slows nearby enemies for a short duration.', upgradeFocus: 'Slow Strength / Radius / Duration' },
+  iron_tusk: { powerName: 'Iron Slam', cooldown: '7s', powerEffect: 'Shockwave push that damages enemies around the unit.', upgradeFocus: 'Shockwave damage, knockback, and radius' },
+  swift_hoof: { powerName: 'Scout Dash', cooldown: '4.5s', powerEffect: 'Fast mobility burst for repositioning.', upgradeFocus: 'Dash distance, speed, and cooldown' },
+  precision_squeal: { powerName: 'Focus Mode', cooldown: '7s', powerEffect: 'Boosts precision, projectile speed, damage, and pierce.', upgradeFocus: 'Damage bonus, pierce, duration, and cooldown' },
+  blast_ham: { powerName: 'Demolition Burst', cooldown: '6.5s', powerEffect: 'Fires explosive burst rockets toward enemies.', upgradeFocus: 'Rocket count, blast damage, radius, and cooldown' },
+  general_goldsnout: { powerName: 'Rally Order', cooldown: '8s', powerEffect: 'Temporary combat efficiency boost.', upgradeFocus: 'Buff strength, duration, and cooldown' }
 };
 
+// --- Helpers ---
+// Converts 'grunt_bacon' -> 'Grunt-Bacon.png' dynamically
+const formatAssetName = (id: string): string => {
+  return id.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('-') + '.png';
+};
+
+const getAssetPath = (id: string): string => `/assets/sprites/${formatAssetName(id)}`;
+
+// --- Component ---
 export const Shop: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [items, setItems] = useState<ShopPayload>({ characters: [], weapons: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [buyingKey, setBuyingKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('WEAPONS');
+  const [shopError, setShopError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { user, refreshProfile } = useGameStore();
-
   const currentPigs = user?.profile.currentPigs || 0;
 
-  useEffect(() => {
-    void loadShop();
+  const showNotification = useCallback((message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    const timer = setTimeout(() => setNotification(null), 3000);
+    return () => clearTimeout(timer);
   }, []);
 
-  const loadShop = async () => {
+  const loadShop = useCallback(async () => {
     try {
       setIsLoading(true);
+      setShopError(null);
       const res = await apiClient.get('/api/shop/items');
       setItems(res.data);
     } catch (error) {
-      console.error('Failed to load shop:', error);
-      alert('Failed to load shop.');
+      console.error('[Shop] Failed to load shop:', error);
+      setShopError('Failed to connect to the Quartermaster.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleBuy = async (type: 'CHARACTER' | 'WEAPON', id: string) => {
+  useEffect(() => {
+    void loadShop();
+  }, [loadShop]);
+
+  const handleBuy = async (type: 'CHARACTER' | 'WEAPON', id: string, price: number) => {
     const key = `${type}:${id}`;
+    if (buyingKey) return;
+    
+    if (currentPigs < price) {
+      return showNotification('Insufficient Pigs for this purchase.', 'error');
+    }
 
     try {
       setBuyingKey(key);
       await apiClient.post('/api/shop/buy', { itemType: type, itemId: id });
+      
+      // Refresh both shop data and user profile
       await Promise.all([loadShop(), refreshProfile()]);
-      alert('Purchase successful.');
+      showNotification('Item acquired successfully.', 'success');
     } catch (error: any) {
-      console.error('Purchase failed:', error);
-      const message =
-        error?.response?.data?.error ||
-        'Purchase failed. Check your level and $PIGS balance.';
-      alert(message);
+      console.error('[Shop] Purchase failed:', error);
+      const message = error?.response?.data?.error || 'Transaction declined.';
+      showNotification(message, 'error');
     } finally {
       setBuyingKey(null);
     }
   };
 
-  const getImageFilename = (id: string) => {
-    const map: Record<string, string> = {
-      grunt_bacon: 'Grunt-Bacon.png',
-      iron_tusk: 'Iron-Tusk.png',
-      swift_hoof: 'Swift-Hoof.png',
-      precision_squeal: 'Precision-Squeal.png',
-      blast_ham: 'Blast-Ham.png',
-      general_goldsnout: 'General-Goldsnout.png',
-      oink_pistol: 'Oink-9-Pistol.png',
-      sow_machinegun: 'Sow-MP5.png',
-      boar_rifle: 'Boar-AR15.png',
-      tusk_shotgun: 'Double-Tusk-Shotgun.png',
-      sniper_swine: 'Longbore-Sniper.png',
-      belcha_minigun: 'Belcha-Minigun.png',
-      plasma_porker: 'Plasma-Porker-X.png',
-      bacon_blaster: 'Bacon-Blaster-9000.png'
-    };
-
-    return `/assets/sprites/${map[id] || 'pig-token.png'}`;
-  };
-
-  const sortedCharacters = useMemo(
-    () =>
-      [...items.characters].sort((a, b) => {
-        if (a.owned !== b.owned) return Number(a.owned) - Number(b.owned);
-        return a.pricePigs - b.pricePigs;
-      }),
+  const sortedCharacters = useMemo(() =>
+    [...items.characters].sort((a, b) => Number(a.owned) - Number(b.owned) || a.pricePigs - b.pricePigs),
     [items.characters]
   );
 
-  const sortedWeapons = useMemo(
-    () =>
-      [...items.weapons].sort((a, b) => {
-        if (a.owned !== b.owned) return Number(a.owned) - Number(b.owned);
-        return a.pricePigs - b.pricePigs;
-      }),
+  const sortedWeapons = useMemo(() =>
+    [...items.weapons].sort((a, b) => Number(a.owned) - Number(b.owned) || a.pricePigs - b.pricePigs),
     [items.weapons]
   );
 
-  const renderBuyState = (
-    type: 'CHARACTER' | 'WEAPON',
-    id: string,
-    owned: boolean,
-    canUnlock: boolean,
-    canAfford: boolean,
-    pricePigs: number
-  ) => {
-    const key = `${type}:${id}`;
-    const disabled = owned || !canAfford || !canUnlock || buyingKey === key;
-
-    if (owned) {
-      return <span style={{ color: '#4caf50', fontWeight: 800 }}>OWNED</span>;
-    }
-
-    if (!canUnlock) {
-      return <span style={{ color: '#ff9800', fontWeight: 800 }}>LOCKED</span>;
-    }
-
-    if (!canAfford) {
-      return <span style={{ color: '#ff6b6b', fontWeight: 800 }}>NO $PIGS</span>;
-    }
-
-    return (
-      <button
-        disabled={disabled}
-        onClick={() => void handleBuy(type, id)}
-        style={{
-          padding: '10px 14px',
-          background: disabled ? '#555' : '#ff6b35',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '8px',
-          fontWeight: 800,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          cursor: disabled ? 'not-allowed' : 'pointer'
-        }}
-      >
-        <img
-          src="/assets/sprites/pig-token.png"
-          style={{ width: '16px', height: '16px' }}
-          alt=""
-        />
-        {buyingKey === key ? '...' : pricePigs}
-      </button>
-    );
-  };
-
   if (isLoading) {
+    return <div style={centerContainerStyle}>LOADING SHOP...</div>;
+  }
+
+  if (shopError) {
     return (
-      <div
-        style={{
-          padding: '20px',
-          color: '#fff',
-          minHeight: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: '#0a0a0a'
-        }}
-      >
-        LOADING SHOP...
+      <div style={containerStyle}>
+        <button onClick={onBack} style={backButtonStyle}>BACK</button>
+        <div style={errorBoxStyle}>
+          <h3 style={{color: '#ff6b6b'}}>Connection Lost</h3>
+          <p>{shopError}</p>
+          <button onClick={() => void loadShop()} style={retryButtonStyle}>Retry</button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        padding: '20px',
-        color: '#fff',
-        minHeight: '100vh',
-        overflowY: 'auto',
-        background: '#0a0a0a',
-        boxSizing: 'border-box'
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '18px',
-          gap: '12px'
-        }}
-      >
-        <button
-          onClick={onBack}
-          style={{
-            padding: '10px 18px',
-            background: '#444',
-            border: '2px solid #ffd700',
-            color: '#fff',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: 800
-          }}
-        >
-          BACK
-        </button>
+    <div style={containerStyle}>
+      {/* Toast Notification */}
+      {notification && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+          background: notification.type === 'error' ? '#8b2e2e' : '#2e7d32',
+          color: '#fff', padding: '10px 20px', borderRadius: 8, zIndex: 9999, fontWeight: 700
+        }}>
+          {notification.message}
+        </div>
+      )}
 
+      {/* Header */}
+      <div style={headerRowStyle}>
+        <button onClick={onBack} style={backButtonStyle}>BACK</button>
         <h2 style={{ color: '#ffd700', margin: 0, textTransform: 'uppercase' }}>Shop</h2>
-
-        <div
-          style={{
-            minWidth: '110px',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: '6px',
-            color: '#ffd700',
-            fontWeight: 800
-          }}
-        >
-          <img
-            src="/assets/sprites/pig-token.png"
-            style={{ width: '18px', height: '18px' }}
-            alt=""
-          />
+        <div style={currencyStyle}>
+          <img src="/assets/sprites/pig-token.png" style={{ width: 18, height: 18, objectFit: 'contain' }} alt="" />
           {currentPigs}
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '10px',
-          marginBottom: '20px'
-        }}
-      >
-        <button
-          onClick={() => setViewMode('WEAPONS')}
-          style={{
-            padding: '12px 14px',
-            borderRadius: '10px',
-            border: `2px solid ${viewMode === 'WEAPONS' ? '#ff6b35' : '#333'}`,
-            background: viewMode === 'WEAPONS' ? '#24150f' : '#181818',
-            color: '#fff',
-            fontWeight: 800,
-            cursor: 'pointer'
-          }}
-        >
-          EQUIPMENT
-        </button>
-
-        <button
-          onClick={() => setViewMode('CHARACTERS')}
-          style={{
-            padding: '12px 14px',
-            borderRadius: '10px',
-            border: `2px solid ${viewMode === 'CHARACTERS' ? '#ff6b35' : '#333'}`,
-            background: viewMode === 'CHARACTERS' ? '#24150f' : '#181818',
-            color: '#fff',
-            fontWeight: 800,
-            cursor: 'pointer'
-          }}
-        >
-          UNITS
-        </button>
+      {/* View Toggle */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+        <button onClick={() => setViewMode('WEAPONS')} style={{ ...tabStyle, border: viewMode === 'WEAPONS' ? '2px solid #ff6b35' : '2px solid #333', background: viewMode === 'WEAPONS' ? '#24150f' : '#181818' }}>EQUIPMENT</button>
+        <button onClick={() => setViewMode('CHARACTERS')} style={{ ...tabStyle, border: viewMode === 'CHARACTERS' ? '2px solid #ff6b35' : '2px solid #333', background: viewMode === 'CHARACTERS' ? '#24150f' : '#181818' }}>UNITS</button>
       </div>
 
-      {viewMode === 'WEAPONS' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {sortedWeapons.map((weapon) => {
-            const meta = WEAPON_META[weapon.weaponId] || {
-              fireRate: 'Standard',
-              range: 'Medium',
-              projectile: 'Standard',
-              rarity: 'Common',
-              upgradeFocus: 'Damage / Rate'
-            };
+      {/* Content */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {(viewMode === 'WEAPONS' ? sortedWeapons : sortedCharacters).map((item) => {
+          const isCharacter = 'characterId' in item;
+          const id = isCharacter ? (item as ShopCharacter).characterId : (item as ShopWeapon).weaponId;
+          const name = isCharacter ? (item as ShopCharacter).name : (item as ShopWeapon).name;
+          const typeLabel = isCharacter ? (item as ShopCharacter).classType : (item as ShopWeapon).type;
+          const meta = isCharacter 
+            ? (CHARACTER_META[id] || { powerName: 'Unknown', cooldown: '-', powerEffect: 'N/A', upgradeFocus: 'N/A' }) 
+            : (WEAPON_META[id] || { fireRate: '-', range: '-', projectile: '-', rarity: 'Common', upgradeFocus: 'N/A' });
 
-            return (
-              <div
-                key={weapon.weaponId}
-                style={{
-                  background: '#171717',
-                  padding: '14px',
-                  borderRadius: '14px',
-                  border: '2px solid #2f2f2f',
-                  display: 'flex',
-                  gap: '14px',
-                  alignItems: 'flex-start'
-                }}
-              >
-                <div
-                  style={{
-                    width: '84px',
-                    minWidth: '84px',
-                    height: '84px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#0f0f0f',
-                    border: '1px solid #333',
-                    borderRadius: '10px',
-                    padding: '8px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <img
-                    src={getImageFilename(weapon.weaponId)}
-                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                    alt={weapon.name}
-                  />
+          return (
+            <div key={id} style={cardStyle}>
+              <div style={imageBoxStyle}>
+                <img src={getAssetPath(id)} alt={name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} onError={e => e.currentTarget.style.display='none'} />
+              </div>
+              
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                  <div>
+                    <h3 style={{ margin: 0, color: '#fff', fontSize: 18 }}>{name}</h3>
+                    <div style={{ color: '#ffb74d', fontSize: 12, fontWeight: 800 }}>
+                      {isCharacter ? typeLabel : `${(meta as WeaponMeta).rarity} • ${typeLabel}`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <BuyButton 
+                      item={item as any} 
+                      id={id} 
+                      buyingKey={buyingKey} 
+                      onBuy={(t, i, p) => void handleBuy(t, i, p)} 
+                    />
+                    <div style={{ color: '#999', fontSize: 11, marginTop: 6 }}>REQ LVL {(item as any).unlockLevel}</div>
+                  </div>
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <div>
-                      <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>{weapon.name}</h3>
-                      <div style={{ color: '#ffb74d', fontSize: '12px', fontWeight: 800 }}>
-                        {meta.rarity} • {weapon.type}
-                      </div>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
+                  {isCharacter ? (
+                    <>
+                      <SpecPill label="Power" value={(meta as CharacterMeta).powerName} />
+                      <SpecPill label="Cooldown" value={(meta as CharacterMeta).cooldown} />
+                    </>
+                  ) : (
+                    <>
+                      <SpecPill label="Damage" value={String((item as ShopWeapon).damage)} />
+                      <SpecPill label="Range" value={(meta as WeaponMeta).range} />
+                    </>
+                  )}
+                </div>
 
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {renderBuyState(
-                        'WEAPON',
-                        weapon.weaponId,
-                        weapon.owned,
-                        weapon.canUnlock,
-                        weapon.canAfford,
-                        weapon.pricePigs
-                      )}
-                      <div style={{ color: '#999', fontSize: '11px', marginTop: '6px' }}>
-                        REQ LVL {weapon.unlockLevel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: '6px',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <SpecPill label="Damage" value={String(weapon.damage)} />
-                    <SpecPill label="Fire Rate" value={meta.fireRate} />
-                    <SpecPill label="Range" value={meta.range} />
-                    <SpecPill label="Projectile" value={meta.projectile} />
-                  </div>
-
-                  <div style={{ color: '#c7c7c7', fontSize: '12px', marginBottom: '6px' }}>
-                    {weapon.description || 'Combat weapon with distinct battlefield stats.'}
-                  </div>
-
-                  <div style={{ color: '#8fcfff', fontSize: '12px', fontWeight: 700 }}>
-                    Upgrade Path: {meta.upgradeFocus}
-                  </div>
+                <div style={{ color: '#c7c7c7', fontSize: 12, marginBottom: 4 }}>
+                  {item.description || 'Standard issue combat gear.'}
+                </div>
+                <div style={{ color: '#8fcfff', fontSize: 12, fontWeight: 700 }}>
+                  {isCharacter ? `Effect: ${(meta as CharacterMeta).powerEffect}` : `Upgrade Path: ${(meta as WeaponMeta).upgradeFocus}`}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {sortedCharacters.map((character) => {
-            const meta = CHARACTER_META[character.characterId] || {
-              powerName: 'Battle Stim',
-              cooldown: '6s',
-              powerEffect: 'Temporary combat boost.',
-              upgradeFocus: 'Cooldown / Effect Strength'
-            };
-
-            return (
-              <div
-                key={character.characterId}
-                style={{
-                  background: '#171717',
-                  padding: '14px',
-                  borderRadius: '14px',
-                  border: '2px solid #2f2f2f',
-                  display: 'flex',
-                  gap: '14px',
-                  alignItems: 'flex-start'
-                }}
-              >
-                <div
-                  style={{
-                    width: '84px',
-                    minWidth: '84px',
-                    height: '84px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#0f0f0f',
-                    border: '1px solid #333',
-                    borderRadius: '10px',
-                    padding: '8px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <img
-                    src={getImageFilename(character.characterId)}
-                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                    alt={character.name}
-                  />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <div>
-                      <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>
-                        {character.name}
-                      </h3>
-                      <div style={{ color: '#ffb74d', fontSize: '12px', fontWeight: 800 }}>
-                        {character.classType}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {renderBuyState(
-                        'CHARACTER',
-                        character.characterId,
-                        character.owned,
-                        character.canUnlock,
-                        character.canAfford,
-                        character.pricePigs
-                      )}
-                      <div style={{ color: '#999', fontSize: '11px', marginTop: '6px' }}>
-                        REQ LVL {character.unlockLevel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: '6px',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <SpecPill label="Power" value={meta.powerName} />
-                    <SpecPill label="Cooldown" value={meta.cooldown} />
-                  </div>
-
-                  <div style={{ color: '#c7c7c7', fontSize: '12px', marginBottom: '6px' }}>
-                    {character.description || 'Pig unit with a unique combat ability.'}
-                  </div>
-
-                  <div style={{ color: '#9be38f', fontSize: '12px', fontWeight: 700 }}>
-                    Effect: {meta.powerEffect}
-                  </div>
-
-                  <div style={{ color: '#8fcfff', fontSize: '12px', fontWeight: 700, marginTop: '4px' }}>
-                    Upgrade Path: {meta.upgradeFocus}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
 
-const SpecPill: React.FC<{ label: string; value: string }> = ({ label, value }) => {
+// --- Subcomponents ---
+const SpecPill: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div style={{ background: '#222', border: '1px solid #333', borderRadius: 8, padding: '8px 10px' }}>
+    <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+    <div style={{ color: '#fff', fontSize: 12, fontWeight: 800 }}>{value}</div>
+  </div>
+);
+
+const BuyButton: React.FC<{ 
+  item: { owned: boolean; canAfford: boolean; canUnlock: boolean; pricePigs: number }; 
+  id: string; 
+  buyingKey: string | null; 
+  onBuy: (type: 'CHARACTER' | 'WEAPON', id: string, price: number) => void 
+}> = ({ item, id, buyingKey, onBuy }) => {
+  const key = `${'characterId' in item ? 'CHARACTER' : 'WEAPON'}:${id}`;
+  const isBuying = buyingKey === key;
+
+  if (item.owned) return <span style={{ color: '#4caf50', fontWeight: 800 }}>OWNED</span>;
+  if (!item.canUnlock) return <span style={{ color: '#ff9800', fontWeight: 800 }}>LOCKED</span>;
+  
   return (
-    <div
+    <button 
+      disabled={!item.canAfford || isBuying}
+      onClick={() => onBuy('characterId' in item ? 'CHARACTER' : 'WEAPON', id, item.pricePigs)}
       style={{
-        background: '#222',
-        border: '1px solid #333',
-        borderRadius: '8px',
-        padding: '8px 10px'
+        padding: '10px 14px', background: item.canAfford && !isBuying ? '#ff6b35' : '#555',
+        color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 6
       }}
     >
-      <div style={{ color: '#888', fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>
-        {label}
-      </div>
-      <div style={{ color: '#fff', fontSize: '12px', fontWeight: 800 }}>{value}</div>
-    </div>
+      <img src="/assets/sprites/pig-token.png" style={{ width: 16, height: 16 }} alt="" />
+      {isBuying ? '...' : item.pricePigs}
+    </button>
   );
 };
+
+// --- Styles ---
+const containerStyle: React.CSSProperties = { padding: 20, color: '#fff', minHeight: '100vh', overflowY: 'auto', background: '#0a0a0a', boxSizing: 'border-box' };
+const centerContainerStyle: React.CSSProperties = { ...containerStyle, display: 'flex', justifyContent: 'center', alignItems: 'center' };
+const headerRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12 };
+const backButtonStyle: React.CSSProperties = { padding: '10px 18px', background: '#444', border: '2px solid #ffd700', color: '#fff', borderRadius: 8, cursor: 'pointer', fontWeight: 800 };
+const currencyStyle: React.CSSProperties = { minWidth: 110, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, color: '#ffd700', fontWeight: 800 };
+const tabStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 10, color: '#fff', fontWeight: 800, cursor: 'pointer' };
+const cardStyle: React.CSSProperties = { background: '#171717', padding: 14, borderRadius: 14, border: '2px solid #2f2f2f', display: 'flex', gap: 14, alignItems: 'flex-start' };
+const imageBoxStyle: React.CSSProperties = { width: 84, minWidth: 84, height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f', border: '1px solid #333', borderRadius: 10, padding: 8, boxSizing: 'border-box' };
+const errorBoxStyle: React.CSSProperties = { maxWidth: 520, margin: '80px auto 0', padding: 20, borderRadius: 12, border: '2px solid #5a1f1f', background: '#1a1111', textAlign: 'center', color: '#ff8a80' };
+const retryButtonStyle: React.CSSProperties = { marginTop: 15, padding: '8px 16px', background: '#444', border: '1px solid #fff', color: '#fff', borderRadius: 6, cursor: 'pointer' };
