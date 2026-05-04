@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from './store/gameStore';
-import { TelegramProvider } from './components/TelegramProvider';
 import { AppAlertProvider } from './components/AppAlertProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
@@ -9,7 +8,6 @@ import { LevelSelect } from './components/LevelSelect';
 import { Shop } from './components/Shop';
 import { Profile } from './components/Profile';
 import { GameCanvas } from './game/GameCanvas';
-import { SolanaWalletProvider } from './providers/SolanaWalletProvider';
 
 type Screen =
   | 'MENU'
@@ -20,6 +18,8 @@ type Screen =
   | 'PROFILE'
   | 'GAME';
 
+const VALID_SCREENS: Screen[] = ['MENU', 'CHAR_SELECT', 'WEAPON_SELECT', 'LEVEL_SELECT', 'SHOP', 'PROFILE', 'GAME'];
+
 export default function App() {
   const { initAuth, isLoading, user, refreshProfile } = useGameStore();
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
@@ -28,14 +28,23 @@ export default function App() {
     void initAuth();
   }, [initAuth]);
 
+  // Safe session resume check
   useEffect(() => {
-    const hasRun = !!sessionStorage.getItem('currentRun');
-    if (user && hasRun) {
+    if (user && sessionStorage.getItem('hasActiveRun') === 'true') {
       setCurrentScreen('GAME');
     }
   }, [user]);
 
+  // Validated navigation handler
+  const navigateTo = (next: string) => {
+    if (VALID_SCREENS.includes(next as Screen)) {
+      setCurrentScreen(next as Screen);
+    }
+  };
+
   const handleGameExit = async () => {
+    // Clear resume flag to prevent stuck state
+    sessionStorage.removeItem('hasActiveRun');
     try {
       await refreshProfile();
     } catch (error) {
@@ -54,21 +63,7 @@ export default function App() {
   if (isLoading) {
     return (
       <AppAlertProvider>
-        <div
-          style={{
-            width: '100%',
-            minHeight: '100vh',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#0a0a0a',
-            color: '#ff6b35',
-            fontFamily: 'monospace',
-            letterSpacing: '0.05em',
-            padding: '24px',
-            boxSizing: 'border-box'
-          }}
-        >
+        <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace', letterSpacing: '0.05em', padding: '24px', boxSizing: 'border-box' }}>
           LOADING SWINE CORPS DATA...
         </div>
       </AppAlertProvider>
@@ -78,30 +73,8 @@ export default function App() {
   if (!user) {
     return (
       <AppAlertProvider>
-        <div
-          style={{
-            width: '100%',
-            minHeight: '100vh',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#0a0a0a',
-            color: '#ff6b35',
-            fontFamily: 'monospace',
-            textAlign: 'center',
-            padding: '24px',
-            boxSizing: 'border-box'
-          }}
-        >
-          <div
-            style={{
-              maxWidth: '520px',
-              padding: '20px',
-              border: '2px solid #ff6b35',
-              borderRadius: '12px',
-              background: '#141414'
-            }}
-          >
+        <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace', textAlign: 'center', padding: '24px', boxSizing: 'border-box' }}>
+          <div style={{ maxWidth: '520px', padding: '20px', border: '2px solid #ff6b35', borderRadius: '12px', background: '#141414' }}>
             {authFailedMessage}
           </div>
         </div>
@@ -113,37 +86,40 @@ export default function App() {
 
   switch (currentScreen) {
     case 'MENU':
-      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
+      screen = <MenuScene onNavigate={navigateTo} />;
       break;
 
     case 'CHAR_SELECT':
       screen = (
         <CharacterSelect
-          onBack={() => setCurrentScreen('MENU')}
-          onStart={() => setCurrentScreen('LEVEL_SELECT')}
+          onBack={() => navigateTo('MENU')}
+          onStart={() => navigateTo('LEVEL_SELECT')}
         />
       );
       break;
 
     case 'WEAPON_SELECT':
-      screen = <WeaponSelect onBack={() => setCurrentScreen('MENU')} />;
+      screen = <WeaponSelect onBack={() => navigateTo('MENU')} />;
       break;
 
     case 'LEVEL_SELECT':
       screen = (
         <LevelSelect
-          onBack={() => setCurrentScreen('CHAR_SELECT')}
-          onStart={() => setCurrentScreen('GAME')}
+          onBack={() => navigateTo('CHAR_SELECT')}
+          onStart={() => {
+            sessionStorage.setItem('hasActiveRun', 'true');
+            navigateTo('GAME');
+          }}
         />
       );
       break;
 
     case 'SHOP':
-      screen = <Shop onBack={() => setCurrentScreen('MENU')} />;
+      screen = <Shop onBack={() => navigateTo('MENU')} />;
       break;
 
     case 'PROFILE':
-      screen = <Profile onBack={() => setCurrentScreen('MENU')} />;
+      screen = <Profile onBack={() => navigateTo('MENU')} />;
       break;
 
     case 'GAME':
@@ -151,15 +127,10 @@ export default function App() {
       break;
 
     default:
-      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
+      screen = <MenuScene onNavigate={navigateTo} />;
       break;
   }
 
-  return (
-    <AppAlertProvider>
-      <SolanaWalletProvider>
-        <TelegramProvider>{screen}</TelegramProvider>
-      </SolanaWalletProvider>
-    </AppAlertProvider>
-  );
+  // Providers are already mounted in main.tsx. Do not nest duplicates.
+  return <AppAlertProvider>{screen}</AppAlertProvider>;
 }
