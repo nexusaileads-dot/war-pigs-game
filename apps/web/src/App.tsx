@@ -1,136 +1,112 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useGameStore } from './store/gameStore';
-import { AppAlertProvider } from './components/AppAlertProvider';
+import React, { useEffect, useState } from 'react';
+import { GameNoticeProvider } from './components/GameNoticeProvider';
+import { TelegramProvider } from './components/TelegramProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
 import { LevelSelect } from './components/LevelSelect';
-import { Shop } from './components/Shop';
-import { Profile } from './components/Profile';
-import { GameCanvas } from './game/GameCanvas';
+
+// TODO: Import your actual Game component.
+// Based on your error logs, this component is likely named GameCanvas.
+// import { GameCanvas } from './components/GameCanvas';
 
 type Screen =
   | 'MENU'
   | 'CHAR_SELECT'
   | 'WEAPON_SELECT'
   | 'LEVEL_SELECT'
-  | 'SHOP'
-  | 'PROFILE'
   | 'GAME';
 
-const VALID_SCREENS: Screen[] = ['MENU', 'CHAR_SELECT', 'WEAPON_SELECT', 'LEVEL_SELECT', 'SHOP', 'PROFILE', 'GAME'];
-
 export default function App() {
-  const { initAuth, isLoading, user, refreshProfile } = useGameStore();
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
 
+  // Optional: Check for active run on mount to resume if needed
   useEffect(() => {
-    void initAuth();
-  }, [initAuth]);
-
-  // Safe session resume check
-  useEffect(() => {
-    if (user && sessionStorage.getItem('hasActiveRun') === 'true') {
-      setCurrentScreen('GAME');
+    const activeRun = sessionStorage.getItem('currentRun');
+    if (activeRun) {
+      // You can auto-resume here if desired:
+      // setCurrentScreen('GAME');
     }
-  }, [user]);
-
-  // Validated navigation handler
-  const navigateTo = (next: string) => {
-    if (VALID_SCREENS.includes(next as Screen)) {
-      setCurrentScreen(next as Screen);
-    }
-  };
-
-  const handleGameExit = async () => {
-    // Clear resume flag to prevent stuck state
-    sessionStorage.removeItem('hasActiveRun');
-    try {
-      await refreshProfile();
-    } catch (error) {
-      console.error('[App] Failed to refresh profile on game exit:', error);
-    }
-    setCurrentScreen('MENU');
-  };
-
-  const authFailedMessage = useMemo(() => {
-    const devEnabled = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
-    return devEnabled
-      ? 'AUTH FAILED. DEV LOGIN DID NOT COMPLETE.'
-      : 'AUTH FAILED. LAUNCH VIA TELEGRAM.';
   }, []);
 
-  if (isLoading) {
-    return (
-      <AppAlertProvider>
-        <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace', letterSpacing: '0.05em', padding: '24px', boxSizing: 'border-box' }}>
-          LOADING SWINE CORPS DATA...
-        </div>
-      </AppAlertProvider>
-    );
-  }
+  const navigateTo = (screen: Screen) => {
+    setCurrentScreen(screen);
+  };
 
-  if (!user) {
-    return (
-      <AppAlertProvider>
-        <div style={{ width: '100vw', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a0a', color: '#ff6b35', fontFamily: 'monospace', textAlign: 'center', padding: '24px', boxSizing: 'border-box' }}>
-          <div style={{ maxWidth: '520px', padding: '20px', border: '2px solid #ff6b35', borderRadius: '12px', background: '#141414' }}>
-            {authFailedMessage}
+  // STRICT GUARD: Validates session before allowing access to GAME screen
+  const startGame = () => {
+    const activeRun = sessionStorage.getItem('currentRun');
+    
+    if (!activeRun) {
+      console.error('[App] Attempted to start game without valid session. Redirecting to Level Select.');
+      navigateTo('LEVEL_SELECT');
+      return;
+    }
+
+    // Session verified, proceed to game
+    navigateTo('GAME');
+  };
+
+  const renderScreen = () => {    switch (currentScreen) {
+      case 'MENU':
+        return <MenuScene onNavigate={navigateTo} />;
+
+      case 'CHAR_SELECT':
+        return (
+          <CharacterSelect
+            onBack={() => navigateTo('MENU')}
+            // Flow: MENU → CHAR_SELECT → LEVEL_SELECT
+            // Assuming CharacterSelect leads to LevelSelect once loadout is ready
+            onStart={() => navigateTo('LEVEL_SELECT')}
+          />
+        );
+
+      case 'WEAPON_SELECT':
+        return (
+          <WeaponSelect
+            onBack={() => navigateTo('CHAR_SELECT')}
+            // Note: Your WeaponSelect component currently only accepts onBack.
+            // If you need a "Next" button here, update the component props.
+          />
+        );
+
+      case 'LEVEL_SELECT':
+        return (
+          <LevelSelect
+            onBack={() => navigateTo('CHAR_SELECT')}
+            // LevelSelect calls this ONLY after successfully creating a session
+            onStart={startGame}
+          />
+        );
+
+      case 'GAME':
+        // STRICT GUARD: Prevents rendering GameCanvas if session is missing
+        const activeRun = sessionStorage.getItem('currentRun');
+        if (!activeRun) {
+          console.warn('[App] Blocked GAME access: No currentRun in sessionStorage.');
+          navigateTo('LEVEL_SELECT');
+          return null;
+        }
+
+        // TODO: Replace with your actual Game component
+        // return <GameCanvas />;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff' }}>
+            <h2>GAME CANVAS PLACEHOLDER</h2>
           </div>
+        );
+
+      default:        return <MenuScene onNavigate={navigateTo} />;
+    }
+  };
+
+  return (
+    <TelegramProvider>
+      <GameNoticeProvider>
+        <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
+          {renderScreen()}
         </div>
-      </AppAlertProvider>
-    );
-  }
-
-  let screen: React.ReactNode;
-
-  switch (currentScreen) {
-    case 'MENU':
-      screen = <MenuScene onNavigate={navigateTo} />;
-      break;
-
-    case 'CHAR_SELECT':
-      screen = (
-        <CharacterSelect
-          onBack={() => navigateTo('MENU')}
-          onStart={() => navigateTo('LEVEL_SELECT')}
-        />
-      );
-      break;
-
-    case 'WEAPON_SELECT':
-      screen = <WeaponSelect onBack={() => navigateTo('MENU')} />;
-      break;
-
-    case 'LEVEL_SELECT':
-      screen = (
-        <LevelSelect
-          onBack={() => navigateTo('CHAR_SELECT')}
-          onStart={() => {
-            sessionStorage.setItem('hasActiveRun', 'true');
-            navigateTo('GAME');
-          }}
-        />
-      );
-      break;
-
-    case 'SHOP':
-      screen = <Shop onBack={() => navigateTo('MENU')} />;
-      break;
-
-    case 'PROFILE':
-      screen = <Profile onBack={() => navigateTo('MENU')} />;
-      break;
-
-    case 'GAME':
-      screen = <GameCanvas onExit={handleGameExit} />;
-      break;
-
-    default:
-      screen = <MenuScene onNavigate={navigateTo} />;
-      break;
-  }
-
-  // Providers are already mounted in main.tsx. Do not nest duplicates.
-  return <AppAlertProvider>{screen}</AppAlertProvider>;
-}
+      </GameNoticeProvider>
+    </TelegramProvider>
+  );
+            }
