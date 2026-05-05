@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import { useGameStore } from '../store/gameStore';
 
-interface Level {
+type Level = {
   id: string;
   levelNumber: number;
   name: string;
   description: string;
+  difficulty: number;
+  waves: number;
   baseReward: number;
+  unlockRequirement: number;
+  unlocked: boolean;
   completed: boolean;
-}
+  isBossLevel?: boolean;
+};
 
 type StartRunResponse = {
   run?: {
@@ -31,56 +35,84 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   const [isLoading, setIsLoading] = useState(true);
   const [startingLevelId, setStartingLevelId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
-  // Get equipped items from store
-  const { user, refreshProfile } = useGameStore();
-  const equippedChar = user?.profile?.equippedCharacterId || null;
-  const equippedWpn = user?.profile?.equippedWeaponId || null;
-  const isLoadoutReady = !!(equippedChar && equippedWpn);
 
   useEffect(() => {
-    const loadLevels = async () => {
-      try {
-        setLoadError(null);
-        const res = await apiClient.get('/api/game/levels');
-        const incoming = Array.isArray(res.data) ? res.data : [];
-
-        const normalized = incoming
-          .filter((level: Partial<Level>) => level.levelNumber === 1)
-          .map((level: Partial<Level>) => ({            id: level.id as string,
-            levelNumber: Number(level.levelNumber ?? 1),
-            name: 'Outskirts Breach',
-            description: 'Breach the outer defense line, eliminate 6 enemy threats, destroy the mini tank, and reach extraction.',
-            baseReward: Number(level.baseReward ?? 500),
-            completed: Boolean(level.completed)
-          }));
-
-        setLevels(normalized);
-      } catch (error) {
-        console.error('[LevelSelect] Failed to load levels:', error);
-        setLoadError('Failed to load Level 1.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    sessionStorage.removeItem('currentRun');
     void loadLevels();
   }, []);
 
+  const loadLevels = async () => {
+    try {
+      setLoadError(null);
+      setIsLoading(true);
+
+      const res = await apiClient.get('/api/game/levels');
+      const incoming = Array.isArray(res.data) ? res.data : [];
+      const normalized: Level[] = incoming
+        .filter((level: Partial<Level>) => Boolean(level?.id))
+        .map((level: Partial<Level>) => ({
+          id: String(level.id),
+          levelNumber: Number(level.levelNumber ?? 0),
+          name: level.name || 'Unknown Mission',
+          description: level.description || 'No description available.',
+          difficulty: Number(level.difficulty ?? 1),
+          waves: Number(level.waves ?? 1),
+          baseReward: Number(level.baseReward ?? 0),
+          unlockRequirement: Number(level.unlockRequirement ?? 0),
+          unlocked: Boolean(level.unlocked),
+          completed: Boolean(level.completed),
+          isBossLevel: Boolean(level.isBossLevel)
+        }))
+        .filter((level) => level.levelNumber === 1)
+        .sort((a, b) => a.levelNumber - b.levelNumber);
+
+      setLevels(normalized);
+    } catch (error) {
+      console.error('[LevelSelect] Failed to load levels:', error);
+      setLoadError('Failed to load Level 1.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const summary = useMemo(() => {
+    const unlocked = levels.filter((level) => level.unlocked).length;
+    const completed = levels.filter((level) => level.completed).length;
+
+    return {
+      total: levels.length,
+      unlocked,
+      completed
+    };
+  }, [levels]);
+
   const handleStart = async (levelId: string) => {
-    if (!isLoadoutReady || startingLevelId) return;
+    if (startingLevelId) return;
 
     try {
       setStartingLevelId(levelId);
-      console.log('[LevelSelect] Starting deployment with loadout:', { equippedChar, equippedWpn });
+      sessionStorage.removeItem('currentRun');
+
+      const inventoryRes = await apiClient.get('/api/inventory');
+      const equipped = inventoryRes.data?.equipped;
+
+      if (!equipped?.characterId || !equipped?.weaponId) {        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {
+              title: 'Loadout Required',
+              message: 'Equip one unit and one weapon before deploying.',
+              type: 'warning'
+            }
+          })
+        );
+        return;
+      }
 
       const startRes = await apiClient.post<StartRunResponse>('/api/game/start', {
         levelId,
-        characterId: equippedChar,
-        weaponId: equippedWpn
+        characterId: equipped.characterId,
+        weaponId: equipped.weaponId
       });
-
-      console.log('[LevelSelect] API Response:', startRes.data);
 
       const payload = startRes.data;
 
@@ -91,151 +123,370 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         !payload?.run?.levelId ||
         !payload?.sessionToken
       ) {
-        console.error('[LevelSelect] Invalid payload:', payload);
-        alert('Server returned invalid session. Check console for details.');
-        setStartingLevelId(null);
+        console.error('[LevelSelect] Invalid start payload:', payload);
+
+        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {
+              title: 'Mission Failed To Start',
+              message: 'The server did not return a valid mission session.',
+              type: 'error'
+            }
+          })
+        );
+
         return;
       }
-      const sessionData = {
-        ...payload,
-        run: {
-          ...payload.run,
-          characterUpgradeLevel: payload.run.characterUpgradeLevel ?? 0,
-          weaponUpgradeLevel: payload.run.weaponUpgradeLevel ?? 0
-        }
-      };
 
-      sessionStorage.setItem('hasActiveRun', JSON.stringify(sessionData));
-      console.log('[LevelSelect] Session saved. Navigating to game...');
-      
-      setStartingLevelId(null);
+      sessionStorage.setItem('currentRun', JSON.stringify(payload));
+
+      const savedRun = sessionStorage.getItem('currentRun');
+
+      if (!savedRun) {
+        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {              title: 'Mission Session Error',
+              message: 'Mission session could not be saved on this device.',
+              type: 'error'
+            }
+          })
+        );
+
+        return;
+      }
+
       onStart();
-      
-    } catch (error) {
-      console.error('[LevelSelect] Deployment failed:', error);
-      alert(`Failed to start mission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (error: any) {
+      console.error('[LevelSelect] Failed to start Level 1:', error);
+
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to start Level 1.';
+
+      window.dispatchEvent(
+        new CustomEvent('WAR_PIGS_NOTICE', {
+          detail: {
+            title: 'Deployment Failed',
+            message,
+            type: 'error'
+          }
+        })
+      );
+    } finally {
       setStartingLevelId(null);
     }
   };
 
-  // Helper to format asset names
-  const formatName = (id: string) => id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#0a0a0a',
+          color: '#ff6b35',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 800,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase'
+        }}
+      >
+        Loading Level 1...
+      </div>    );
+  }
 
-  if (isLoading) return <div style={centerStyle}>LOADING MISSION DATA...</div>;
-  if (loadError) return <ErrorState onBack={onBack} message={loadError} />;
-  if (levels.length === 0) return <ErrorState onBack={onBack} message="Level 1 not found in database." />;
+  if (loadError) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#0a0a0a',
+          color: '#fff',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 800
+          }}
+        >
+          BACK
+        </button>
+
+        <div
+          style={{
+            maxWidth: '520px',
+            margin: '80px auto 0',
+            padding: '20px',
+            borderRadius: '12px',
+            border: '2px solid #5a1f1f',
+            background: '#1a1111',
+            textAlign: 'center',
+            color: '#ff8a80'
+          }}
+        >
+          {loadError}
+        </div>
+      </div>
+    );
+  }
+
+  if (levels.length === 0) {
+    return (      <div
+        style={{
+          minHeight: '100vh',
+          background: '#0a0a0a',
+          color: '#fff',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            padding: '10px 20px',
+            background: '#444',
+            border: '2px solid #ff6b35',
+            color: '#fff',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 800
+          }}
+        >
+          BACK
+        </button>
+
+        <div
+          style={{
+            maxWidth: '560px',
+            margin: '80px auto 0',
+            padding: '22px',
+            background: '#151515',
+            border: '2px solid #333',
+            borderRadius: '12px',
+            textAlign: 'center'
+          }}
+        >
+          <h2 style={{ marginTop: 0, color: '#ff6b35' }}>Level 1 Not Found</h2>
+          <p style={{ color: '#bbb', marginBottom: 0 }}>
+            Seed Level 1 in the database before deploying.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={containerStyle}>
-      <button onClick={onBack} style={backButtonStyle}>BACK</button>
-      <h2 style={titleStyle}>Level 1: Outskirts Breach</h2>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#0a0a0a',        color: '#fff',
+        padding: '20px',
+        boxSizing: 'border-box',
+        overflowY: 'auto'
+      }}
+    >
+      <button
+        type="button"
+        onClick={onBack}
+        style={{
+          padding: '10px 20px',
+          marginBottom: '26px',
+          background: '#444',
+          border: '2px solid #ff6b35',
+          color: '#fff',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontWeight: 800
+        }}
+      >
+        BACK
+      </button>
 
-      {/* LOADOUT VERIFICATION SECTION */}
-      <div style={loadoutBoxStyle}>
-        <div style={loadoutTitleStyle}>CURRENT LOADOUT</div>
-        
-        <div style={loadoutGridStyle}>
-          <div style={loadoutSlotStyle}>
-            <div style={slotLabelStyle}>UNIT</div>
-            {equippedChar ? (
-              <div style={slotValueStyle}>{formatName(equippedChar)}</div>
-            ) : (
-              <div style={slotEmptyStyle}>Not Equipped</div>
-            )}
-            {!equippedChar && (
-              <button onClick={() => alert('Go to Units tab to equip a character')} style={fixButtonStyle}>
-                FIX →
-              </button>            )}
-          </div>
+      <h2
+        style={{
+          textAlign: 'center',
+          color: '#ff6b35',
+          margin: '0 0 16px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em'
+        }}
+      >
+        Level 1
+      </h2>
 
-          <div style={loadoutSlotStyle}>
-            <div style={slotLabelStyle}>WEAPON</div>
-            {equippedWpn ? (
-              <div style={slotValueStyle}>{formatName(equippedWpn)}</div>
-            ) : (
-              <div style={slotEmptyStyle}>Not Equipped</div>
-            )}
-            {!equippedWpn && (
-              <button onClick={() => alert('Go to Armory tab to equip a weapon')} style={fixButtonStyle}>
-                FIX →
-              </button>
-            )}
-          </div>
-        </div>
-
-        {!isLoadoutReady && (
-          <div style={warningStyle}>
-            ⚠️ You must equip a Unit and Weapon before deployment.
-          </div>
-        )}
+      <div
+        style={{
+          maxWidth: '720px',
+          margin: '0 auto 18px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '10px'
+        }}
+      >
+        <SummaryBox label="Missions" value={summary.total} />
+        <SummaryBox label="Unlocked" value={summary.unlocked} />
+        <SummaryBox label="Completed" value={summary.completed} />
       </div>
 
-      {/* LEVEL CARD */}
-      <div style={levelCardStyle}>
-        <p style={descStyle}>{levels[0].description}</p>
-        
-        <div style={statsGridStyle}>
-          <Stat label="Difficulty" value="Beginner" color="#4caf50" />
-          <Stat label="Threats" value="6" color="#fff" />
-          <Stat label="Reward" value={`${levels[0].baseReward} $PIGS`} color="#ffd700" />
-        </div>
+      <div        style={{
+          maxWidth: '720px',
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px'
+        }}
+      >
+        {levels.map((level) => {
+          const isStarting = startingLevelId === level.id;
 
-        <button
-          onClick={() => void handleStart(levels[0].id)}
-          disabled={!isLoadoutReady || !!startingLevelId}
-          style={{
-            width: '100%',
-            padding: '14px',
-            marginTop: '16px',
-            background: (!isLoadoutReady || startingLevelId) ? '#444' : '#ff6b35',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: (!isLoadoutReady || startingLevelId) ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            fontSize: '16px'          }}
-        >
-          {startingLevelId ? 'DEPLOYING...' : isLoadoutReady ? 'DEPLOY NOW' : 'EQUIP LOADOUT FIRST'}
-        </button>
+          return (
+            <div
+              key={level.id}
+              style={{
+                background: '#222',
+                padding: '18px',
+                borderRadius: '14px',
+                border: `2px solid ${level.unlocked ? '#ff6b35' : '#333'}`,
+                opacity: level.unlocked ? 1 : 0.55
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '14px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                  <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: '24px' }}>
+                    Mission {level.levelNumber}: {level.name}
+                  </h3>
+
+                  {level.completed ? (
+                    <div
+                      style={{
+                        display: 'inline-block',
+                        marginBottom: '10px',
+                        padding: '3px 9px',
+                        borderRadius: '999px',
+                        background: '#18361c',
+                        border: '1px solid #2e7d32',
+                        color: '#7ee787',
+                        fontSize: '12px',
+                        fontWeight: 800
+                      }}
+                    >                      COMPLETED
+                    </div>
+                  ) : null}
+
+                  <p style={{ color: '#bbb', margin: '0 0 12px', lineHeight: 1.45 }}>
+                    {level.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '8px',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <InfoPill label="Difficulty" value={String(level.difficulty)} />
+                    <InfoPill label="Waves" value={String(level.waves)} />
+                    <InfoPill label="Reward" value={`${level.baseReward} $PIGS`} />
+                    <InfoPill
+                      label="Status"
+                      value={level.unlocked ? 'Ready' : `Requires Level ${level.unlockRequirement}`}
+                    />
+                  </div>
+                </div>
+
+                {level.unlocked ? (
+                  <button
+                    type="button"
+                    disabled={Boolean(startingLevelId)}
+                    onClick={() => void handleStart(level.id)}
+                    style={{
+                      minWidth: '130px',
+                      padding: '12px 16px',
+                      background: isStarting ? '#555' : '#ff6b35',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      cursor: startingLevelId ? 'not-allowed' : 'pointer',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}
+                  >
+                    {isStarting ? 'Deploying...' : 'Deploy'}
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      minWidth: '110px',                      padding: '12px 16px',
+                      background: '#111',
+                      color: '#777',
+                      borderRadius: '10px',
+                      fontWeight: 900,
+                      textAlign: 'center'
+                    }}
+                  >
+                    LOCKED
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-// --- Subcomponents ---
-const Stat: React.FC<{ label: string; value: string; color: string }> = ({ label, value, color }) => (
-  <div style={{ background: '#1a1a1a', padding: '8px 12px', borderRadius: '8px', textAlign: 'center' }}>
-    <div style={{ color: '#888', fontSize: '10px', marginBottom: '2px' }}>{label}</div>
-    <div style={{ color, fontSize: '14px', fontWeight: 800 }}>{value}</div>
-  </div>
-);
-
-const ErrorState: React.FC<{ onBack: () => void; message: string }> = ({ onBack, message }) => (
-  <div style={containerStyle}>
-    <button onClick={onBack} style={backButtonStyle}>BACK</button>
-    <div style={{ maxWidth: 520, margin: '80px auto 0', padding: 20, borderRadius: 12, border: '2px solid #5a1f1f', background: '#1a1111', textAlign: 'center', color: '#ff8a80' }}>
-      {message}
+const SummaryBox: React.FC<{ label: string; value: number }> = ({ label, value }) => {
+  return (
+    <div
+      style={{
+        background: '#161616',
+        border: '1px solid #2d2d2d',
+        borderRadius: '10px',
+        padding: '10px 12px',
+        textAlign: 'center'
+      }}
+    >
+      <div style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: '#fff', fontSize: '18px', fontWeight: 900 }}>{value}</div>
     </div>
-  </div>
-);
+  );
+};
 
-// --- Styles ---
-const containerStyle: React.CSSProperties = { padding: 20, color: '#fff', background: '#0a0a0a', minHeight: '100vh', boxSizing: 'border-box' };
-const centerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#0a0a0a', color: '#fff' };
-const titleStyle: React.CSSProperties = { textAlign: 'center', color: '#ff6b35', margin: '0 0 20px 0', textTransform: 'uppercase', fontSize: 22, fontWeight: 900 };
-const backButtonStyle: React.CSSProperties = { padding: '10px 20px', marginBottom: 20, background: '#444', border: '2px solid #ff6b35', color: '#fff', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' };
-
-const loadoutBoxStyle: React.CSSProperties = { background: '#161616', border: '2px solid #333', borderRadius: 14, padding: 16, marginBottom: 20 };
-const loadoutTitleStyle: React.CSSProperties = { color: '#888', fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 };
-const loadoutGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
-const loadoutSlotStyle: React.CSSProperties = { background: '#111', padding: 12, borderRadius: 10, border: '1px solid #2a2a2a', display: 'flex', flexDirection: 'column', gap: 6 };
-const slotLabelStyle: React.CSSProperties = { color: '#666', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' };
-const slotValueStyle: React.CSSProperties = { color: '#fff', fontSize: 15, fontWeight: 800 };
-const slotEmptyStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 14, fontWeight: 600 };
-const fixButtonStyle: React.CSSProperties = { marginTop: 4, padding: '6px 0', background: 'transparent', border: '1px dashed #ff6b35', color: '#ff6b35', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 };
-const warningStyle: React.CSSProperties = { marginTop: 12, padding: '8px 12px', background: '#331a1a', border: '1px solid #5a1f1f', borderRadius: 8, color: '#ff8a80', fontSize: 12, textAlign: 'center' };
-
-const levelCardStyle: React.CSSProperties = { background: '#222', padding: 18, borderRadius: 14, border: '2px solid #ff6b35', boxShadow: '0 8px 22px rgba(0,0,0,0.28)' };
-const descStyle: React.CSSProperties = { margin: '0 0 16px 0', color: '#bbb', fontSize: 14, lineHeight: 1.4 };
-const statsGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 };
+const InfoPill: React.FC<{ label: string; value: string }> = ({ label, value }) => {
+  return (
+    <div
+      style={{
+        background: '#161616',
+        border: '1px solid #333',
+        borderRadius: '8px',
+        padding: '8px 10px'
+      }}
+    >
+      <div style={{ color: '#888', fontSize: '10px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: '#fff', fontSize: '13px', fontWeight: 800 }}>{value}</div>
+    </div>  );
+};
