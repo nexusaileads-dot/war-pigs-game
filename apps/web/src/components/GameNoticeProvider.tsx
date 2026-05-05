@@ -10,7 +10,7 @@ import React, {
 
 type NoticeVariant = 'success' | 'error' | 'info' | 'warning';
 
-type NoticePayload = {
+export type NoticePayload = {
   title: string;
   message: string;
   variant?: NoticeVariant;
@@ -28,6 +28,7 @@ const GameNoticeContext = createContext<GameNoticeContextValue | undefined>(unde
 export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notice, setNotice] = useState<NoticePayload | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const clearTimer = () => {
     if (timeoutRef.current !== null) {
@@ -53,9 +54,22 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => clearTimer();
   }, []);
+
+  // Lock body scroll when notice is visible
+  useEffect(() => {
+    const body = document.body;
+    if (notice) {
+      const originalOverflow = body.style.overflow;
+      body.style.overflow = 'hidden';
+      return () => {
+        body.style.overflow = originalOverflow;
+      };
+    }
+  }, [notice]);
 
   const value = useMemo(
     () => ({
@@ -67,12 +81,23 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const theme = getTheme(notice?.variant || 'info');
 
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      hideNotice();
+    }
+  };
+
   return (
     <GameNoticeContext.Provider value={value}>
       {children}
 
       {notice ? (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notice-title"
+          aria-describedby="notice-message"
+          onClick={handleOverlayClick}
           style={{
             position: 'fixed',
             inset: 0,
@@ -81,10 +106,12 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px'
+            padding: '20px',
+            backdropFilter: 'blur(4px)' // Add slight blur for better focus
           }}
         >
           <div
+            ref={modalRef}
             style={{
               width: '100%',
               maxWidth: '420px',
@@ -97,6 +124,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               animation: 'warPigsNoticeIn 180ms ease-out'
             }}
           >
+            {/* Accent bar */}
             <div
               style={{
                 height: '6px',
@@ -114,6 +142,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }}
               >
                 <div
+                  aria-hidden="true"
                   style={{
                     width: '48px',
                     height: '48px',
@@ -147,6 +176,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   </div>
 
                   <div
+                    id="notice-title"
                     style={{
                       color: '#fff',
                       fontSize: '24px',
@@ -160,6 +190,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               </div>
 
               <div
+                id="notice-message"
                 style={{
                   color: '#d4d4d4',
                   fontSize: '15px',
@@ -173,6 +204,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               <button
                 type="button"
                 onClick={hideNotice}
+                autoFocus
                 style={{
                   width: '100%',
                   border: 'none',
@@ -185,8 +217,12 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   letterSpacing: '0.8px',
                   textTransform: 'uppercase',
                   cursor: 'pointer',
-                  boxShadow: `0 10px 24px ${theme.glow}`
+                  boxShadow: `0 10px 24px ${theme.glow}`,
+                  transition: 'transform 0.1s'
                 }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
               >
                 {notice.buttonText || 'OK'}
               </button>
