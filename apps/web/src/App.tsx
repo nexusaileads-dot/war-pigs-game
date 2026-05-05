@@ -5,10 +5,7 @@ import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
 import { LevelSelect } from './components/LevelSelect';
-
-// TODO: Import your actual Game component.
-// Based on your error logs, this component is likely named GameCanvas.
-// import { GameCanvas } from './components/GameCanvas';
+import { GameCanvas } from './components/GameCanvas';
 
 type Screen =
   | 'MENU'
@@ -20,12 +17,10 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
 
-  // Optional: Check for active run on mount to resume if needed
   useEffect(() => {
     const activeRun = sessionStorage.getItem('currentRun');
     if (activeRun) {
-      // You can auto-resume here if desired:
-      // setCurrentScreen('GAME');
+      console.log('[App] Found active session on mount');
     }
   }, []);
 
@@ -33,21 +28,21 @@ export default function App() {
     setCurrentScreen(screen);
   };
 
-  // STRICT GUARD: Validates session before allowing access to GAME screen
   const startGame = () => {
     const activeRun = sessionStorage.getItem('currentRun');
     
     if (!activeRun) {
-      console.error('[App] Attempted to start game without valid session. Redirecting to Level Select.');
+      console.error('[App] Attempted to start game without valid session');
       navigateTo('LEVEL_SELECT');
       return;
     }
 
-    // Session verified, proceed to game
+    console.log('[App] Starting game with session');
     navigateTo('GAME');
   };
 
-  const renderScreen = () => {    switch (currentScreen) {
+  const renderScreen = () => {
+    switch (currentScreen) {
       case 'MENU':
         return <MenuScene onNavigate={navigateTo} />;
 
@@ -55,8 +50,6 @@ export default function App() {
         return (
           <CharacterSelect
             onBack={() => navigateTo('MENU')}
-            // Flow: MENU → CHAR_SELECT → LEVEL_SELECT
-            // Assuming CharacterSelect leads to LevelSelect once loadout is ready
             onStart={() => navigateTo('LEVEL_SELECT')}
           />
         );
@@ -65,8 +58,6 @@ export default function App() {
         return (
           <WeaponSelect
             onBack={() => navigateTo('CHAR_SELECT')}
-            // Note: Your WeaponSelect component currently only accepts onBack.
-            // If you need a "Next" button here, update the component props.
           />
         );
 
@@ -74,29 +65,21 @@ export default function App() {
         return (
           <LevelSelect
             onBack={() => navigateTo('CHAR_SELECT')}
-            // LevelSelect calls this ONLY after successfully creating a session
             onStart={startGame}
           />
         );
 
       case 'GAME':
-        // STRICT GUARD: Prevents rendering GameCanvas if session is missing
         const activeRun = sessionStorage.getItem('currentRun');
         if (!activeRun) {
-          console.warn('[App] Blocked GAME access: No currentRun in sessionStorage.');
+          console.warn('[App] Blocked GAME access: No currentRun');
           navigateTo('LEVEL_SELECT');
           return null;
         }
+        return <GameCanvas />;
 
-        // TODO: Replace with your actual Game component
-        // return <GameCanvas />;
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff' }}>
-            <h2>GAME CANVAS PLACEHOLDER</h2>
-          </div>
-        );
-
-      default:        return <MenuScene onNavigate={navigateTo} />;
+      default:
+        return <MenuScene onNavigate={navigateTo} />;
     }
   };
 
@@ -109,4 +92,4 @@ export default function App() {
       </GameNoticeProvider>
     </TelegramProvider>
   );
-            }
+}
