@@ -1,26 +1,31 @@
 {
   "name": "@war-pigs/api",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "lint": "eslint src --ext .ts",
     "test": "vitest run"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.0",
-    "@fastify/jwt": "^8.0.0",
-    "@fastify/rate-limit": "^9.0.0",
-    "@war-pigs/database": "*",
-    "@war-pigs/game-logic": "*",
-    "@war-pigs/solana": "*",
-    "fastify": "^4.26.0",
-    "zod": "^3.22.0"
+    "@fastify/cors": "^8.5.0",
+    "@fastify/jwt": "^7.2.4",
+    "@fastify/rate-limit": "^9.1.0",
+    "@war-pigs/database": "workspace:*",
+    "@war-pigs/game-logic": "workspace:*",
+    "@war-pigs/solana": "workspace:*",
+    "fastify": "^4.25.2",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.11.16",
+    "eslint": "^8.56.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.4.0"
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
   }
 }
