@@ -45,10 +45,9 @@ const WEAPON_BASE_STATS: Record<string, WeaponBaseStats> = {
 const getUpgradeCost = (level: number) => 150 + level * 125;
 
 // --- Component ---
-export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+export const WeaponSelect: React.FC<{ onBack: () => void; onStart: () => void }> = ({ onBack, onStart }) => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [equippedWeaponId, setEquippedWeaponId] = useState<string | null>(null);
-  const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
+  const [equippedWeaponId, setEquippedWeaponId] = useState<string | null>(null);  const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [upgradingWeaponId, setUpgradingWeaponId] = useState<string | null>(null);
@@ -58,12 +57,14 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { user, refreshProfile } = useGameStore();
   const currentPigs = user?.profile.currentPigs || 0;
 
+  // Helper for notifications
   const showNotification = useCallback((message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     const timer = setTimeout(() => setNotification(null), 3000);
     return () => clearTimeout(timer);
   }, []);
 
+  // Load Inventory
   const loadInventory = useCallback(async () => {
     try {
       setLoadError(null);
@@ -87,11 +88,7 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   useEffect(() => { void loadInventory(); }, [loadInventory]);
 
-  const selectedWeapon = useMemo(
-    () => inventory.find((item) => item.details.weaponId === selectedWeaponId) || null,
-    [inventory, selectedWeaponId]
-  );
-
+  // Helpers
   const getWeaponStats = useCallback((weapon: WeaponDetails) => {
     const level = Math.max(0, Number(weapon.upgradeLevel ?? 0));
     const base = WEAPON_BASE_STATS[weapon.weaponId] || {
@@ -99,8 +96,7 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       fireRate: 320,
       bulletSpeed: 700,
       projectileLifetime: 1000,
-      type: weapon.type || 'Weapon'
-    };
+      type: weapon.type || 'Weapon'    };
 
     const fireRateReduction = Math.min(0.22, level * 0.04);
     const fireRate = Math.max(60, Math.floor(base.fireRate * (1 - fireRateReduction)));
@@ -117,11 +113,17 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     };
   }, []);
 
+  const selectedWeapon = useMemo(
+    () => inventory.find((item) => item.details.weaponId === selectedWeaponId) || null,
+    [inventory, selectedWeaponId]
+  );
+
   const selectedStats = useMemo(
     () => (selectedWeapon ? getWeaponStats(selectedWeapon.details) : null),
     [selectedWeapon, getWeaponStats]
   );
 
+  // Actions
   const confirmWeapon = async () => {
     if (!selectedWeaponId) return showNotification('Select a weapon first.', 'error');
     try {
@@ -130,10 +132,11 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       await refreshProfile();
       setEquippedWeaponId(selectedWeaponId);
       showNotification('Weapon equipped successfully.', 'success');
-      onBack();
+      // Proceed to next step (Level Select)
+      onStart();
     } catch (error) {
       console.error('[WeaponSelect] Equip failed:', error);
-      showNotification(getErrorMessage(error, 'Failed to equip weapon.'), 'error');
+      showNotification('Failed to equip weapon.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -143,7 +146,6 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     if (upgradingWeaponId) return;
     const item = inventory.find(i => i.details.weaponId === weaponId);
     if (!item) return;
-
     const currentLevel = Math.max(0, Number(item.details.upgradeLevel ?? 0));
     const cost = getUpgradeCost(currentLevel);
     if (currentLevel >= MAX_WEAPON_LEVEL) return;
@@ -157,35 +159,70 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       showNotification('Weapon upgraded.', 'success');
     } catch (error) {
       console.error('[WeaponSelect] Upgrade failed:', error);
-      showNotification(getErrorMessage(error, 'Weapon upgrade failed.'), 'error');
+      showNotification('Weapon upgrade failed.', 'error');
     } finally {
       setUpgradingWeaponId(null);
     }
   };
 
+  // Helper for image paths
+  const getWeaponImagePath = (id: string) => {
+    const normalizedId = id.replace(/_/g, '-').toLowerCase();
+    return `/assets/sprites/${normalizedId}.png`;
+  };
+
   // --- Render States ---
-  if (isLoading) return <div style={centerContainerStyle}>LOADING ARMORY...</div>;
-  if (loadError) return (<div style={containerStyle}><button onClick={onBack} style={backButtonStyle}>BACK</button><div style={errorBoxStyle}>{loadError}</div></div>);
-  if (inventory.length === 0) return (<div style={containerStyle}><button onClick={onBack} style={{...backButtonStyle, alignSelf:'flex-start'}}>BACK</button><div style={cardStyle}><h2 style={{marginTop:0, color:'#ff6b35'}}>No Weapons Available</h2><p style={{color:'#bbb',margin:0}}>Your armory has no weapons yet. Buy one from the shop before deployment.</p></div></div>);
+  // Keep header visible during loading
+  const renderHeader = () => (
+    <div style={headerRowStyle}>
+      <button onClick={onBack} style={backButtonStyle}>BACK</button>
+      <h2 style={titleStyle}>Armory</h2>
+      <div style={currencyStyle}>
+        <img src="/assets/sprites/pig-token.png" style={{width:18, height:18, objectFit:'contain'}} alt="" />
+        {currentPigs}
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div style={outerContainerStyle}>
+        {renderHeader()}
+        <div style={centerContainerStyle}>LOADING ARMORY...</div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (      <div style={outerContainerStyle}>
+        {renderHeader()}
+        <div style={errorBoxStyle}>{loadError}</div>
+      </div>
+    );
+  }
+
+  if (inventory.length === 0) {
+    return (
+      <div style={outerContainerStyle}>
+        {renderHeader()}
+        <div style={cardStyle}>
+          <h2 style={{marginTop:0, color:'#ff6b35'}}>No Weapons Available</h2>
+          <p style={{color:'#bbb',margin:0}}>Your armory has no weapons yet. Buy one from the shop before deployment.</p>
+        </div>
+      </div>
+    );
+  }
 
   // --- Main UI ---
   return (
     <div style={outerContainerStyle}>
+      {renderHeader()}
+
       {notification && (
         <div style={notificationStyle(notification.type)}>
           {notification.message}
         </div>
       )}
-      
-      {/* Header - Fixed position */}
-      <div style={headerRowStyle}>
-        <button onClick={onBack} style={backButtonStyle}>BACK</button>
-        <h2 style={titleStyle}>Armory</h2>
-        <div style={currencyStyle}>
-          <img src="/assets/sprites/pig-token.png" style={{width:18, height:18, objectFit:'contain'}} alt="" />
-          {currentPigs}
-        </div>
-      </div>
 
       {/* Scrollable Content Area */}
       <div style={scrollContainerStyle}>
@@ -206,8 +243,7 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </div>
               {selectedWeapon.details.description && <div style={{color:'#bbb', fontSize:13, marginTop:10}}>{selectedWeapon.details.description}</div>}
             </div>
-          </div>
-        ) : null}
+          </div>        ) : null}
 
         <div style={{display:'flex', flexDirection:'column', gap:12, marginBottom:20}}>
           {inventory.map(item => {
@@ -243,7 +279,7 @@ export const WeaponSelect: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </div>
 
         <button onClick={() => void confirmWeapon()} disabled={!selectedWeaponId || isSubmitting} style={{ padding:'14px 20px', background:!selectedWeaponId||isSubmitting?'#555':'#ffd700', border:'none', color:!selectedWeaponId||isSubmitting?'#ddd':'#111', borderRadius:10, cursor:!selectedWeaponId||isSubmitting?'not-allowed':'pointer', fontWeight:'bold', textTransform:'uppercase', letterSpacing:1, marginTop:'auto' }}>
-          {isSubmitting ? 'EQUIPPING...' : 'CONFIRM WEAPON'}
+          {isSubmitting ? 'CONFIRMING...' : 'CONFIRM WEAPON'}
         </button>
       </div>
     </div>
@@ -257,23 +293,9 @@ const Stat: React.FC<{ label: string; value: string | number }> = ({ label, valu
     <div style={{color:'#fff', fontSize:12, fontWeight:900}}>{value}</div>
   </div>
 );
-
 const Tag: React.FC<{ color: string; text: string }> = ({ color, text }) => (
   <span style={{color, fontWeight:'bold', fontSize:11, whiteSpace:'nowrap'}}>{text}</span>
 );
-
-// --- Helpers ---
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'response' in error) {
-    return ((error as { response?: { data?: { error?: string } } }).response?.data?.error) || fallback;
-  }
-  return fallback;
-};
-
-const getWeaponImagePath = (id: string) => {
-  const normalizedId = id.replace(/_/g, '-').toLowerCase();
-  return `/assets/sprites/${normalizedId}.png`;
-};
 
 // --- Styles ---
 const outerContainerStyle: React.CSSProperties = { 
@@ -292,9 +314,10 @@ const centerContainerStyle: React.CSSProperties = {
   display: 'flex', 
   justifyContent: 'center', 
   alignItems: 'center', 
-  minHeight: '100vh', 
-  background: '#0a0a0a',
-  color: '#fff'
+  flex: 1, 
+  color: '#fff',
+  fontSize: 18,
+  fontWeight: 'bold'
 };
 
 const headerRowStyle: React.CSSProperties = { 
@@ -318,8 +341,7 @@ const titleStyle: React.CSSProperties = {
 const backButtonStyle: React.CSSProperties = { 
   padding: '10px 20px', 
   background: '#444', 
-  border: '2px solid #ffd700', 
-  color: '#fff', 
+  border: '2px solid #ffd700',   color: '#fff', 
   borderRadius: 8, 
   cursor: 'pointer', 
   fontWeight: 'bold' 
@@ -337,7 +359,7 @@ const currencyStyle: React.CSSProperties = {
 
 const errorBoxStyle: React.CSSProperties = { 
   maxWidth: 520, 
-  margin: '80px auto 0', 
+  margin: '20px auto', 
   padding: 20, 
   borderRadius: 12, 
   border: '2px solid #5a1f1f', 
@@ -348,7 +370,7 @@ const errorBoxStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = { 
   maxWidth: 560, 
-  margin: '80px auto 0', 
+  margin: '20px auto', 
   padding: 22, 
   background: '#151515', 
   border: '2px solid #333', 
@@ -368,8 +390,7 @@ const scrollContainerStyle: React.CSSProperties = {
 
 const selectionCardStyle: React.CSSProperties = { 
   background: '#161616', 
-  border: '2px solid #ffd700', 
-  borderRadius: 14, 
+  border: '2px solid #ffd700',   borderRadius: 14, 
   padding: 16, 
   marginBottom: 18, 
   display: 'flex', 
@@ -418,8 +439,7 @@ const weaponInfoButtonStyle: React.CSSProperties = {
   cursor: 'pointer' 
 };
 
-const notificationStyle = (type: 'success' | 'error'): React.CSSProperties => ({
-  position: 'fixed', 
+const notificationStyle = (type: 'success' | 'error'): React.CSSProperties => ({  position: 'fixed', 
   top: 20, 
   left: '50%', 
   transform: 'translateX(-50%)',
@@ -430,13 +450,3 @@ const notificationStyle = (type: 'success' | 'error'): React.CSSProperties => ({
   zIndex: 9999, 
   fontWeight: 700 
 });
-
-const containerStyle: React.CSSProperties = { 
-  padding: 20, 
-  color: '#fff', 
-  background: '#0a0a0a', 
-  display: 'flex', 
-  flexDirection: 'column', 
-  boxSizing: 'border-box', 
-  minHeight: '100vh' 
-};
