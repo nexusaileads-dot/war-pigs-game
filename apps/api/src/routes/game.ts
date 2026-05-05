@@ -68,27 +68,27 @@ export async function gameRoutes(fastify: FastifyInstance) {
       if (existingActiveRun) {
         await tx.gameRun.update({
           where: { id: existingActiveRun.id },
-           { status: 'FAILED', endedAt: new Date() }
+          data: { status: 'FAILED', endedAt: new Date() }
         });
       }
 
       await Promise.all([
         tx.inventoryItem.update({
           where: { id: charOwnership.id },
-           { timesUsed: { increment: 1 } }
+          data: { timesUsed: { increment: 1 } }
         }),
         tx.inventoryItem.update({
           where: { id: weaponOwnership.id },
-           { timesUsed: { increment: 1 } }
+          data: { timesUsed: { increment: 1 } }
         }),
         tx.profile.update({
           where: { userId },
-           { equippedCharacterId: characterId, equippedWeaponId: weaponId }
+          data: { equippedCharacterId: characterId, equippedWeaponId: weaponId }
         })
       ]);
 
       return tx.gameRun.create({
-         {
+        data: {
           userId,
           levelId,
           characterId,
@@ -206,7 +206,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-         {
+        data: {
           status: 'COMPLETED',
           endedAt: new Date(),
           score: safeStats.kills * 100 + (safeStats.bossKilled ? 1000 : 0),
@@ -242,12 +242,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
       });
       if (!existingGrant) {
         await tx.rewardGrant?.create({
-           { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
+          data: { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
         });
         // Update profile economy fields atomically
         await tx.profile.update({
           where: { userId },
-           {
+          data: {
             currentPigs: { increment: rewards.total },
             totalPigsEarned: { increment: rewards.total },
             xp: { increment: rewards.xpEarned }
@@ -300,7 +300,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-         { status: 'FAILED', endedAt: new Date() }
+        data: { status: 'FAILED', endedAt: new Date() }
       });
 
       await tx.playerStats.upsert({
