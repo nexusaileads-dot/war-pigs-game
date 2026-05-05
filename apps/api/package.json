@@ -13,9 +13,9 @@
     "@fastify/cors": "^8.5.0",
     "@fastify/jwt": "^7.2.4",
     "@fastify/rate-limit": "^9.1.0",
-    "@war-pigs/database": "workspace:*",
-    "@war-pigs/game-logic": "workspace:*",
-    "@war-pigs/solana": "workspace:*",
+    "@war-pigs/database": "*",
+    "@war-pigs/game-logic": "*",
+    "@war-pigs/solana": "*",
     "fastify": "^4.25.2",
     "jsonwebtoken": "^9.0.2",
     "zod": "^3.22.4"
