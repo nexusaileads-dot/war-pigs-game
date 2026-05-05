@@ -127,7 +127,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
         kills: number;
         damageDealt: number;
         damageTaken: number;
-        accuracy: number; // ASSUMPTION: 0-100 percentage; adjust clamp if 0-1 float
+        accuracy: number;
         timeElapsed: number;
         wavesCleared: number;
         bossKilled: boolean;
@@ -167,7 +167,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       kills: Math.max(0, Math.floor(Number(stats.kills) || 0)),
       damageDealt: Math.max(0, Math.floor(Number(stats.damageDealt) || 0)),
       damageTaken: Math.max(0, Math.floor(Number(stats.damageTaken) || 0)),
-      accuracy: Math.max(0, Math.min(100, Number(stats.accuracy) || 0)), // Clamp to 0-100
+      accuracy: Math.max(0, Math.min(100, Number(stats.accuracy) || 0)),
       timeElapsed: Math.max(0, Math.floor(Number(stats.timeElapsed) || 0)),
       wavesCleared: Math.max(0, Math.floor(Number(stats.wavesCleared) || 0)),
       bossKilled: Boolean(stats.bossKilled)
@@ -235,17 +235,17 @@ export async function gameRoutes(fastify: FastifyInstance) {
       });
 
       // Idempotent reward granting: check if already granted before applying
-      const existingGrant = await tx.rewardGrant.findFirst({
+      const existingGrant = await tx.rewardGrant?.findFirst({
         where: { runId, userId }
       });
       if (!existingGrant) {
-        await tx.rewardGrant.create({
-           { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
+        await tx.rewardGrant?.create({
+          data: { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
         });
         // Update profile economy fields atomically
         await tx.profile.update({
           where: { userId },
-           {
+          data: {
             currentPigs: { increment: rewards.total },
             totalPigsEarned: { increment: rewards.total },
             xp: { increment: rewards.xpEarned }
@@ -297,7 +297,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-         { status: 'FAILED', endedAt: new Date() }
+        data: { status: 'FAILED', endedAt: new Date() }
       });
 
       await tx.playerStats.upsert({
