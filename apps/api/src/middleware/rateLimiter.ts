@@ -8,7 +8,7 @@ import { RateLimitOptions } from '@fastify/rate-limit';
  */
 export interface RouteRateLimitConfig {
   max: number;
-  timeWindow: string | number;
+  timeWindow: string | number; // Fastify accepts both string (e.g., '1 minute') and number (ms)
   allowList?: string[]; // Optional IP/user allowlist
 }
 
@@ -23,7 +23,7 @@ export const createRouteRateLimiter = (config: RouteRateLimitConfig) => {
   }
 
   // Return a preHandler hook that delegates to Fastify's rate-limit context
-  // Note: Actual enforcement requires @fastify/rate-limit to be registered globally with { enableDraftSpec: true }
+  // Note: Actual enforcement is handled by the plugin when config is passed via route options.
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     // This hook is a placeholder for config attachment.
     // Real enforcement is handled by the plugin when config is passed via route options.
@@ -51,5 +51,6 @@ export const authRateLimitConfig: RouteRateLimitConfig = {
 };
 
 // Legacy export aliases for backward compatibility during refactor
-export const strictRateLimit = { config: { rateLimit: strictRateLimitConfig } };
-export const authRateLimit = { config: { rateLimit: authRateLimitConfig } };
+// Note: These are now direct config objects, not nested under 'config'
+export const strictRateLimit = strictRateLimitConfig;
+export const authRateLimit = authRateLimitConfig;
