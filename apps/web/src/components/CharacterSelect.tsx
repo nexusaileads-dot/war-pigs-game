@@ -47,8 +47,7 @@ const CHARACTER_META: Record<string, CharacterMeta> = {
     health: 160, speedLabel: 'Slow', speedValue: 205, maxLevel: MAX_CHARACTER_LEVEL
   },
   swift_hoof: {
-    icon: 'Swift-Hoof.png', classIcon: 'scout.png', powerName: 'Scout Dash', baseCooldown: 4.5,
-    effect: 'Fast mobility burst for repositioning.', upgradeFocus: 'Dash distance, speed, and cooldown',
+    icon: 'Swift-Hoof.png', classIcon: 'scout.png', powerName: 'Scout Dash', baseCooldown: 4.5,    effect: 'Fast mobility burst for repositioning.', upgradeFocus: 'Dash distance, speed, and cooldown',
     health: 85, speedLabel: 'Very Fast', speedValue: 315, maxLevel: MAX_CHARACTER_LEVEL
   },
   precision_squeal: {
@@ -97,7 +96,6 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
   }, []);
 
   const getMeta = useCallback((characterId: string) => CHARACTER_META[characterId] || DEFAULT_META, []);
-
   const loadInventory = useCallback(async () => {
     try {
       setLoadError(null);
@@ -147,8 +145,13 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
       effect: meta.effect,
       upgradeFocus: meta.upgradeFocus,
       maxLevel: meta.maxLevel
-    };
-  }, [getMeta]);
+    };  }, [getMeta]);
+
+  // FIXED: This was missing in the previous version
+  const selectedStats = useMemo(
+    () => (selectedCharacter ? getCharacterStats(selectedCharacter) : null),
+    [selectedCharacter, getCharacterStats]
+  );
 
   const confirmSelection = async () => {
     if (!selectedCharacterId) return showNotification('Select a unit first.', 'error');
@@ -191,8 +194,7 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
     }
   };
 
-  // --- Render States ---
-  if (isLoading) return <div style={centerContainerStyle}>LOADING UNITS...</div>;
+  // --- Render States ---  if (isLoading) return <div style={centerContainerStyle}>LOADING UNITS...</div>;
   if (loadError) return (<div style={containerStyle}><button onClick={onBack} style={backButtonStyle}>BACK</button><div style={errorBoxStyle}>{loadError}</div></div>);
   if (inventory.length === 0) return (<div style={containerStyle}><button onClick={onBack} style={{...backButtonStyle, alignSelf:'flex-start'}}>BACK</button><div style={cardStyle}><h2 style={{marginTop:0, color:'#ff6b35'}}>No Units Available</h2><p style={{color:'#bbb',margin:0}}>Your inventory has no character units yet. Buy one in the shop first.</p></div></div>);
 
@@ -241,7 +243,6 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
             </div>
           </div>
         ) : null}
-
         <div style={{display:'flex', flexDirection:'column', gap:12, marginBottom:20}}>
           {inventory.map(item => {
             const cid = item.details.characterId;
@@ -291,8 +292,7 @@ export const CharacterSelect: React.FC<{ onBack: () => void; onStart: () => void
 
 // --- Subcomponents ---
 const SpecPill: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
-  <div style={{background:'#222', border:'1px solid #333', borderRadius:8, padding:'8px 10px'}}>
-    <div style={{color:'#888', fontSize:10, textTransform:'uppercase', marginBottom:2, fontWeight:800}}>{label}</div>
+  <div style={{background:'#222', border:'1px solid #333', borderRadius:8, padding:'8px 10px'}}>    <div style={{color:'#888', fontSize:10, textTransform:'uppercase', marginBottom:2, fontWeight:800}}>{label}</div>
     <div style={{color:'#fff', fontSize:12, fontWeight:900}}>{value}</div>
   </div>
 );
@@ -301,7 +301,7 @@ const Tag: React.FC<{ color: string; text: string }> = ({ color, text }) => (
   <span style={{color, fontWeight:'bold', fontSize:11, whiteSpace:'nowrap'}}>{text}</span>
 );
 
-// --- Styles ---
+// --- Helpers ---
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error && typeof error === 'object' && 'response' in error) {
     return ((error as { response?: { data?: { error?: string } } }).response?.data?.error) || fallback;
@@ -309,6 +309,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+// --- Styles ---
 const outerContainerStyle: React.CSSProperties = { 
   padding: 20, 
   color: '#fff', 
@@ -340,8 +341,7 @@ const headerRowStyle: React.CSSProperties = {
 };
 
 const titleStyle: React.CSSProperties = { 
-  textAlign: 'center', 
-  color: '#ff6b35', 
+  textAlign: 'center',   color: '#ff6b35', 
   margin: 0, 
   textTransform: 'uppercase',
   fontSize: 24,
@@ -390,8 +390,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const scrollContainerStyle: React.CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
+  flex: 1,  overflowY: 'auto',
   overflowX: 'hidden',
   display: 'flex',
   flexDirection: 'column',
@@ -440,8 +439,7 @@ const imageBoxSmall: React.CSSProperties = {
 };
 
 const thumbButtonStyle: React.CSSProperties = { 
-  background: '#111', 
-  padding: 8, 
+  background: '#111',   padding: 8, 
   borderRadius: 8, 
   border: '1px solid #444', 
   width: 76, 
@@ -483,6 +481,6 @@ const containerStyle: React.CSSProperties = {
   background: '#0a0a0a', 
   display: 'flex', 
   flexDirection: 'column', 
-  boxSizing: 'border-box', 
-  minHeight: '100vh' 
-};
+  boxSizing: 'border-box',
+  minHeight: '100vh'
+  };
