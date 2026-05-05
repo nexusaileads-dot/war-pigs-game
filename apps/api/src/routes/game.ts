@@ -14,7 +14,8 @@ export async function gameRoutes(fastify: FastifyInstance) {
   // Apply stricter rate limits to high-value gameplay endpoints
   fastify.addHook('preHandler', async (request, reply) => {
     if (request.url.startsWith('/api/game/start') || request.url.startsWith('/api/game/complete')) {
-      (reply.context.config as any).rateLimit = strictRateLimitConfig.config.rateLimit;
+      // Apply rate limit config directly (not nested under .config)
+      (reply.context.config as any).rateLimit = strictRateLimitConfig;
     }
   });
 
@@ -67,27 +68,27 @@ export async function gameRoutes(fastify: FastifyInstance) {
       if (existingActiveRun) {
         await tx.gameRun.update({
           where: { id: existingActiveRun.id },
-          data: { status: 'FAILED', endedAt: new Date() }
+           { status: 'FAILED', endedAt: new Date() }
         });
       }
 
       await Promise.all([
         tx.inventoryItem.update({
           where: { id: charOwnership.id },
-          data: { timesUsed: { increment: 1 } }
+           { timesUsed: { increment: 1 } }
         }),
         tx.inventoryItem.update({
           where: { id: weaponOwnership.id },
-          data: { timesUsed: { increment: 1 } }
+           { timesUsed: { increment: 1 } }
         }),
         tx.profile.update({
           where: { userId },
-          data: { equippedCharacterId: characterId, equippedWeaponId: weaponId }
+           { equippedCharacterId: characterId, equippedWeaponId: weaponId }
         })
       ]);
 
       return tx.gameRun.create({
-        data: {
+         {
           userId,
           levelId,
           characterId,
@@ -147,8 +148,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
-    // Validate session has not expired
-    if (Date.now() - session.createdAt.getTime() > SESSION_MAX_AGE_MS) {
+    // Validate session has not expired (session.createdAt is a number timestamp)
+    const now = Date.now();
+    if (now - session.createdAt > SESSION_MAX_AGE_MS) {
       await gameSession.endSession(sessionToken);
       return reply.status(400).send({ error: 'Session expired' });
     }
@@ -204,7 +206,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-        data: {
+         {
           status: 'COMPLETED',
           endedAt: new Date(),
           score: safeStats.kills * 100 + (safeStats.bossKilled ? 1000 : 0),
@@ -240,12 +242,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
       });
       if (!existingGrant) {
         await tx.rewardGrant?.create({
-          data: { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
+           { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
         });
         // Update profile economy fields atomically
         await tx.profile.update({
           where: { userId },
-          data: {
+           {
             currentPigs: { increment: rewards.total },
             totalPigsEarned: { increment: rewards.total },
             xp: { increment: rewards.xpEarned }
@@ -280,8 +282,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
-    // Validate session expiration
-    if (Date.now() - session.createdAt.getTime() > SESSION_MAX_AGE_MS) {
+    // Validate session expiration (session.createdAt is a number timestamp)
+    const now = Date.now();
+    if (now - session.createdAt > SESSION_MAX_AGE_MS) {
       await gameSession.endSession(sessionToken);
       return reply.status(400).send({ error: 'Session expired' });
     }
@@ -297,7 +300,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-        data: { status: 'FAILED', endedAt: new Date() }
+         { status: 'FAILED', endedAt: new Date() }
       });
 
       await tx.playerStats.upsert({
