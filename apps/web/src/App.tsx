@@ -17,10 +17,13 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
 
+  // Check for active run on mount (e.g., if user refreshes during a game)
   useEffect(() => {
     const activeRun = sessionStorage.getItem('currentRun');
     if (activeRun) {
       console.log('[App] Found active session on mount');
+      // Optional: Resume game automatically
+      // setCurrentScreen('GAME');
     }
   }, []);
 
@@ -28,11 +31,12 @@ export default function App() {
     setCurrentScreen(screen);
   };
 
+  // STRICT GUARD: Validates session before allowing access to GAME screen
   const startGame = () => {
     const activeRun = sessionStorage.getItem('currentRun');
     
     if (!activeRun) {
-      console.error('[App] Attempted to start game without valid session');
+      console.error('[App] Attempted to start game without valid session. Redirecting to Level Select.');
       navigateTo('LEVEL_SELECT');
       return;
     }
@@ -43,14 +47,14 @@ export default function App() {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'MENU':
-        return <MenuScene onNavigate={navigateTo} />;
+      case 'MENU':        return <MenuScene onNavigate={navigateTo} />;
 
       case 'CHAR_SELECT':
         return (
           <CharacterSelect
             onBack={() => navigateTo('MENU')}
-            onStart={() => navigateTo('LEVEL_SELECT')}
+            // Flow: Select Character -> Select Weapon
+            onStart={() => navigateTo('WEAPON_SELECT')}
           />
         );
 
@@ -58,24 +62,30 @@ export default function App() {
         return (
           <WeaponSelect
             onBack={() => navigateTo('CHAR_SELECT')}
+            // Flow: Select Weapon -> Select Level
+            onStart={() => navigateTo('LEVEL_SELECT')}
           />
         );
 
       case 'LEVEL_SELECT':
         return (
           <LevelSelect
-            onBack={() => navigateTo('CHAR_SELECT')}
+            onBack={() => navigateTo('WEAPON_SELECT')}
+            // Flow: Deploy -> Start Game (after session created)
             onStart={startGame}
           />
         );
 
       case 'GAME':
+        // STRICT GUARD: Prevents rendering GameCanvas if session is missing
         const activeRun = sessionStorage.getItem('currentRun');
         if (!activeRun) {
-          console.warn('[App] Blocked GAME access: No currentRun');
+          console.warn('[App] Blocked GAME access: No currentRun in sessionStorage.');
           navigateTo('LEVEL_SELECT');
           return null;
         }
+
+        // Render the actual Phaser game
         return <GameCanvas />;
 
       default:
@@ -86,10 +96,9 @@ export default function App() {
   return (
     <TelegramProvider>
       <GameNoticeProvider>
-        <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
-          {renderScreen()}
+        <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>          {renderScreen()}
         </div>
       </GameNoticeProvider>
     </TelegramProvider>
   );
-}
+  }
