@@ -13,7 +13,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // Custom authorization hook: check against whitelist
   fastify.addHook('preHandler', async (request, reply) => {
-    // OPTIMIZATION NOTE: In production, store telegramId in JWT to avoid this DB call
     const user = await prisma.user.findUnique({
       where: { id: request.user.userId },
       select: { telegramId: true }
@@ -48,13 +47,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
     await prisma.$transaction([
       prisma.profile.update({
         where: { userId: user.id },
-         {
+        data: {
           currentPigs: { increment: amount },
           totalPigsEarned: { increment: amount }
         }
       }),
       prisma.transaction.create({
-         {
+        data: {
           userId: user.id,
           type: 'REWARD',
           amount,
