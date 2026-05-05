@@ -1,5 +1,4 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { RateLimitOptions } from '@fastify/rate-limit';
 
 /**
  * Route-specific rate limit configuration shape.
@@ -21,13 +20,16 @@ export interface RouteRateLimitConfig {
  */
 export const createRouteRateLimiter = (config: RouteRateLimitConfig) => {
   // Warning for multi-instance environments (dev-only)
-  if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL && (process.env.INSTANCE_COUNT || 1) > 1) {
-    console.warn('⚠️ Route rate limiter using in-memory storage in multi-instance deployment. Consider enabling Redis.');
+  if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
+    const instanceCount = Number(process.env.INSTANCE_COUNT) || 1;
+    if (instanceCount > 1) {
+      console.warn('⚠️ Route rate limiter using in-memory storage in multi-instance deployment. Consider enabling Redis.');
+    }
   }
 
   // Return a no-op preHandler hook. Actual rate limiting is handled by the plugin
   // when config is attached to reply.context.config.rateLimit
-  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  return async (_request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
     return;
   };
 };
