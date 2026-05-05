@@ -19,17 +19,12 @@ interface Props {
   onNavigate: (screen: Screen) => void;
 }
 
-const HOME = '/assets/ui/home';
-const TOPBAR = `${HOME}/topbar`;
-const BRANDING = `${HOME}/branding`;
-const REWARD = `${HOME}/reward`;
-const CTA = `${HOME}/cta`;
-const CARDS = `${HOME}/cards`;
-const NAV = `${HOME}/nav`;
+// Centralized asset base path for consistency and easier CDN updates
+const ASSET_BASE = '/assets/ui/home';
 
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const { user } = useGameStore();
-  const { hapticFeedback } = useTelegram();
+  const { hapticFeedback, isTelegramWebApp } = useTelegram();
 
   const level = user?.profile.level || 2;
   const xp = user?.profile.xp || 1460;
@@ -39,10 +34,13 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
 
   const handleNavigate = (screen: Screen) => {
-    try {
-      hapticFeedback('medium');
-    } catch (error) {
-      console.error('[MenuScene] Haptic feedback failed:', error);
+    // Only trigger haptics in Telegram WebApp environment to avoid errors in browsers
+    if (isTelegramWebApp) {
+      try {
+        hapticFeedback?.('medium');
+      } catch (error) {
+        console.warn('[MenuScene] Haptic feedback failed:', error);
+      }
     }
     onNavigate(screen);
   };
@@ -52,9 +50,13 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
       style={{
         width: '100%',
         height: '100dvh',
+        minHeight: '100%',
         background: '#030303',
         display: 'flex',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        position: 'relative',
+        willChange: 'transform',
+        overflow: 'hidden'
       }}
     >
       <div
@@ -70,8 +72,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column'
         }}
       >
+        {/* Background image with error fallback */}
         <img
-          src={`${HOME}/main-background.png`}
+          src={`${ASSET_BASE}/main-background.png`}
           alt=""
           draggable={false}
           style={{
@@ -85,8 +88,14 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             pointerEvents: 'none',
             userSelect: 'none'
           }}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.background = '#070707';
+            target.style.display = 'none';
+          }}
         />
 
+        {/* Overlay gradient - pointer-events: none to allow touches to pass through */}
         <div
           style={{
             position: 'absolute',
@@ -112,9 +121,10 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            minHeight: 0
+            minHeight: 0 // Critical for flex scrolling to work properly
           }}
         >
+          {/* Logo and reward section - decorative, pointer-events: none */}
           <div
             style={{
               position: 'absolute',
@@ -124,11 +134,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start',
-              zIndex: 2
+              zIndex: 2,
+              pointerEvents: 'none'
             }}
           >
             <img
-              src={`${BRANDING}/war-pigs-logo.png`}
+              src={`${ASSET_BASE}/branding/war-pigs-logo.png`}
               alt="War Pigs"
               draggable={false}
               style={{
@@ -136,6 +147,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 height: 'auto',
                 display: 'block',
                 objectFit: 'contain'
+              }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
             />
 
@@ -149,7 +163,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               }}
             >
               <img
-                src={`${REWARD}/reward-chest.png`}
+                src={`${ASSET_BASE}/reward/reward-chest.png`}
                 alt="Daily reward"
                 draggable={false}
                 style={{
@@ -157,6 +171,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   height: 'auto',
                   display: 'block',
                   objectFit: 'contain'
+                }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
                 }}
               />
 
@@ -174,7 +191,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 }}
               >
                 <img
-                  src={`${REWARD}/timer-icon.png`}
+                  src={`${ASSET_BASE}/reward/timer-icon.png`}
                   alt=""
                   draggable={false}
                   style={{
@@ -183,19 +200,22 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                     objectFit: 'contain',
                     display: 'block'
                   }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
                 />
                 <span>23:59:12</span>
               </div>
             </div>
           </div>
 
+          {/* Wallet button - interactive, pointer-events: auto by default */}
           <div
             style={{
               position: 'absolute',
               top: 18,
               right: 12,
-              zIndex: 20,
-              pointerEvents: 'auto'
+              zIndex: 20
             }}
           >
             <WalletButton />
@@ -203,6 +223,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
           <div style={{ flex: 1, minHeight: 0 }} />
 
+          {/* CTA and navigation cards */}
           <div
             style={{
               width: '100%',
@@ -226,11 +247,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 cursor: 'pointer',
                 display: 'block',
                 lineHeight: 0,
-                margin: 0
+                margin: 0,
+                touchAction: 'manipulation' // Prevent double-tap zoom on mobile
               }}
             >
               <img
-                src={`${CTA}/play-mission-button.png`}
+                src={`${ASSET_BASE}/cta/play-mission-button.png`}
                 alt="Play Mission"
                 draggable={false}
                 style={{
@@ -239,9 +261,16 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                   display: 'block',
                   objectFit: 'contain'
                 }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.background = '#ff6b35';
+                  target.style.minHeight = '60px';
+                  target.style.borderRadius = '8px';
+                }}
               />
             </button>
 
+            {/* Menu cards grid */}
             <div
               style={{
                 width: '100%',
@@ -255,22 +284,22 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               }}
             >
               <MenuCard
-                src={`${CARDS}/armory-card.png`}
+                src={`${ASSET_BASE}/cards/armory-card.png`}
                 alt="Armory"
                 onClick={() => handleNavigate('WEAPON_SELECT')}
               />
               <MenuCard
-                src={`${CARDS}/units-card.png`}
+                src={`${ASSET_BASE}/cards/units-card.png`}
                 alt="Units"
                 onClick={() => handleNavigate('CHAR_SELECT')}
               />
               <MenuCard
-                src={`${CARDS}/pvp-card.png`}
+                src={`${ASSET_BASE}/cards/pvp-card.png`}
                 alt="PVP"
                 onClick={() => handleNavigate('PVP')}
               />
               <MenuCard
-                src={`${CARDS}/shop-card.png`}
+                src={`${ASSET_BASE}/cards/shop-card.png`}
                 alt="Shop"
                 onClick={() => handleNavigate('SHOP')}
               />
@@ -289,6 +318,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   );
 };
 
+// --- TopBar Component ---
 const TopBar: React.FC<{
   level: number;
   xp: number;
@@ -322,7 +352,7 @@ const TopBar: React.FC<{
           }}
         >
           <img
-            src={`${TOPBAR}/player-rank-badge.png`}
+            src={`${ASSET_BASE}/topbar/player-rank-badge.png`}
             alt="Player rank"
             draggable={false}
             style={{
@@ -330,6 +360,9 @@ const TopBar: React.FC<{
               height: 42,
               objectFit: 'contain',
               display: 'block'
+            }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
           />
           <div style={{ minWidth: 0 }}>
@@ -401,7 +434,7 @@ const TopBar: React.FC<{
       <div style={topCellStyle}>
         <div style={{ position: 'relative', height: '100%', padding: 8 }}>
           <img
-            src={`${TOPBAR}/topbar-panel.png`}
+            src={`${ASSET_BASE}/topbar/topbar-panel.png`}
             alt=""
             draggable={false}
             style={{
@@ -414,6 +447,9 @@ const TopBar: React.FC<{
               height: 'calc(100% - 16px)',
               objectFit: 'fill',
               display: 'block'
+            }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
           />
           <div
@@ -449,7 +485,7 @@ const TopBar: React.FC<{
               </span>
             </div>
             <img
-              src={`${TOPBAR}/plus-button.png`}
+              src={`${ASSET_BASE}/topbar/plus-button.png`}
               alt="Add"
               draggable={false}
               style={{
@@ -458,6 +494,9 @@ const TopBar: React.FC<{
                 objectFit: 'contain',
                 display: 'block'
               }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
             />
           </div>
         </div>
@@ -465,26 +504,33 @@ const TopBar: React.FC<{
 
       <button style={iconCellStyle} type="button">
         <img
-          src={`${TOPBAR}/mail-icon.png`}
+          src={`${ASSET_BASE}/topbar/mail-icon.png`}
           alt="Mail"
           draggable={false}
           style={{ width: 22, height: 22, objectFit: 'contain', display: 'block' }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
         />
         <div style={badgeStyle}>2</div>
       </button>
 
       <button style={iconCellStyle} type="button" onClick={onSettings}>
         <img
-          src={`${TOPBAR}/settings-icon.png`}
+          src={`${ASSET_BASE}/topbar/settings-icon.png`}
           alt="Settings"
           draggable={false}
           style={{ width: 22, height: 22, objectFit: 'contain', display: 'block' }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
         />
       </button>
     </div>
   );
 };
 
+// --- MenuCard Component ---
 const MenuCard: React.FC<{
   src: string;
   alt: string;
@@ -502,7 +548,8 @@ const MenuCard: React.FC<{
         cursor: 'pointer',
         display: 'block',
         lineHeight: 0,
-        margin: 0
+        margin: 0,
+        touchAction: 'manipulation'
       }}
     >
       <img
@@ -515,11 +562,18 @@ const MenuCard: React.FC<{
           display: 'block',
           objectFit: 'contain'
         }}
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          target.style.background = '#333';
+          target.style.minHeight = '40px';
+          target.style.borderRadius = '4px';
+        }}
       />
     </button>
   );
 };
 
+// --- BottomNav Component ---
 const BottomNav: React.FC<{
   onHome: () => void;
   onMissions: () => void;
@@ -539,7 +593,7 @@ const BottomNav: React.FC<{
       }}
     >
       <img
-        src={`${NAV}/bottom-nav-bar.png`}
+        src={`${ASSET_BASE}/nav/bottom-nav-bar.png`}
         alt=""
         draggable={false}
         style={{
@@ -549,6 +603,9 @@ const BottomNav: React.FC<{
           height: '100%',
           objectFit: 'fill',
           display: 'block'
+        }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.background = '#111';
         }}
       />
       <div
@@ -562,15 +619,16 @@ const BottomNav: React.FC<{
           padding: '4px 4px 0'
         }}
       >
-        <NavItem src={`${NAV}/nav-home-active.png`} alt="Home" onClick={onHome} />
-        <NavItem src={`${NAV}/nav-missions.png`} alt="Missions" onClick={onMissions} />
-        <NavItem src={`${NAV}/nav-clans.png`} alt="Clans" onClick={onClans} />
-        <NavItem src={`${NAV}/nav-leaderboard.png`} alt="Leaderboard" onClick={onLeaderboard} />
+        <NavItem src={`${ASSET_BASE}/nav/nav-home-active.png`} alt="Home" onClick={onHome} />
+        <NavItem src={`${ASSET_BASE}/nav/nav-missions.png`} alt="Missions" onClick={onMissions} />
+        <NavItem src={`${ASSET_BASE}/nav/nav-clans.png`} alt="Clans" onClick={onClans} />
+        <NavItem src={`${ASSET_BASE}/nav/nav-leaderboard.png`} alt="Leaderboard" onClick={onLeaderboard} />
       </div>
     </div>
   );
 };
 
+// --- NavItem Component ---
 const NavItem: React.FC<{
   src: string;
   alt: string;
@@ -589,7 +647,8 @@ const NavItem: React.FC<{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        touchAction: 'manipulation'
       }}
     >
       <img
@@ -603,11 +662,15 @@ const NavItem: React.FC<{
           display: 'block',
           objectFit: 'contain'
         }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = 'none';
+        }}
       />
     </button>
   );
 };
 
+// --- Shared Styles ---
 const topCellStyle: React.CSSProperties = {
   minHeight: 76,
   borderRight: '1px solid rgba(255,255,255,0.08)',
