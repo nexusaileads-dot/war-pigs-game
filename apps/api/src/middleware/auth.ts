@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { TokenExpiredError, JsonWebTokenError } from '@fastify/jwt';
+// Import error types from jsonwebtoken, not @fastify/jwt
+import { TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
 import '@fastify/jwt';
 
 declare module '@fastify/jwt' {
@@ -21,7 +22,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     // Explicit assignment for clarity and type narrowing
     request.user = request.user;
   } catch (err) {
-    // Log failure context without exposing token data
+    // Log auth failures with sanitized context
     request.log.warn(
       {
         url: request.url,
@@ -32,6 +33,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       'Authentication failed'
     );
 
+    // Use jsonwebtoken error types for differentiation
     if (err instanceof TokenExpiredError) {
       return reply.status(401).send({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
     }
