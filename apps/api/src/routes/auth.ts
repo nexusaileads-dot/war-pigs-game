@@ -27,7 +27,7 @@ async function findOrCreateUserFromTelegramUser(telegramUser: {
       if (existingUser) {
         return tx.user.update({
           where: { id: existingUser.id },
-           {
+          data: {
             username: telegramUser.username,
             firstName: telegramUser.first_name,
             lastName: telegramUser.last_name,
@@ -42,7 +42,7 @@ async function findOrCreateUserFromTelegramUser(telegramUser: {
       }
 
       const createdUser = await tx.user.create({
-         {
+        data: {
           telegramId,
           username: telegramUser.username,
           firstName: telegramUser.first_name,
@@ -75,7 +75,7 @@ async function findOrCreateUserFromTelegramUser(telegramUser: {
       // NOTE: Ensure unique constraint exists on InventoryItem for (userId, itemType, characterId/weaponId)
       // to guarantee idempotency under concurrent requests.
       await tx.inventoryItem.createMany({
-         [
+        data: [
           {
             userId: createdUser.id,
             itemType: 'CHARACTER',
