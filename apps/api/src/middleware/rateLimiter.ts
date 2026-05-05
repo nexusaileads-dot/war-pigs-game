@@ -15,6 +15,9 @@ export interface RouteRateLimitConfig {
 /**
  * Factory function to generate a route-specific rate limit preHandler.
  * Usage: preHandler: createRouteRateLimiter({ max: 5, timeWindow: '15 minutes' })
+ * 
+ * Note: Actual enforcement is handled by @fastify/rate-limit plugin when config
+ * is passed via route options. This function is a placeholder for future extension.
  */
 export const createRouteRateLimiter = (config: RouteRateLimitConfig) => {
   // Warning for multi-instance environments (dev-only)
@@ -22,12 +25,9 @@ export const createRouteRateLimiter = (config: RouteRateLimitConfig) => {
     console.warn('⚠️ Route rate limiter using in-memory storage in multi-instance deployment. Consider enabling Redis.');
   }
 
-  // Return a preHandler hook that delegates to Fastify's rate-limit context
-  // Note: Actual enforcement is handled by the plugin when config is passed via route options.
+  // Return a no-op preHandler hook. Actual rate limiting is handled by the plugin
+  // when config is attached to reply.context.config.rateLimit
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    // This hook is a placeholder for config attachment.
-    // Real enforcement is handled by the plugin when config is passed via route options.
-    // See: https://github.com/fastify/fastify-rate-limit#per-route-configuration
     return;
   };
 };
@@ -51,6 +51,5 @@ export const authRateLimitConfig: RouteRateLimitConfig = {
 };
 
 // Legacy export aliases for backward compatibility during refactor
-// Note: These are now direct config objects, not nested under 'config'
 export const strictRateLimit = strictRateLimitConfig;
 export const authRateLimit = authRateLimitConfig;
