@@ -1,72 +1,185 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { GameScene } from '../game/scenes/GameScene';
 
 export const GameCanvas: React.FC = () => {
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    // Prevent double initialization
     if (!containerRef.current || gameRef.current) return;
 
-    // Verify session exists
+    // 1. Validate session before starting
     const sessionData = sessionStorage.getItem('currentRun');
     if (!sessionData) {
-      console.error('[GameCanvas] No active session found');
+      setError('No active mission session found. Please deploy from the menu.');
+      console.error('[GameCanvas] Session missing in sessionStorage');
       return;
     }
 
-    const config: Phaser.Types.Core.GameConfig = {
-      type: Phaser.AUTO,
-      parent: containerRef.current,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: '#000000',
-      scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-      },
-      physics: {
-        default: 'arcade',
-        arcade: {
-          gravity: { y: 0 },
-          debug: false
+    try {
+      // Parse session to verify it's valid JSON
+      const session = JSON.parse(sessionData);
+      if (!session?.run?.id || !session?.sessionToken) {
+        throw new Error('Invalid session payload');
+      }
+
+      console.log('[GameCanvas] Initializing Phaser with session:', session.run.id);
+
+      // 2. Phaser Configuration
+      const config: Phaser.Types.Core.GameConfig = {
+        type: Phaser.AUTO, // Automatically picks WebGL or Canvas
+        parent: containerRef.current,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        backgroundColor: '#0a0a0a',
+        scale: {
+          mode: Phaser.Scale.FIT,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+          min: { width: 320, height: 480 },
+          max: { width: 1920, height: 1080 }
+        },
+        physics: {
+          default: 'arcade',
+          arcade: {
+            gravity: { y: 1200 },
+            debug: false
+          }        },
+        scene: [GameScene],
+        autoFocus: true,
+        input: {
+          keyboard: true,
+          mouse: true,
+          touch: true
         }
-      },
-      scene: [GameScene],
-      autoFocus: true
-    };
+      };
 
-    gameRef.current = new Phaser.Game(config);
+      // 3. Create Game Instance
+      gameRef.current = new Phaser.Game(config);
 
-    // Handle resize
-    const handleResize = () => {
-      if (gameRef.current) {
-        gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
-      }
-    };
+      // Listen for Phaser ready event
+      gameRef.current.events.on('ready', () => {
+        console.log('[GameCanvas] Phaser engine initialized successfully');
+        setIsReady(true);
+      });
 
-    window.addEventListener('resize', handleResize);
+      gameRef.current.events.on('start', () => {
+        console.log('[GameCanvas] GameScene started');
+      });
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (gameRef.current) {
-        gameRef.current.destroy(true);
-        gameRef.current = null;
-      }
-    };
+      // 4. Handle Window Resizing
+      const handleResize = () => {
+        if (gameRef.current) {
+          gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // 5. Cleanup on Unmount
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (gameRef.current) {
+          console.log('[GameCanvas] Destroying Phaser instance');
+          gameRef.current.destroy(true);
+          gameRef.current = null;
+        }
+      };
+    } catch (err) {
+      console.error('[GameCanvas] Initialization failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to initialize game engine');
+    }
   }, []);
 
+  // Error State UI
+  if (error) {
+    return (      <div style={errorContainerStyle}>
+        <div style={errorBoxStyle}>
+          <h2 style={{ color: '#ff4444', marginBottom: '10px', fontSize: '20px' }}>MISSION ERROR</h2>
+          <p style={{ color: '#ccc', marginBottom: '20px', fontSize: '14px' }}>{error}</p>
+          <button 
+            onClick={() => {
+              sessionStorage.removeItem('currentRun');
+              window.location.reload();
+            }} 
+            style={retryButtonStyle}
+          >
+            RETURN TO MENU
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading State UI
+  if (!isReady) {
+    return (
+      <div style={loadingContainerStyle}>
+        <div style={{ color: '#ff6b35', fontSize: '24px', fontWeight: 'bold', letterSpacing: '0.05em' }}>
+          DEPLOYING TO MISSION...
+        </div>
+      </div>
+    );
+  }
+
+  // Active Game Canvas
   return (
     <div
       ref={containerRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        background: '#000',
-        touchAction: 'none',
-        overflow: 'hidden'
-      }}
+      style={canvasContainerStyle}
+      onContextMenu={(e) => e.preventDefault()} // Disable right-click context menu
     />
   );
+};
+
+// --- Styles ---
+const errorContainerStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#0a0a0a'
+};
+
+const errorBoxStyle: React.CSSProperties = {  background: '#1a1111',
+  border: '2px solid #5a1f1f',
+  borderRadius: '12px',
+  padding: '24px',
+  textAlign: 'center',
+  maxWidth: '90%',
+  width: '400px'
+};
+
+const retryButtonStyle: React.CSSProperties = {
+  padding: '12px 24px',
+  background: '#ff6b35',
+  border: 'none',
+  borderRadius: '8px',
+  color: '#fff',
+  fontWeight: 'bold',
+  fontSize: '14px',
+  cursor: 'pointer',
+  textTransform: 'uppercase'
+};
+
+const loadingContainerStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#0a0a0a'
+};
+
+const canvasContainerStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  background: '#000',
+  touchAction: 'none', // Prevents browser zoom/scroll on mobile
+  overflow: 'hidden',
+  position: 'relative'
 };
