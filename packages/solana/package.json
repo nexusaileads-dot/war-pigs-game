@@ -1,24 +1,18 @@
 {
   "name": "@war-pigs/solana",
   "version": "1.0.0",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "type": "commonjs",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "dev": "tsc --watch"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.91.0",
-    "@solana/spl-token": "^0.4.1",
-    "bs58": "^5.0.0"
+    "@solana/web3.js": "^1.87.6"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
   }
 }
