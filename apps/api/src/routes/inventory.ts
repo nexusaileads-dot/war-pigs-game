@@ -22,7 +22,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'weaponId is required' });
     }
 
-    // Move validation inside transaction to prevent race conditions (e.g., balance drain)
+    // Move validation inside transaction to prevent race conditions
     try {
       const result = await prisma.$transaction(async (tx) => {
         const profile = await tx.profile.findUnique({ where: { userId } });
@@ -74,7 +74,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         itemType: 'WEAPON',
         weaponId,
         upgradeLevel: result.upgradeLevel,
-        cost: getWeaponUpgradeCost(result.upgradeLevel - 1), // Cost of the upgrade just performed
+        cost: getWeaponUpgradeCost(result.upgradeLevel - 1),
         currentPigs: result.currentPigs
       };
     } catch (error) {
@@ -132,7 +132,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         ]);
 
         await tx.transaction.create({
-           {
+          data: {
             userId,
             type: 'SPEND',
             amount: cost,
