@@ -524,4 +524,29 @@ const thumbButtonStyle: React.CSSProperties = {
   display: 'flex', 
   alignItems: 'center', 
   justifyContent: 'center', 
-  flexShrink
+  flexShrink: 0, 
+  cursor: 'pointer' 
+};
+
+const infoButtonStyle: React.CSSProperties = { 
+  flex: 1, 
+  minWidth: 0, 
+  border: 'none', 
+  background: 'transparent', 
+  padding: 0, 
+  color: '#fff', 
+  textAlign: 'left', 
+  cursor: 'pointer' 
+};
+const notificationStyle = (type: 'success' | 'error'): React.CSSProperties => ({
+  position: 'fixed', 
+  top: 20, 
+  left: '50%', 
+  transform: 'translateX(-50%)',
+  background: type === 'error' ? '#8b2e2e' : '#2e7d32',
+  color: '#fff', 
+  padding: '10px 20px', 
+  borderRadius: 8, 
+  zIndex: 9999, 
+  fontWeight: 700 
+});
