@@ -20,10 +20,11 @@ model User {
 
   profile      Profile?
   wallet       Wallet?
-  stats        PlayerStats?    // Note: Prisma generates prisma.playerStats
+  stats        PlayerStats?
   inventory    InventoryItem[]
   runs         GameRun[]
   transactions Transaction[]
+  rewardGrants RewardGrant[]   // Added relation
 }
 
 model Profile {
@@ -89,7 +90,6 @@ model InventoryItem {
   character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Restrict)
   weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Restrict)
 
-  // Fixed constraints: includes itemType to prevent NULL-based duplicates
   @@unique([userId, itemType, characterId])
   @@unique([userId, itemType, weaponId])
   @@index([userId])
@@ -184,14 +184,29 @@ model Transaction {
   type        TransactionType
   amount      Int
   description String?
-  referenceId String?         // e.g., runId, payoutId
-  txHash      String?         // Solana TX or internal ID
+  referenceId String?
+  txHash      String?
   createdAt   DateTime        @default(now())
 
   @@index([userId])
   @@index([type])
   @@index([referenceId])
   @@index([createdAt(sort: Desc)])
+}
+
+// Added missing model for idempotent rewards
+model RewardGrant {
+  id          String   @id @default(uuid())
+  runId       String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pigsGranted Int      @default(0)
+  xpGranted   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([runId, userId])
+  @@index([runId])
+  @@index([userId])
 }
 
 enum InventoryItemType {
