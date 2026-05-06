@@ -3,7 +3,8 @@ import { apiClient } from '../api/client';
 
 interface User {
   id: string;
-  telegramId: string;
+  telegramId?: string;
+  email?: string;
   username?: string;
   firstName?: string;
   lastName?: string;
@@ -39,14 +40,14 @@ interface GameState {
   walletProviderName: string | null;
 
   initAuth: () => Promise<void>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
   refreshProfile: () => Promise<void>;
   equipItem: (type: 'character' | 'weapon', id: string) => Promise<{ success: boolean; error?: string }>;
   setConnectedWallet: (address: string | null, providerName?: string | null) => void;
   clearConnectedWallet: () => void;
   logout: () => void;
 }
-
-const DEV_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
 
 export const useGameStore = create<GameState>((set, get) => ({
   user: null,
@@ -58,48 +59,48 @@ export const useGameStore = create<GameState>((set, get) => ({
   walletProviderName: localStorage.getItem('solanaWalletProvider'),
 
   initAuth: async () => {
+    const existingToken = localStorage.getItem('token');
+    
+    if (existingToken) {
+      try {
+        const { data } = await apiClient.get('/api/auth/me');
+        set({ user: data.user, token: existingToken, isLoading: false });
+        return;
+      } catch (error) {
+        console.error('[GameStore] Token validation failed:', error);
+        localStorage.removeItem('token');
+        set({ token: null });
+      }
+    }
+
+    set({ user: null, token: null, isLoading: false });
+  },
+
+  login: async (email, password) => {
     try {
-      const tg = window.Telegram?.WebApp;
-      const existingToken = localStorage.getItem('token');
+      set({ isLoading: true });
+      const { data } = await apiClient.post('/api/auth/login', { email, password });
+      localStorage.setItem('token', data.token);
+      set({ user: data.user, token: data.token, isLoading: false });
+      return { success: true };
+    } catch (error: any) {
+      const msg = error.response?.data?.error || 'Login failed';
+      set({ isLoading: false });
+      return { success: false, error: msg };
+    }
+  },
 
-      if (tg?.initData) {
-        const { data } = await apiClient.post('/api/auth/telegram', { initData: tg.initData });
-        localStorage.setItem('token', data.token);
-        set({ user: data.user, token: data.token, isLoading: false });
-        return;
-      }
-
-      if (existingToken) {
-        try {
-          const { data } = await apiClient.get('/api/auth/me');
-          set({ user: data.user, token: existingToken, isLoading: false });
-          return;
-        } catch (meError: any) {
-          // Handle expired/invalid token explicitly
-          if (meError.response?.status === 401 || meError.response?.status === 403) {
-            localStorage.removeItem('token');
-            set({ token: null });
-            // Fall through to dev login or null state
-          } else {
-            throw meError;
-          }
-        }
-      }
-
-      if (DEV_LOGIN_ENABLED) {
-        const { data } = await apiClient.post('/api/auth/dev-login');
-        localStorage.setItem('token', data.token);
-        set({ user: data.user, token: data.token, isLoading: false });
-        return;
-      }
-
-      localStorage.removeItem('token');
-      set({ user: null, token: null, isLoading: false });
-    } catch (error) {
-      console.error('[GameStore] Auth failed:', error);
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('hasActiveRun'); // Fixed key mismatch
-      set({ user: null, token: null, isLoading: false });
+  register: async (email, password, username) => {
+    try {
+      set({ isLoading: true });
+      const { data } = await apiClient.post('/api/auth/register', { email, password, username });
+      localStorage.setItem('token', data.token);
+      set({ user: data.user, token: data.token, isLoading: false });
+      return { success: true };
+    } catch (error: any) {
+      const msg = error.response?.data?.error || 'Registration failed';
+      set({ isLoading: false });
+      return { success: false, error: msg };
     }
   },
 
@@ -114,7 +115,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       console.error('[GameStore] Failed to refresh profile:', error);
       if ((error as any).response?.status === 401) {
         localStorage.removeItem('token');
-        sessionStorage.removeItem('hasActiveRun');
         set({ user: null, token: null });
       }
     }
@@ -133,7 +133,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       await get().refreshProfile();
       return { success: true };
     } catch (error) {
-      console.error('[GameStore] Failed to equip item:', error);
       return { success: false, error: (error as any).response?.data?.error || 'Equip failed' };
     } finally {
       set({ isEquipPending: false });
@@ -160,7 +159,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     localStorage.removeItem('token');
     localStorage.removeItem('solanaWalletAddress');
     localStorage.removeItem('solanaWalletProvider');
-    sessionStorage.removeItem('hasActiveRun'); // Fixed key mismatch
     set({
       user: null,
       token: null,
