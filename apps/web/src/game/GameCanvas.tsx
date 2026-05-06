@@ -2,111 +2,54 @@ import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
-import { useGameStore } from '../store/gameStore';
-import { useGameNotice } from '../components/GameNoticeProvider';
 
-type WarPigsEventDetail =
-  | {
-      type: 'STATE_CHANGE';
-      state?: 'victory' | 'defeat' | 'paused';
-    }
-  | {
-      type: 'PLAYER_HIT';
-      damage?: number;
-    }
-  | {
-      type: 'KILLS_UPDATE';
-      kills?: number;
-    };
+type GameCanvasProps = {
+  onExit?: () => void | Promise<void>;
+};
 
-const GAME_BASE_WIDTH = 1600;
-const GAME_BASE_HEIGHT = 900;
-
-export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
   const gameRef = useRef<Phaser.Game | null>(null);
-  const isMountedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isExitingRef = useRef(false);
 
-  const [isPaused, setIsPaused] = useState(false);
-  const [viewport, setViewport] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : GAME_BASE_WIDTH,
-    height: typeof window !== 'undefined' ? window.innerHeight : GAME_BASE_HEIGHT
-  });
-
-  const { refreshProfile } = useGameStore();
-  const { showNotice } = useGameNotice();
-
-  const isLandscape = viewport.width >= viewport.height;
+  const [error, setError] = useState<string | null>(null);
+  const [isBooting, setIsBooting] = useState(true);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    if (!containerRef.current || gameRef.current) return;
 
-    const updateViewport = () => {
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-    };
+    const sessionData = sessionStorage.getItem('currentRun');
 
-    updateViewport();
-
-    window.addEventListener('resize', updateViewport);
-    window.addEventListener('orientationchange', updateViewport);
-
-    return () => {
-      isMountedRef.current = false;
-      window.removeEventListener('resize', updateViewport);
-      window.removeEventListener('orientationchange', updateViewport);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isLandscape) return;
-    if (!containerRef.current) return;
-    if (gameRef.current) return;
-
-    const runDataRaw = sessionStorage.getItem('currentRun');
-
-    if (!runDataRaw) {
-      showNotice({
-        title: 'No Active Mission',
-        message: 'No active mission session was found.',
-        variant: 'warning'
-      });
-
-      void onExit();
+    if (!sessionData) {
+      setError('No active mission session found. Deploy from the mission screen.');
+      console.error('[GameCanvas] Missing currentRun in sessionStorage');
       return;
     }
 
     try {
-      JSON.parse(runDataRaw);
-    } catch (error) {
-      console.error('[GameCanvas] Invalid currentRun JSON:', error);
+      const session = JSON.parse(sessionData);
+
+      if (!session?.run?.id || !session?.sessionToken) {
+        throw new Error('Invalid mission session payload.');
+      }
+
+      console.log('[GameCanvas] Starting mission:', session.run.id);
+    } catch (err) {
+      console.error('[GameCanvas] Invalid currentRun:', err);
       sessionStorage.removeItem('currentRun');
-
-      showNotice({
-        title: 'Mission Error',
-        message: 'Mission session data is corrupted.',
-        variant: 'error'
-      });
-
-      void onExit();
+      setError('Mission session data is invalid.');
       return;
     }
-
-    isExitingRef.current = false;
-    setIsPaused(false);
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: containerRef.current,
+      width: window.innerWidth,
+      height: window.innerHeight,
       backgroundColor: '#000000',
       pixelArt: false,
       antialias: true,
       roundPixels: false,
-      width: GAME_BASE_WIDTH,
-      height: GAME_BASE_HEIGHT,
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.NO_CENTER,
@@ -124,23 +67,24 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         }
       },
       input: {
-        activePointers: 5
+        activePointers: 5,
+        keyboard: true,
+        mouse: true,
+        touch: true
+      },
+      render: {
+        pixelArt: false,
+        antialias: true
       },
       scene: [BootScene, GameScene]
     };
 
     try {
       gameRef.current = new Phaser.Game(config);
-    } catch (error) {
-      console.error('[GameCanvas] Failed to create Phaser game:', error);
-
-      showNotice({
-        title: 'Game Failed',
-        message: 'The mission could not be started.',
-        variant: 'error'
-      });
-
-      void onExit();
+      setIsBooting(false);
+    } catch (err) {
+      console.error('[GameCanvas] Failed to initialize Phaser:', err);
+      setError(err instanceof Error ? err.message : 'Failed to initialize game engine.');
       return;
     }
 
@@ -149,97 +93,50 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
     };
 
-    handleResize();
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-
     const handleGameEvent = async (event: Event) => {
-      const customEvent = event as CustomEvent<WarPigsEventDetail>;
+      const customEvent = event as CustomEvent<{
+        type?: string;
+        state?: 'victory' | 'defeat' | 'paused';
+      }>;
+
       const detail = customEvent.detail;
 
       if (!detail || isExitingRef.current) return;
+      if (detail.type !== 'STATE_CHANGE') return;
+      if (detail.state === 'paused') return;
 
-      if (detail.type === 'PLAYER_HIT') {
-        return;
-      }
-
-      if (detail.type === 'KILLS_UPDATE') {
-        return;
-      }
-
-      if (detail.type === 'STATE_CHANGE') {
-        if (detail.state === 'paused') {
-          setIsPaused(true);
-          return;
-        }
-
+      if (detail.state === 'victory' || detail.state === 'defeat') {
         isExitingRef.current = true;
         sessionStorage.removeItem('currentRun');
 
-        if (detail.state === 'victory') {
-          try {
-            await refreshProfile();
-          } catch (error) {
-            console.error('[GameCanvas] Failed to refresh profile after victory:', error);
-          }
-
-          if (isMountedRef.current) {
-            showNotice({
-              title: 'Mission Accomplished',
-              message: '+$PIGS added to your armory.',
-              variant: 'success'
-            });
-          }
-
-          await onExit();
-          return;
+        if (gameRef.current) {
+          gameRef.current.destroy(true);
+          gameRef.current = null;
         }
 
-        if (detail.state === 'defeat') {
-          if (isMountedRef.current) {
-            showNotice({
-              title: 'Mission Failed',
-              message: 'Your squad was eliminated.',
-              variant: 'error'
-            });
-          }
-
+        if (onExit) {
           await onExit();
         }
       }
     };
 
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
     window.addEventListener('WAR_PIGS_EVENT', handleGameEvent);
 
     return () => {
-      window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
 
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
-  }, [isLandscape, onExit, refreshProfile, showNotice]);
+  }, [onExit]);
 
-  const resumeGame = () => {
-    if (!gameRef.current) return;
-
-    const scene = gameRef.current.scene.getScene('GameScene');
-
-    if (scene?.scene?.isPaused()) {
-      scene.scene.resume();
-    }
-
-    setIsPaused(false);
-  };
-
-  const quitMission = async () => {
-    if (isExitingRef.current) return;
-
-    isExitingRef.current = true;
+  const returnToMenu = async () => {
     sessionStorage.removeItem('currentRun');
 
     if (gameRef.current) {
@@ -247,7 +144,12 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       gameRef.current = null;
     }
 
-    await onExit();
+    if (onExit) {
+      await onExit();
+      return;
+    }
+
+    window.location.reload();
   };
 
   return (
@@ -262,185 +164,102 @@ export const GameCanvas: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         touchAction: 'none',
         userSelect: 'none'
       }}
+      onContextMenu={(event) => event.preventDefault()}
     >
-      {!isLandscape ? (
-        <RotateDeviceScreen />
-      ) : (
-        <>
+      <div
+        ref={containerRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          background: '#000',
+          touchAction: 'none'
+        }}
+      />
+
+      {isBooting && !error ? (
+        <div style={overlayStyle}>
           <div
-            ref={containerRef}
             style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              overflow: 'hidden',
-              background: '#000',
-              touchAction: 'none'
+              color: '#ff6b35',
+              fontSize: '24px',
+              fontWeight: 900,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase'
             }}
-          />
+          >
+            Deploying to Mission...
+          </div>
+        </div>
+      ) : null}
 
-          {isPaused ? <PauseOverlay onResume={resumeGame} onQuit={() => void quitMission()} /> : null}
-        </>
-      )}
+      {error ? (
+        <div style={overlayStyle}>
+          <div style={errorBoxStyle}>
+            <h2
+              style={{
+                color: '#ff4444',
+                margin: '0 0 10px',
+                fontSize: '20px',
+                textTransform: 'uppercase'
+              }}
+            >
+              Mission Error
+            </h2>
+
+            <p
+              style={{
+                color: '#ccc',
+                margin: '0 0 20px',
+                fontSize: '14px',
+                lineHeight: 1.45
+              }}
+            >
+              {error}
+            </p>
+
+            <button type="button" onClick={() => void returnToMenu()} style={buttonStyle}>
+              Return to Menu
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
 
-const RotateDeviceScreen: React.FC = () => {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-        background: 'radial-gradient(circle at center, #1a1a1a 0%, #000 70%)',
-        boxSizing: 'border-box'
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '420px',
-          padding: '28px 22px',
-          border: '2px solid #ff6b35',
-          borderRadius: '16px',
-          background: 'rgba(0,0,0,0.82)',
-          boxShadow: '0 0 24px rgba(255, 107, 53, 0.28)',
-          textAlign: 'center',
-          color: '#fff'
-        }}
-      >
-        <div
-          style={{
-            fontSize: '42px',
-            marginBottom: '14px'
-          }}
-        >
-          ↺
-        </div>
-
-        <div
-          style={{
-            fontSize: '24px',
-            fontWeight: 800,
-            color: '#ff6b35',
-            marginBottom: '10px',
-            textTransform: 'uppercase'
-          }}
-        >
-          Rotate Device
-        </div>
-
-        <div
-          style={{
-            fontSize: '15px',
-            lineHeight: 1.5,
-            color: '#cfcfcf'
-          }}
-        >
-          War Pigs side-scroller missions are optimized for landscape mode.
-        </div>
-      </div>
-    </div>
-  );
+const overlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  zIndex: 30,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#0a0a0a',
+  padding: '20px',
+  boxSizing: 'border-box'
 };
 
-const PauseOverlay: React.FC<{
-  onResume: () => void;
-  onQuit: () => void;
-}> = ({ onResume, onQuit }) => {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 20,
-        background: 'rgba(0,0,0,0.72)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-        boxSizing: 'border-box'
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '380px',
-          padding: '22px',
-          borderRadius: '18px',
-          border: '2px solid #ff6b35',
-          background: 'linear-gradient(180deg, #1d1d1d 0%, #090909 100%)',
-          boxShadow: '0 18px 44px rgba(255,107,53,0.25)',
-          color: '#fff',
-          textAlign: 'center'
-        }}
-      >
-        <div
-          style={{
-            fontSize: '28px',
-            fontWeight: 900,
-            color: '#ff6b35',
-            textTransform: 'uppercase',
-            marginBottom: '8px'
-          }}
-        >
-          Paused
-        </div>
+const errorBoxStyle: React.CSSProperties = {
+  background: '#1a1111',
+  border: '2px solid #5a1f1f',
+  borderRadius: '12px',
+  padding: '24px',
+  textAlign: 'center',
+  maxWidth: '90%',
+  width: '400px'
+};
 
-        <div
-          style={{
-            fontSize: '14px',
-            color: '#bdbdbd',
-            marginBottom: '18px'
-          }}
-        >
-          Mission is on standby.
-        </div>
-
-        <button
-          type="button"
-          onClick={onResume}
-          style={{
-            width: '100%',
-            padding: '14px 16px',
-            borderRadius: '12px',
-            border: 'none',
-            background: '#ff6b35',
-            color: '#fff',
-            fontWeight: 900,
-            fontSize: '15px',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            marginBottom: '10px'
-          }}
-        >
-          Resume
-        </button>
-
-        <button
-          type="button"
-          onClick={onQuit}
-          style={{
-            width: '100%',
-            padding: '14px 16px',
-            borderRadius: '12px',
-            border: '2px solid #555',
-            background: '#151515',
-            color: '#ddd',
-            fontWeight: 900,
-            fontSize: '15px',
-            textTransform: 'uppercase',
-            cursor: 'pointer'
-          }}
-        >
-          Quit Mission
-        </button>
-      </div>
-    </div>
-  );
+const buttonStyle: React.CSSProperties = {
+  padding: '12px 24px',
+  background: '#ff6b35',
+  border: 'none',
+  borderRadius: '8px',
+  color: '#fff',
+  fontWeight: 900,
+  fontSize: '14px',
+  cursor: 'pointer',
+  textTransform: 'uppercase'
 };
