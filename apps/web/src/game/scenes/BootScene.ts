@@ -47,7 +47,8 @@ export class BootScene extends Phaser.Scene {
     this.scene.start('GameScene');
   }
 
-  private createLoadingText() {    this.progressText = this.add
+  private createLoadingText() {
+    this.progressText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'LOADING ASSETS 0%', {
         fontSize: '22px',
         fontFamily: 'monospace',
@@ -96,7 +97,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image('blast_ham', getAssetUrl('sprites/Blast-Ham.png'));
     this.load.image('general_goldsnout', getAssetUrl('sprites/General-Goldsnout.png'));
 
-    // Fallback player    this.load.image('player', getAssetUrl('sprites/Grunt-Bacon.png'));
+    // Fallback player
+    this.load.image('player', getAssetUrl('sprites/Grunt-Bacon.png'));
   }
 
   private loadWeapons() {
@@ -111,16 +113,18 @@ export class BootScene extends Phaser.Scene {
   }
 
   private loadProjectiles() {
+    // FIXED: Mapped to actual files in project structure
     this.load.image('bullet', getAssetUrl('sprites/Standard-Bullet.png'));
-    this.load.image('sniper_bullet', getAssetUrl('sprites/Sniper-Round.png'));
+    this.load.image('sniper_bullet', getAssetUrl('sprites/Sniper-Caliber-Bullet.png'));
     this.load.image('plasma_globule', getAssetUrl('sprites/Plasma-Globule.png'));
-    this.load.image('rocket', getAssetUrl('sprites/Rocket.png'));
+    this.load.image('rocket', getAssetUrl('sprites/Explosive-Projectile.png'));
 
     this.load.image('player_bullet', getAssetUrl('sprites/Standard-Bullet.png'));
     this.load.image('enemy_bullet', getAssetUrl('sprites/Standard-Bullet.png'));
   }
 
   private loadVfx() {
-    this.load.image('explosion', getAssetUrl('sprites/Explosion.png'));
+    // FIXED: Mapped to actual file
+    this.load.image('explosion', getAssetUrl('sprites/Explosion-Effect.png'));
   }
 }
