@@ -29,13 +29,13 @@ export const GameCanvas: React.FC = () => {
 
       console.log('[GameCanvas] Initializing Phaser with session:', session.run.id);
 
-      // 2. Phaser Configuration
+      // 2. Phaser Configuration - MATCHES YOUR GameScene.ts REQUIREMENTS
       const config: Phaser.Types.Core.GameConfig = {
         type: Phaser.AUTO, // Automatically picks WebGL or Canvas
         parent: containerRef.current,
         width: window.innerWidth,
         height: window.innerHeight,
-        backgroundColor: '#0a0a0a',
+        backgroundColor: '#f0b66d', // Match your sky color
         scale: {
           mode: Phaser.Scale.FIT,
           autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -45,19 +45,24 @@ export const GameCanvas: React.FC = () => {
         physics: {
           default: 'arcade',
           arcade: {
-            gravity: { y: 1200 },
+            gravity: { y: 1850 }, // Match your GRAVITY_Y constant
             debug: false
           }        },
-        scene: [GameScene],
+        scene: [GameScene], // Your updated GameScene class
         autoFocus: true,
         input: {
           keyboard: true,
           mouse: true,
           touch: true
+        },
+        render: {
+          pixelArt: false,
+          antialias: true
         }
       };
 
       // 3. Create Game Instance
+      console.log('[GameCanvas] Creating Phaser.Game instance...');
       gameRef.current = new Phaser.Game(config);
 
       // Listen for Phaser ready event
@@ -68,6 +73,10 @@ export const GameCanvas: React.FC = () => {
 
       gameRef.current.events.on('start', () => {
         console.log('[GameCanvas] GameScene started');
+      });
+
+      gameRef.current.events.on('shutdown', () => {
+        console.log('[GameCanvas] GameScene shutdown');
       });
 
       // 4. Handle Window Resizing
@@ -87,8 +96,7 @@ export const GameCanvas: React.FC = () => {
           gameRef.current.destroy(true);
           gameRef.current = null;
         }
-      };
-    } catch (err) {
+      };    } catch (err) {
       console.error('[GameCanvas] Initialization failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to initialize game engine');
     }
@@ -96,7 +104,8 @@ export const GameCanvas: React.FC = () => {
 
   // Error State UI
   if (error) {
-    return (      <div style={errorContainerStyle}>
+    return (
+      <div style={errorContainerStyle}>
         <div style={errorBoxStyle}>
           <h2 style={{ color: '#ff4444', marginBottom: '10px', fontSize: '20px' }}>MISSION ERROR</h2>
           <p style={{ color: '#ccc', marginBottom: '20px', fontSize: '14px' }}>{error}</p>
@@ -136,8 +145,7 @@ export const GameCanvas: React.FC = () => {
 };
 
 // --- Styles ---
-const errorContainerStyle: React.CSSProperties = {
-  width: '100%',
+const errorContainerStyle: React.CSSProperties = {  width: '100%',
   height: '100%',
   display: 'flex',
   alignItems: 'center',
@@ -145,7 +153,8 @@ const errorContainerStyle: React.CSSProperties = {
   background: '#0a0a0a'
 };
 
-const errorBoxStyle: React.CSSProperties = {  background: '#1a1111',
+const errorBoxStyle: React.CSSProperties = {
+  background: '#1a1111',
   border: '2px solid #5a1f1f',
   borderRadius: '12px',
   padding: '24px',
