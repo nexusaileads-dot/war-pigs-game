@@ -28,39 +28,16 @@ export const AuthScene: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100vh',
-        background: '#0a0a0a',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        fontFamily: 'sans-serif'
-      }}
-    >
-      <div
-        style={{
-          background: '#141414',
-          border: '2px solid #333',
-          borderRadius: '16px',
-          padding: '40px',
-          width: '100%',
-          maxWidth: '400px',
-          boxSizing: 'border-box'
-        }}
-      >
+    <div style={containerStyle}>
+      <div style={cardStyle}>
         <h2 style={{ textAlign: 'center', marginTop: 0, color: '#ff6b35' }}>
           {mode === 'login' ? 'LOGIN' : 'REGISTER'}
         </h2>
 
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#888' }}>
-                USERNAME
-              </label>
+            <div style={inputGroupStyle}>
+              <label style={labelStyle}>USERNAME</label>
               <input
                 type="text"
                 value={username}
@@ -71,10 +48,8 @@ export const AuthScene: React.FC = () => {
             </div>
           )}
 
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#888' }}>
-              EMAIL
-            </label>
+          <div style={inputGroupStyle}>
+            <label style={labelStyle}>EMAIL</label>
             <input
               type="email"
               value={email}
@@ -84,10 +59,8 @@ export const AuthScene: React.FC = () => {
             />
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#888' }}>
-              PASSWORD
-            </label>
+          <div style={inputGroupStyle}>
+            <label style={labelStyle}>PASSWORD</label>
             <input
               type="password"
               value={password}
@@ -103,22 +76,7 @@ export const AuthScene: React.FC = () => {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '14px',
-              background: '#ff6b35',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: '14px',
-              cursor: 'pointer',
-              opacity: isLoading ? 0.6 : 1
-            }}
-          >
+          <button type="submit" disabled={isLoading} style={buttonStyle(isLoading)}>
             {isLoading ? 'PROCESSING...' : mode === 'login' ? 'LOGIN' : 'CREATE ACCOUNT'}
           </button>
         </form>
@@ -127,14 +85,14 @@ export const AuthScene: React.FC = () => {
           {mode === 'login' ? (
             <>
               Don't have an account?{' '}
-              <button onClick={() => setMode('register')} style={linkStyle}>
+              <button onClick={() => { setMode('register'); setError(null); }} style={linkStyle}>
                 Register
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => setMode('login')} style={linkStyle}>
+              <button onClick={() => { setMode('login'); setError(null); }} style={linkStyle}>
                 Login
               </button>
             </>
@@ -143,6 +101,39 @@ export const AuthScene: React.FC = () => {
       </div>
     </div>
   );
+};
+
+// Styles
+const containerStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100vh',
+  background: '#0a0a0a',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#fff',
+  fontFamily: 'sans-serif'
+};
+
+const cardStyle: React.CSSProperties = {
+  background: '#141414',
+  border: '2px solid #333',
+  borderRadius: '16px',
+  padding: '40px',
+  width: '100%',
+  maxWidth: '400px',
+  boxSizing: 'border-box'
+};
+
+const inputGroupStyle: React.CSSProperties = {
+  marginBottom: '16px'
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  marginBottom: '6px',
+  fontSize: '12px',
+  color: '#888'
 };
 
 const inputStyle: React.CSSProperties = {
@@ -155,6 +146,19 @@ const inputStyle: React.CSSProperties = {
   fontSize: '14px',
   boxSizing: 'border-box'
 };
+
+const buttonStyle = (loading: boolean): React.CSSProperties => ({
+  width: '100%',
+  padding: '14px',
+  background: '#ff6b35',
+  border: 'none',
+  borderRadius: '8px',
+  color: '#fff',
+  fontWeight: 800,
+  fontSize: '14px',
+  cursor: loading ? 'not-allowed' : 'pointer',
+  opacity: loading ? 0.6 : 1
+});
 
 const linkStyle: React.CSSProperties = {
   background: 'none',
