@@ -35,7 +35,6 @@ interface GameState {
   token: string | null;
   isLoading: boolean;
   isEquipPending: boolean;
-
   connectedWalletAddress: string | null;
   walletProviderName: string | null;
 
@@ -54,13 +53,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   token: localStorage.getItem('token'),
   isLoading: true,
   isEquipPending: false,
-
   connectedWalletAddress: localStorage.getItem('solanaWalletAddress'),
   walletProviderName: localStorage.getItem('solanaWalletProvider'),
 
   initAuth: async () => {
     const existingToken = localStorage.getItem('token');
-    
     if (existingToken) {
       try {
         const { data } = await apiClient.get('/api/auth/me');
@@ -72,7 +69,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ token: null });
       }
     }
-
     set({ user: null, token: null, isLoading: false });
   },
 
@@ -107,7 +103,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   refreshProfile: async () => {
     const token = get().token;
     if (!token) return;
-
     try {
       const { data } = await apiClient.get('/api/auth/me');
       set({ user: data.user });
@@ -142,10 +137,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setConnectedWallet: (address, providerName = null) => {
     if (address) localStorage.setItem('solanaWalletAddress', address);
     else localStorage.removeItem('solanaWalletAddress');
-
     if (providerName) localStorage.setItem('solanaWalletProvider', providerName);
     else localStorage.removeItem('solanaWalletProvider');
-
     set({ connectedWalletAddress: address, walletProviderName: providerName });
   },
 
