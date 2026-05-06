@@ -59,6 +59,22 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearTimer();
   }, []);
 
+  // ADDED: Listen for global event dispatched by LevelSelect and other components
+  useEffect(() => {
+    const handleGlobalNotice = (e: Event) => {
+      const customEvent = e as CustomEvent<NoticePayload>;
+      if (customEvent.detail) {
+        showNotice(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('WAR_PIGS_NOTICE', handleGlobalNotice);
+    
+    return () => {
+      window.removeEventListener('WAR_PIGS_NOTICE', handleGlobalNotice);
+    };
+  }, [showNotice]);
+
   // Lock body scroll when notice is visible
   useEffect(() => {
     const body = document.body;
@@ -107,7 +123,7 @@ export const GameNoticeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             alignItems: 'center',
             justifyContent: 'center',
             padding: '20px',
-            backdropFilter: 'blur(4px)' // Add slight blur for better focus
+            backdropFilter: 'blur(4px)'
           }}
         >
           <div
