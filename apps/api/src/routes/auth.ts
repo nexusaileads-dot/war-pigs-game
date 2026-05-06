@@ -19,9 +19,7 @@ const generateUniqueUsername = async (base: string): Promise<string> => {
 };
 
 async function provisionUserAssets(userId: string, username: string) {
-  // Use transaction to ensure atomicity
   await prisma.$transaction(async (tx) => {
-    // Create Profile
     await tx.profile.upsert({
       where: { userId },
       update: {},
@@ -36,21 +34,18 @@ async function provisionUserAssets(userId: string, username: string) {
       }
     });
 
-    // Create Wallet
     await tx.wallet.upsert({
       where: { userId },
       update: {},
       create: { userId }
     });
 
-    // Create Stats
     await tx.playerStats.upsert({
       where: { userId },
       update: {},
       create: { userId }
     });
 
-    // Grant Starter Items
     await tx.inventoryItem.createMany({
       data: [
         { userId, itemType: 'CHARACTER', characterId: 'grunt_bacon' },
@@ -62,7 +57,6 @@ async function provisionUserAssets(userId: string, username: string) {
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
-  // Rate limiting hook
   fastify.addHook('preHandler', async (request, reply) => {
     if (request.url.startsWith('/api/auth')) {
       (reply.context.config as any).rateLimit = authRateLimitConfig;
@@ -140,10 +134,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         include: { profile: true, wallet: true, stats: true }
       });
 
+      // Detects non-registered emails or missing password
       if (!user || !user.passwordHash) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
+      // Detects wrong password
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) {
         return reply.status(401).send({ error: 'Invalid credentials' });
@@ -169,7 +165,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // --- TELEGRAM LOGIN (Optional / Legacy) ---
+  // --- TELEGRAM LOGIN (Legacy) ---
   fastify.post('/telegram', async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const initData = body?.initData as string | undefined;
