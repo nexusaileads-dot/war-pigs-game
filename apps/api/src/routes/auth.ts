@@ -1,230 +1,238 @@
-generator client {
-  provider = "prisma-client-js"
+import { FastifyInstance } from 'fastify';
+import { prisma } from '@war-pigs/database';
+import { validateTelegramData } from '../middleware/validateTelegram';
+import { authenticate } from '../middleware/auth';
+import { authRateLimitConfig } from '../middleware/rateLimiter';
+import bcrypt from 'bcryptjs';
+
+// Helper to generate a unique username if collision occurs
+const generateUniqueUsername = async (base: string): Promise<string> => {
+  let username = base;
+  let exists = await prisma.user.findUnique({ where: { username } });
+  let counter = 1;
+  while (exists) {
+    username = `${base}${counter}`;
+    exists = await prisma.user.findUnique({ where: { username } });
+    counter++;
+  }
+  return username;
+};
+
+async function provisionUserAssets(userId: string, username: string) {
+  // Use transaction to ensure atomicity
+  await prisma.$transaction(async (tx) => {
+    // Create Profile
+    await tx.profile.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        level: 1,
+        xp: 0,
+        totalPigsEarned: 0,
+        currentPigs: 5000,
+        equippedCharacterId: 'grunt_bacon',
+        equippedWeaponId: 'oink_pistol'
+      }
+    });
+
+    // Create Wallet
+    await tx.wallet.upsert({
+      where: { userId },
+      update: {},
+      create: { userId }
+    });
+
+    // Create Stats
+    await tx.playerStats.upsert({
+      where: { userId },
+      update: {},
+      create: { userId }
+    });
+
+    // Grant Starter Items
+    await tx.inventoryItem.createMany({
+      data: [
+        { userId, itemType: 'CHARACTER', characterId: 'grunt_bacon' },
+        { userId, itemType: 'WEAPON', weaponId: 'oink_pistol' }
+      ],
+      skipDuplicates: true
+    });
+  });
 }
 
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
+export async function authRoutes(fastify: FastifyInstance) {
+  // Rate limiting hook
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.url.startsWith('/api/auth')) {
+      (reply.context.config as any).rateLimit = authRateLimitConfig;
+    }
+  });
 
-model User {
-  id           String          @id @default(uuid())
-  telegramId   String?         @unique // Optional for email login users
-  email        String?         @unique // Added for email login
-  passwordHash String?         // Added for email login
-  username     String?
-  firstName    String?
-  lastName     String?
-  photoUrl     String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  // --- EMAIL REGISTRATION ---
+  fastify.post('/register', async (request, reply) => {
+    const body = request.body as Record<string, unknown>;
+    const email = (body?.email as string)?.toLowerCase().trim();
+    const password = body?.password as string;
+    const username = (body?.username as string)?.trim();
 
-  profile      Profile?
-  wallet       Wallet?
-  stats        PlayerStats?
-  inventory    InventoryItem[]
-  runs         GameRun[]
-  transactions Transaction[]
-  rewardGrants RewardGrant[]   // Added relation
-}
+    if (!email || !password || !username) {
+      return reply.status(400).send({ error: 'Email, password, and username are required' });
+    }
 
-model Profile {
-  id                  String     @id @default(uuid())
-  userId              String     @unique
-  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+    if (password.length < 6) {
+      return reply.status(400).send({ error: 'Password must be at least 6 characters' });
+    }
 
-  level               Int        @default(1)
-  xp                  Int        @default(0)
-  totalPigsEarned     Int        @default(0)
-  currentPigs         Int        @default(0)
-  equippedCharacterId String?
-  equippedWeaponId    String?
+    try {
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ email }, { username }] }
+      });
 
-  equippedCharacter   Character? @relation("EquippedCharacter", fields: [equippedCharacterId], references: [characterId], onDelete: SetNull)
-  equippedWeapon      Weapon?    @relation("EquippedWeapon", fields: [equippedWeaponId], references: [weaponId], onDelete: SetNull)
+      if (existingUser) {
+        if (existingUser.email === email) {
+          return reply.status(409).send({ error: 'Email already in use' });
+        }
+        return reply.status(409).send({ error: 'Username already taken' });
+      }
 
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+      const passwordHash = await bcrypt.hash(password, 10);
+      const finalUsername = await generateUniqueUsername(username);
 
-  @@index([totalPigsEarned], map: "idx_profile_earnings_desc")
-}
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          username: finalUsername,
+          firstName: finalUsername
+        }
+      });
 
-model Wallet {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+      await provisionUserAssets(user.id, finalUsername);
 
-  solanaAddress  String?
-  pendingRewards Int      @default(0)
-  claimedRewards Int      @default(0)
-  lastClaimAt    DateTime?
+      const token = fastify.jwt.sign({ userId: user.id });
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
+      const fullUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { profile: true, wallet: true, stats: true }
+      });
 
-model PlayerStats {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+      return { token, user: fullUser };
+    } catch (err) {
+      fastify.log.error({ err }, 'Registration failed');
+      return reply.status(500).send({ error: 'Registration failed' });
+    }
+  });
 
-  totalKills     Int      @default(0)
-  totalRuns      Int      @default(0)
-  totalBossKills Int      @default(0)
+  // --- EMAIL LOGIN ---
+  fastify.post('/login', async (request, reply) => {
+    const body = request.body as Record<string, unknown>;
+    const email = (body?.email as string)?.toLowerCase().trim();
+    const password = body?.password as string;
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
+    if (!email || !password) {
+      return reply.status(400).send({ error: 'Email and password are required' });
+    }
 
-model InventoryItem {
-  id           String            @id @default(uuid())
-  userId       String
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: true, wallet: true, stats: true }
+      });
 
-  itemType     InventoryItemType
-  characterId  String?
-  weaponId     String?
-  upgradeLevel Int               @default(0)
-  timesUsed    Int               @default(0)
-  acquiredAt   DateTime          @default(now())
+      if (!user || !user.passwordHash) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
 
-  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Restrict)
-  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Restrict)
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
 
-  @@unique([userId, itemType, characterId])
-  @@unique([userId, itemType, weaponId])
-  @@index([userId])
-  @@index([characterId])
-  @@index([weaponId])
-}
+      const token = fastify.jwt.sign({ userId: user.id });
 
-model Character {
-  characterId    String          @id
-  name           String
-  classType      String
-  description    String?
-  pricePigs      Int             @default(0)
-  unlockLevel    Int             @default(1)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+      return {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          photoUrl: user.photoUrl,
+          profile: user.profile,
+          wallet: user.wallet,
+          stats: user.stats
+        }
+      };
+    } catch (err) {
+      fastify.log.error({ err }, 'Login failed');
+      return reply.status(500).send({ error: 'Login failed' });
+    }
+  });
 
-  inventoryItems InventoryItem[]
-  equippedBy     Profile[]       @relation("EquippedCharacter")
-}
+  // --- TELEGRAM LOGIN (Optional / Legacy) ---
+  fastify.post('/telegram', async (request, reply) => {
+    const body = request.body as Record<string, unknown>;
+    const initData = body?.initData as string | undefined;
 
-model Weapon {
-  weaponId       String          @id
-  name           String
-  type           String
-  damage         Int
-  description    String?
-  pricePigs      Int             @default(0)
-  unlockLevel    Int             @default(1)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+    if (!initData) {
+      return reply.status(400).send({ error: 'Missing initData' });
+    }
 
-  inventoryItems InventoryItem[]
-  equippedBy     Profile[]       @relation("EquippedWeapon")
-}
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      return reply.status(500).send({ error: 'Server configuration error' });
+    }
 
-model Level {
-  id                String    @id @default(uuid())
-  levelNumber       Int       @unique
-  name              String
-  description       String
-  difficulty        Int
-  enemyTypes        String[]
-  waves             Int
-  bossId            String?
-  baseReward        Int
-  xpReward          Int
-  unlockRequirement Int       @default(0)
-  isBossLevel       Boolean   @default(false)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+    const telegramUser = validateTelegramData(initData, { botToken, logFailures: true });
+    if (!telegramUser) {
+      return reply.status(401).send({ error: 'Invalid Telegram data' });
+    }
 
-  runs              GameRun[]
-}
+    try {
+      const telegramId = telegramUser.id.toString();
+      let user = await prisma.user.findUnique({
+        where: { telegramId },
+        include: { profile: true, wallet: true, stats: true }
+      });
 
-model GameRun {
-  id              String        @id @default(uuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            username: telegramUser.username || `tg_${telegramUser.id}`,
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            photoUrl: telegramUser.photo_url
+          },
+          include: { profile: true, wallet: true, stats: true }
+        });
+        await provisionUserAssets(user.id, user.username || 'player');
+      }
 
-  levelId         String
-  level           Level         @relation(fields: [levelId], references: [id])
+      const token = fastify.jwt.sign({ userId: user.id });
 
-  characterId     String
-  weaponId        String
+      return { token, user };
+    } catch (err) {
+      fastify.log.error({ err }, 'Telegram auth failed');
+      return reply.status(500).send({ error: 'Authentication failed' });
+    }
+  });
 
-  status          GameRunStatus @default(ACTIVE)
-  score           Int           @default(0)
-  kills           Int           @default(0)
-  damageDealt     Int           @default(0)
-  damageTaken     Int           @default(0)
-  accuracy        Float         @default(0)
-  rewardsEarned   Int           @default(0)
-  xpEarned        Int           @default(0)
-  clientHash      String?
-  serverValidated Boolean       @default(false)
+  // --- GET CURRENT USER ---
+  fastify.get('/me', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: request.user.userId },
+        include: { profile: true, wallet: true, stats: true }
+      });
 
-  startedAt       DateTime      @default(now())
-  endedAt         DateTime?
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
 
-  @@index([userId])
-  @@index([levelId])
-  @@index([status])
-  @@index([startedAt])
-}
-
-model Transaction {
-  id          String          @id @default(uuid())
-  userId      String
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type        TransactionType
-  amount      Int
-  description String?
-  referenceId String?
-  txHash      String?
-  createdAt   DateTime        @default(now())
-
-  @@index([userId])
-  @@index([type])
-  @@index([referenceId])
-  @@index([createdAt(sort: Desc)])
-}
-
-// Added missing model for idempotent rewards
-model RewardGrant {
-  id          String   @id @default(uuid())
-  runId       String
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pigsGranted Int      @default(0)
-  xpGranted   Int      @default(0)
-  createdAt   DateTime @default(now())
-
-  @@unique([runId, userId])
-  @@index([runId])
-  @@index([userId])
-}
-
-enum InventoryItemType {
-  CHARACTER
-  WEAPON
-}
-
-enum TransactionType {
-  EARN
-  SPEND
-  CLAIM
-  REWARD
-}
-
-enum GameRunStatus {
-  ACTIVE
-  COMPLETED
-  FAILED
+      return { user };
+    } catch (err) {
+      return reply.status(500).send({ error: 'Failed to retrieve user data' });
+    }
+  });
 }
