@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
+import { BootScene } from '../game/scenes/BootScene';
 import { GameScene } from '../game/scenes/GameScene';
 
 type GameCanvasProps = {
@@ -15,6 +16,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    // CRITICAL: Container must exist before Phaser init
     if (!containerRef.current || gameRef.current) return;
 
     const sessionData = sessionStorage.getItem('currentRun');
@@ -45,9 +47,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       parent: containerRef.current,
       width: window.innerWidth,
       height: window.innerHeight,
-      backgroundColor: '#000000',
-      pixelArt: false,
-      antialias: true,      roundPixels: false,
+      backgroundColor: '#000000',      pixelArt: false,
+      antialias: true,
+      roundPixels: false,
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.NO_CENTER,
@@ -57,10 +59,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       physics: {
         default: 'arcade',
         arcade: {
-          gravity: {
-            x: 0,
-            y: 1850
-          },
+          gravity: { x: 0, y: 1850 },
           debug: false
         }
       },
@@ -74,7 +73,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
         pixelArt: false,
         antialias: true
       },
-      scene: [GameScene]
+      // CRITICAL: BootScene must load assets BEFORE GameScene starts
+      scene: [BootScene, GameScene]
     };
 
     try {
@@ -88,7 +88,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
 
     const handleResize = () => {
       if (!gameRef.current) return;
-
       gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
     };
 
@@ -98,11 +97,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
         state?: 'victory' | 'defeat' | 'paused';
       }>;
       const detail = customEvent.detail;
-
       if (!detail || isExitingRef.current) return;
-
       if (detail.type !== 'STATE_CHANGE') return;
-
       if (detail.state === 'paused') return;
 
       if (detail.state === 'victory' || detail.state === 'defeat') {
@@ -145,11 +141,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
     }
 
     if (onExit) {
-      await onExit();      return;
+      await onExit();
+      return;
     }
 
-    window.location.reload();
-  };
+    window.location.reload();  };
 
   return (
     <div
@@ -165,6 +161,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {/* 
+        CONTAINER MUST ALWAYS BE MOUNTED.
+        Phaser attaches to this div. If conditionally rendered, screen stays black.
+      */}
       <div
         ref={containerRef}
         style={{
@@ -178,6 +178,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
         }}
       />
 
+      {/* Loading Overlay */}
       {!isReady && !error ? (
         <div style={overlayStyle}>
           <div
@@ -193,8 +194,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
           </div>
         </div>
       ) : null}
-
-      {error ? (        <div style={overlayStyle}>
+      {/* Error Overlay */}
+      {error ? (
+        <div style={overlayStyle}>
           <div style={errorBoxStyle}>
             <h2
               style={{
@@ -206,7 +208,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
             >
               Mission Error
             </h2>
-
             <p
               style={{
                 color: '#ccc',
@@ -217,7 +218,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
             >
               {error}
             </p>
-
             <button type="button" onClick={() => void returnToMenu()} style={buttonStyle}>
               Return to Menu
             </button>
