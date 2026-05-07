@@ -1,4 +1,5 @@
-// Reward Logic
+// --- REWARD LOGIC ---
+
 export interface RewardInput {
   kills: number;
   damageDealt: number;
@@ -65,26 +66,49 @@ export class RewardCalculator {
   }
 
   validateRunStats(input: RewardInput, maxPossibleKills: number): ValidationResult {
-    if (input.kills < 0) {
-      return { valid: false, reason: 'Negative kills' };
-    }
-
-    if (input.kills > maxPossibleKills * 1.5) {
-      return { valid: false, reason: 'Impossible kill count' };
-    }
-
-    if (input.accuracy < 0 || input.accuracy > 100) {
-      return { valid: false, reason: 'Invalid accuracy' };
-    }
-
-    if (input.timeElapsed < 0) {
-      return { valid: false, reason: 'Negative time' };
-    }
-
+    if (input.kills < 0) return { valid: false, reason: 'Negative kills' };
+    if (input.kills > maxPossibleKills * 1.5) return { valid: false, reason: 'Impossible kill count' };
+    if (input.accuracy < 0 || input.accuracy > 100) return { valid: false, reason: 'Invalid accuracy' };
+    if (input.timeElapsed < 0) return { valid: false, reason: 'Negative time' };
     return { valid: true };
   }
 }
 
-// Entities
+// --- CONFIG TYPES (Required by API) ---
+
+export interface WeaponConfig {
+  id: string;
+  name: string;
+  damage: number;
+  fireRate: number; // ms between shots
+  bulletSpeed: number; // pixels per second
+  projectileLifetime: number; // ms
+  range: number;
+  type: 'PISTOL' | 'RIFLE' | 'SHOTGUN' | 'SNIPER' | 'ROCKET';
+}
+
+export interface EnemyConfig {
+  id: string;
+  name: string;
+  health: number;
+  damage: number;
+  speed: number;
+  behavior: 'CHASER' | 'SHOOTER' | 'TANK' | 'EXPLODER';
+  rewardValue: number;
+}
+
+// --- COMBAT SYSTEM (Required by API) ---
+
+export class CombatSystem {
+  constructor() {}
+
+  // Placeholder for future server-side combat simulation logic
+  calculateDamage(weapon: WeaponConfig, enemy: EnemyConfig): number {
+    return weapon.damage;
+  }
+}
+
+// --- ENTITIES ---
+
 export * from './entities/Enemy';
 export * from './entities/Boss';
