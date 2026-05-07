@@ -13,8 +13,8 @@ export interface EnemyTemplate {
 export class Enemy {
   id: string;
   templateId: string;
-  x: number;
-  y: number;
+  x: number = 0; // FIXED: Initialized
+  y: number = 0; // FIXED: Initialized
   health: number;
   maxHealth: number;
   damage: number;
