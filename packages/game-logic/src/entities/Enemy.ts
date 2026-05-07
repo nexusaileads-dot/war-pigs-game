@@ -13,8 +13,8 @@ export interface EnemyTemplate {
 export class Enemy {
   id: string;
   templateId: string;
-  x: number = 0; // FIXED: Initialized
-  y: number = 0; // FIXED: Initialized
+  x: number = 0; // FIXED
+  y: number = 0; // FIXED
   health: number;
   maxHealth: number;
   damage: number;
@@ -22,9 +22,8 @@ export class Enemy {
   behavior: EnemyBehavior;
   isAlive: boolean = true;
   lastAttackTime: number = 0;
-  attackCooldown: number = 1000; // ms
+  attackCooldown: number = 1000;
   
-  // AI state
   targetX: number = 0;
   targetY: number = 0;
   state: 'IDLE' | 'CHASE' | 'ATTACK' | 'EXPLODE' = 'IDLE';
@@ -42,7 +41,7 @@ export class Enemy {
     this.behavior = template.behavior;
     
     if (this.behavior === 'EXPLODER') {
-      this.attackCooldown = 2000; // Give player time to react
+      this.attackCooldown = 2000;
     }
   }
 
@@ -50,7 +49,7 @@ export class Enemy {
     this.health -= amount;
     if (this.health <= 0 && this.isAlive) {
       this.isAlive = false;
-      return true; // Died
+      return true;
     }
     return false;
   }
@@ -74,11 +73,9 @@ export class Enemy {
 
       case 'SHOOTER':
         if (distance < 300 && distance > 150) {
-          // Maintain distance
           this.x -= (dx / distance) * this.speed * 0.5 * (deltaTime / 1000);
           this.y -= (dy / distance) * this.speed * 0.5 * (deltaTime / 1000);
         } else if (distance >= 300) {
-          // Get closer
           this.x += (dx / distance) * this.speed * (deltaTime / 1000);
           this.y += (dy / distance) * this.speed * (deltaTime / 1000);
         }
@@ -96,7 +93,6 @@ export class Enemy {
         break;
 
       case 'TANK':
-        // Slow but steady advance
         this.x += (dx / distance) * this.speed * (deltaTime / 1000);
         this.y += (dy / distance) * this.speed * (deltaTime / 1000);
         if (distance < 50) {
