@@ -58,18 +58,32 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   initAuth: async () => {
     const existingToken = localStorage.getItem('token');
+    
     if (existingToken) {
       try {
         const { data } = await apiClient.get('/api/auth/me');
         set({ user: data.user, token: existingToken, isLoading: false });
         return;
-      } catch (error) {
-        console.error('[GameStore] Token validation failed:', error);
-        localStorage.removeItem('token');
-        set({ token: null });
+      } catch (error: any) {
+        console.error('[GameStore] Auth check failed:', error);
+        
+        // CRITICAL FIX:
+        // Only logout if status is 401 (Unauthorized) or 403 (Forbidden).
+        // Do NOT logout if status is 500 (Server Error), 502, 504, etc.
+        // This prevents login loops if Supabase/DB is temporarily down.
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          localStorage.removeItem('token');
+          set({ user: null, token: null });
+        } else {
+          // Server error? Keep the token, let the user stay logged in (or show error screen)
+          // But for now, let's just stop loading and keep the token in localStorage
+          console.warn('[GameStore] Server error during auth check, keeping token.');
+        }
       }
     }
-    set({ user: null, token: null, isLoading: false });
+    
+    set({ isLoading: false });
   },
 
   login: async (email, password) => {
@@ -108,10 +122,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ user: data.user });
     } catch (error) {
       console.error('[GameStore] Failed to refresh profile:', error);
-      if ((error as any).response?.status === 401) {
-        localStorage.removeItem('token');
-        set({ user: null, token: null });
-      }
     }
   },
 
