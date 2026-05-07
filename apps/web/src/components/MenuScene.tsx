@@ -19,22 +19,21 @@ interface Props {
   onNavigate: (screen: Screen) => void;
 }
 
-// Centralized asset base path for consistency and easier CDN updates
 const ASSET_BASE = '/assets/ui/home';
 
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const { user } = useGameStore();
   const { hapticFeedback, isTelegramWebApp } = useTelegram();
 
-  const level = user?.profile.level || 2;
-  const xp = user?.profile.xp || 1460;
-  const currentPigs = user?.profile.currentPigs || 8690;
+  // FIXED: Added optional chaining (?.) to prevent crashes if profile is null
+  const level = user?.profile?.level || 2;
+  const xp = user?.profile?.xp || 1460;
+  const currentPigs = user?.profile?.currentPigs || 8690;
 
   const xpTarget = Math.max(2500, level * 1250);
   const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
 
   const handleNavigate = (screen: Screen) => {
-    // Only trigger haptics in Telegram WebApp environment to avoid errors in browsers
     if (isTelegramWebApp) {
       try {
         hapticFeedback?.('medium');
@@ -72,7 +71,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           flexDirection: 'column'
         }}
       >
-        {/* Background image with error fallback */}
         <img
           src={`${ASSET_BASE}/main-background.png`}
           alt=""
@@ -95,7 +93,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           }}
         />
 
-        {/* Overlay gradient - pointer-events: none to allow touches to pass through */}
         <div
           style={{
             position: 'absolute',
@@ -121,10 +118,9 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            minHeight: 0 // Critical for flex scrolling to work properly
+            minHeight: 0
           }}
         >
-          {/* Logo and reward section - decorative, pointer-events: none */}
           <div
             style={{
               position: 'absolute',
@@ -209,7 +205,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Wallet button - interactive, pointer-events: auto by default */}
           <div
             style={{
               position: 'absolute',
@@ -223,7 +218,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
           <div style={{ flex: 1, minHeight: 0 }} />
 
-          {/* CTA and navigation cards */}
           <div
             style={{
               width: '100%',
@@ -248,7 +242,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
                 display: 'block',
                 lineHeight: 0,
                 margin: 0,
-                touchAction: 'manipulation' // Prevent double-tap zoom on mobile
+                touchAction: 'manipulation'
               }}
             >
               <img
@@ -270,7 +264,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
               />
             </button>
 
-            {/* Menu cards grid */}
             <div
               style={{
                 width: '100%',
@@ -318,7 +311,6 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   );
 };
 
-// --- TopBar Component ---
 const TopBar: React.FC<{
   level: number;
   xp: number;
@@ -530,7 +522,6 @@ const TopBar: React.FC<{
   );
 };
 
-// --- MenuCard Component ---
 const MenuCard: React.FC<{
   src: string;
   alt: string;
@@ -573,7 +564,6 @@ const MenuCard: React.FC<{
   );
 };
 
-// --- BottomNav Component ---
 const BottomNav: React.FC<{
   onHome: () => void;
   onMissions: () => void;
@@ -628,7 +618,6 @@ const BottomNav: React.FC<{
   );
 };
 
-// --- NavItem Component ---
 const NavItem: React.FC<{
   src: string;
   alt: string;
@@ -670,7 +659,6 @@ const NavItem: React.FC<{
   );
 };
 
-// --- Shared Styles ---
 const topCellStyle: React.CSSProperties = {
   minHeight: 76,
   borderRight: '1px solid rgba(255,255,255,0.08)',
