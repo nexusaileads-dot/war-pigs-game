@@ -10,7 +10,9 @@ datasource db {
 
 model User {
   id           String          @id @default(uuid())
-  telegramId   String          @unique
+  telegramId   String?         @unique // Optional for email login users
+  email        String?         @unique // Added for email login
+  passwordHash String?         // Added for email login
   username     String?
   firstName    String?
   lastName     String?
@@ -24,7 +26,7 @@ model User {
   inventory    InventoryItem[]
   runs         GameRun[]
   transactions Transaction[]
-  rewardGrants RewardGrant[]   // Added relation
+  rewardGrants RewardGrant[]
 }
 
 model Profile {
@@ -194,7 +196,6 @@ model Transaction {
   @@index([createdAt(sort: Desc)])
 }
 
-// Added missing model for idempotent rewards
 model RewardGrant {
   id          String   @id @default(uuid())
   runId       String
