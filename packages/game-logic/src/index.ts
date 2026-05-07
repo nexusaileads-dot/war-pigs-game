@@ -1,3 +1,4 @@
+// Reward Logic
 export interface RewardInput {
   kills: number;
   damageDealt: number;
@@ -26,26 +27,23 @@ export class RewardCalculator {
   private readonly BASE_XP_PER_KILL = 5;
   private readonly BOSS_BONUS_PIGS = 100;
   private readonly BOSS_BONUS_XP = 50;
-  private readonly PERFECT_RUN_BONUS = 0.25; // 25% bonus
+  private readonly PERFECT_RUN_BONUS = 0.25;
 
   calculateRewards(input: RewardInput): RewardOutput {
     let totalPigs = input.kills * this.BASE_PIGS_PER_KILL;
     let totalXp = input.kills * this.BASE_XP_PER_KILL;
     const bonusReasons: string[] = [];
 
-    // Difficulty multiplier
     const difficultyMultiplier = 1 + (input.difficulty - 1) * 0.15;
     totalPigs = Math.floor(totalPigs * difficultyMultiplier);
     totalXp = Math.floor(totalXp * difficultyMultiplier);
 
-    // Boss kill bonus
     if (input.bossKilled) {
       totalPigs += this.BOSS_BONUS_PIGS;
       totalXp += this.BOSS_BONUS_XP;
       bonusReasons.push('Boss Defeated');
     }
 
-    // Perfect run bonus
     if (input.isPerfectRun) {
       const perfectBonus = Math.floor(totalPigs * this.PERFECT_RUN_BONUS);
       totalPigs += perfectBonus;
@@ -53,7 +51,6 @@ export class RewardCalculator {
       bonusReasons.push('Perfect Run');
     }
 
-    // Time bonus (under 60s)
     if (input.timeElapsed < 60) {
       const timeBonus = Math.floor((60 - input.timeElapsed) * 2);
       totalPigs += timeBonus;
@@ -87,3 +84,7 @@ export class RewardCalculator {
     return { valid: true };
   }
 }
+
+// Entities
+export * from './entities/Enemy';
+export * from './entities/Boss';
