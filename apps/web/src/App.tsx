@@ -20,40 +20,35 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
   const { user, token, isLoading, initAuth, logout } = useGameStore();
 
-  // Initialize auth on mount
+  // Initialize auth ONCE on mount
   useEffect(() => {
     initAuth();
-  }, [initAuth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty array ensures this runs only once
 
-  // Check for active run on mount (e.g., if user refreshes during a game)
+  // Check for active run on mount
   useEffect(() => {
     const activeRun = sessionStorage.getItem('currentRun');
-    if (activeRun) {
-      console.log('[App] Found active session on mount');
+    if (activeRun && user) {
       // Optional: Resume game automatically
       // setCurrentScreen('GAME');
     }
-  }, []);
+  }, [user]);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
   };
 
-  // STRICT GUARD: Validates session before allowing access to GAME screen
   const startGame = () => {
     const activeRun = sessionStorage.getItem('currentRun');
-    
     if (!activeRun) {
-      console.error('[App] Attempted to start game without valid session. Redirecting to Level Select.');
+      console.error('[App] Attempted to start game without valid session.');
       navigateTo('LEVEL_SELECT');
       return;
     }
-
-    console.log('[App] Starting game with session');
     navigateTo('GAME');
   };
 
-  // Show loading screen
   if (isLoading) {
     return (
       <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -62,7 +57,7 @@ export default function App() {
     );
   }
 
-  // Show Auth screen if not logged in
+  // If no user or token, show Auth
   if (!user || !token) {
     return (
       <TelegramProvider>
@@ -73,51 +68,21 @@ export default function App() {
     );
   }
 
+  // Render Game Screens
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'MENU':        return <MenuScene onNavigate={navigateTo} />;
-
-      case 'CHAR_SELECT':
-        return (
-          <CharacterSelect
-            onBack={() => navigateTo('MENU')}
-            // Flow: Select Character -> Select Weapon
-            onStart={() => navigateTo('WEAPON_SELECT')}
-          />
-        );
-
-      case 'WEAPON_SELECT':
-        return (
-          <WeaponSelect
-            onBack={() => navigateTo('CHAR_SELECT')}
-            // Flow: Select Weapon -> Select Level
-            onStart={() => navigateTo('LEVEL_SELECT')}
-          />
-        );
-
-      case 'LEVEL_SELECT':
-        return (
-          <LevelSelect
-            onBack={() => navigateTo('WEAPON_SELECT')}
-            // Flow: Deploy -> Start Game (after session created)
-            onStart={startGame}
-          />
-        );
-
+      case 'MENU': return <MenuScene onNavigate={navigateTo} />;
+      case 'CHAR_SELECT': return <CharacterSelect onBack={() => navigateTo('MENU')} onStart={() => navigateTo('WEAPON_SELECT')} />;
+      case 'WEAPON_SELECT': return <WeaponSelect onBack={() => navigateTo('CHAR_SELECT')} onStart={() => navigateTo('LEVEL_SELECT')} />;
+      case 'LEVEL_SELECT': return <LevelSelect onBack={() => navigateTo('WEAPON_SELECT')} onStart={startGame} />;
       case 'GAME':
-        // STRICT GUARD: Prevents rendering GameCanvas if session is missing
         const activeRun = sessionStorage.getItem('currentRun');
         if (!activeRun) {
-          console.warn('[App] Blocked GAME access: No currentRun in sessionStorage.');
           navigateTo('LEVEL_SELECT');
           return null;
         }
-
-        // Render the actual Phaser game
         return <GameCanvas onExit={() => navigateTo('MENU')} />;
-
-      default:
-        return <MenuScene onNavigate={navigateTo} />;
+      default: return <MenuScene onNavigate={navigateTo} />;
     }
   };
 
@@ -126,20 +91,12 @@ export default function App() {
       <GameNoticeProvider>
         <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
           {renderScreen()}
-          {/* Logout button for testing */}
           <button 
             onClick={logout}
             style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              zIndex: 9999,
-              background: 'rgba(0,0,0,0.5)',
-              color: '#fff',
-              border: '1px solid #333',
-              padding: '5px 10px',
-              borderRadius: '4px',
-              cursor: 'pointer'
+              position: 'absolute', top: 10, right: 10, zIndex: 9999,
+              background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333',
+              padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'
             }}
           >
             Logout
