@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { apiClient } from '../api/client';
 
 export const AuthScene: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -24,6 +25,18 @@ export const AuthScene: React.FC = () => {
       }
       const res = await register(email, password, username);
       if (!res.success) setError(res.error || 'Registration failed');
+    }
+  };
+
+  const handleDevLogin = async () => {
+    setError(null);
+    try {
+      const { data } = await apiClient.post('/api/auth/dev-login');
+      localStorage.setItem('token', data.token);
+      // Reload page to update store via initAuth in App.tsx
+      window.location.reload(); 
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Dev login failed. Is ENABLE_DEV_AUTH=true set on backend?');
     }
   };
 
@@ -97,6 +110,28 @@ export const AuthScene: React.FC = () => {
               </button>
             </>
           )}
+        </div>
+
+        {/* DEV LOGIN BUTTON */}
+        <div style={{ marginTop: '30px', borderTop: '1px solid #333', paddingTop: '20px', textAlign: 'center' }}>
+          <button 
+            onClick={handleDevLogin}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: '#333',
+              border: '1px solid #555',
+              borderRadius: '8px',
+              color: '#fff',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            DEV LOGIN (BYPASS)
+          </button>
+          <p style={{ fontSize: '10px', color: '#666', marginTop: '8px' }}>
+            Requires ENABLE_DEV_AUTH=true on server
+          </p>
         </div>
       </div>
     </div>
