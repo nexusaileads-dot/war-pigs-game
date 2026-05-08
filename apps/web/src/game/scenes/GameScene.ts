@@ -52,13 +52,14 @@ export class GameScene extends Phaser.Scene {
   private lastFired = 0; private fireRate = 220;
   private isGameOver = false; private extractionUnlocked = false; private tankSpawned = false;
   
-  // Joystick state
+  // Joystick
   private joystickPointer: Phaser.Input.Pointer | null = null;
   private joystickBase!: Phaser.GameObjects.Arcade;
   private joystickThumb!: Phaser.GameObjects.Arcade;
   private joystickForceX: number = 0;
   
-  private jumpsLeft: number = 0; // Double jump
+  // Abilities
+  private jumpsLeft: number = 0; 
   private remainingSeconds = 180;
 
   constructor() { super({ key: 'GameScene' }); }
@@ -101,7 +102,6 @@ export class GameScene extends Phaser.Scene {
     this.updateWeaponPosition();
     this.updateEnemies();
     
-    // Double Jump Logic
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (body.blocked.down) { this.jumpsLeft = 2; }
 
@@ -117,14 +117,24 @@ export class GameScene extends Phaser.Scene {
     this.makeRectTexture('fallback_tank', 140, 100, 0x676b42, 0x25250f);
     this.makeRectTexture('fallback_weapon', 40, 20, 0x555555, 0x333333);
   }
-  private makeRectTexture(k: string, w: number, h: number, f: number, s: number) { if(this.textures.exists(k)) return; const g = this.add.graphics(); g.fillStyle(f,1).fillRoundedRect(0,0,w,h,8); g.lineStyle(3,s,1).strokeRoundedRect(1.5,1.5,w-3,h-3,8); g.generateTexture(k,w,h); g.destroy(); }
-  private makeCircleTexture(k: string, r: number, f: number, s: number) { if(this.textures.exists(k)) return; const g = this.add.graphics(); g.fillStyle(f,1).fillCircle(r,r,r); g.lineStyle(3,s,1).strokeCircle(r,r,r-2); g.generateTexture(k,r*2,r*2); g.destroy(); }
+  
+  private makeRectTexture(k: string, w: number, h: number, f: number, s: number) { 
+    if(this.textures.exists(k)) return; const g = this.add.graphics(); 
+    g.fillStyle(f,1).fillRoundedRect(0,0,w,h,8); 
+    g.lineStyle(3,s,1).strokeRoundedRect(1.5,1.5,w-3,h-3,8); 
+    g.generateTexture(k,w,h); g.destroy(); 
+  }
+  
+  private makeCircleTexture(k: string, r: number, f: number, s: number) { 
+    if(this.textures.exists(k)) return; const g = this.add.graphics(); 
+    g.fillStyle(f,1).fillCircle(r,r,r); 
+    g.lineStyle(3,s,1).strokeCircle(r,r,r-2); 
+    g.generateTexture(k,r*2,r*2); g.destroy(); 
+  }
 
   private createBackground() {
     this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT/2, WORLD_WIDTH, WORLD_HEIGHT, 0x87CEEB).setDepth(-60);
     
-    // Seamless tiling of background parts
-    // Assuming each part is roughly 1600px wide to cover 4800 total
     const bgWidth = 1600; 
     if (this.textures.exists('level1_bg_left')) this.add.image(0, 0, 'level1_bg_left').setOrigin(0,0).setDepth(-55).setDisplaySize(bgWidth, WORLD_HEIGHT);
     if (this.textures.exists('level1_bg_middle')) this.add.image(bgWidth, 0, 'level1_bg_middle').setOrigin(0,0).setDepth(-55).setDisplaySize(bgWidth, WORLD_HEIGHT);
@@ -137,12 +147,12 @@ export class GameScene extends Phaser.Scene {
   private createPlatforms() {
     this.platforms = this.physics.add.staticGroup();
     
-    // IMPENETRABLE FLOOR
-    const floor = this.add.rectangle(WORLD_WIDTH/2, GROUND_Y+10, WORLD_WIDTH, 20, 0x000000, 0); // Invisible thick floor
+    // FIX: Add a solid floor body so enemies don't fall through
+    const floorHeight = 100;
+    const floor = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT - (floorHeight/2), WORLD_WIDTH, floorHeight, 0x000000, 0);
     this.physics.add.existing(floor, true);
-    (floor.body as Phaser.Physics.Arcade.StaticBody).setSize(WORLD_WIDTH, 40); // Thick hitbox
-    
-    // Floating platforms
+    this.platforms.add(floor);
+
     const pdata = [{x:600,y:GROUND_Y-150}, {x:1200,y:GROUND_Y-250}, {x:1800,y:GROUND_Y-150}, {x:2400,y:GROUND_Y-200}, {x:3000,y:GROUND_Y-150}, {x:3600,y:GROUND_Y-250}];
     pdata.forEach(p => this.createPlatform(p.x, p.y, 200, 30, 0x7b704c));
   }
@@ -194,7 +204,7 @@ export class GameScene extends Phaser.Scene {
     en.setActive(true).setVisible(true).setDisplaySize(cfg.width, cfg.height).setDepth(17);
     en.setData('kind', cfg.kind); en.setData('hp', cfg.hp); en.setData('speed', cfg.speed); en.setData('flying', cfg.flying);
     const b = en.body as Phaser.Physics.Arcade.Body;
-    b.enable = true; b.setAllowGravity(!cfg.flying); b.setCollideWorldBounds(false);
+    b.enable = true; b.setAllowGravity(!cfg.flying); b.setCollideWorldBounds(true); b.setBounce(0);
     return en;
   }
 
@@ -212,11 +222,9 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     let h = 0;
     
-    // Keyboard
     if (this.cursors.left.isDown || this.wasd.left.isDown) h -= 1;
     if (this.cursors.right.isDown || this.wasd.right.isDown) h += 1;
     
-    // Joystick
     if (this.joystickForceX !== 0) h = this.joystickForceX;
 
     body.setVelocityX(h * PLAYER_SPEED);
@@ -233,7 +241,6 @@ export class GameScene extends Phaser.Scene {
     const dx = this.joystickPointer.x - this.joystickBase.x;
     const dist = Math.min(50, Math.abs(dx));
     this.joystickForceX = dx > 10 ? 1 : dx < -10 ? -1 : 0;
-    
     this.joystickThumb.setPosition(this.joystickBase.x + (dx > 0 ? dist : -dist), this.joystickBase.y);
   }
 
@@ -244,8 +251,7 @@ export class GameScene extends Phaser.Scene {
     const b = this.bullets.get(this.player.x, this.player.y, 'bullet') as Phaser.Physics.Arcade.Image;
     if (!b) return;
     b.setActive(true).setVisible(true).setPosition(this.player.x + (this.facing * 30), this.player.y + 10).setDepth(30).setRotation(this.facing === 1 ? 0 : Math.PI);
-    // FIXED: Smaller bullet size
-    b.setDisplaySize(12, 6); 
+    b.setDisplaySize(12, 6); // Smaller bullet
     
     const bdy = b.body as Phaser.Physics.Arcade.Body;
     bdy.enable = true; bdy.setAllowGravity(false); bdy.setVelocityX(this.facing * 800);
@@ -299,39 +305,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createJoystick() {
-    // Create joystick graphics
     const y = WORLD_HEIGHT - 80;
     const x = 150;
-    
     this.joystickBase = this.add.circle(x, y, 50, 0x000000, 0.3).setDepth(150).setScrollFactor(0);
     this.joystickThumb = this.add.circle(x, y, 25, 0xffffff, 0.5).setDepth(151).setScrollFactor(0);
 
-    // Input logic for the whole left side of the screen
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // Only trigger if touch is on left side
-      if (pointer.x < this.cameras.main.width / 2) {
-        this.joystickPointer = pointer;
-        // Move base to touch point for dynamic joystick feel, or keep static. Let's keep static for stability.
-      }
+      if (pointer.x < this.cameras.main.width / 2) { this.joystickPointer = pointer; }
     });
-
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.joystickPointer === pointer) {
-        // Update visual thumb position in update()
-      }
-    });
-
-    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (this.joystickPointer === pointer) {
-        this.joystickPointer = null;
-      }
-    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => { if (this.joystickPointer === pointer) { } });
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => { if (this.joystickPointer === pointer) { this.joystickPointer = null; } });
   }
 
   private createHud() {
     this.hudText = this.add.text(20, 20, '', { fontSize: '18px', fontFamily: 'monospace', color: '#fff', backgroundColor: '#000000aa', padding: { x: 10, y: 5 } }).setScrollFactor(0).setDepth(100);
     this.healthBar = this.add.rectangle(20, 60, 200, 16, 0xff4d4f).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
-    this.add.rectangle(20, 60, 200, 16, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(99); // BG
+    this.add.rectangle(20, 60, 200, 16, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(99);
     this.missionText = this.add.text(this.cameras.main.width / 2, 100, '', { fontSize: '32px', color: '#ffdd57', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
   }
 
@@ -341,10 +330,6 @@ export class GameScene extends Phaser.Scene {
     
     btn.on('pointerdown', () => {
       this.scene.pause();
-      this.scene.launch('PauseScene'); // Assumes you have a PauseScene, or just use a modal
-      // For now, just pause logic:
-      // this.isPaused = true; 
-      // Simple overlay:
       const overlay = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT/2, WORLD_WIDTH, WORLD_HEIGHT, 0x000000, 0.8).setDepth(300);
       const txt = this.add.text(WORLD_WIDTH/2, WORLD_HEIGHT/2, 'PAUSED\n\nTAP TO RESUME', { color:'#fff', fontSize:'32px', align:'center' }).setOrigin(0.5).setDepth(301);
       overlay.setInteractive();
@@ -353,7 +338,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startTimers() {
-    this.time.addEvent({ delay: 2000, callback: () => { // Enemy shoot
+    this.time.addEvent({ delay: 2000, callback: () => {
       if(this.isGameOver) return;
       this.enemies.getChildren().forEach((e: any) => {
         if(Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y) < 600 && Math.random() < 0.3) this.enemyShoot(e);
