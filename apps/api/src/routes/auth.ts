@@ -134,12 +134,10 @@ export async function authRoutes(fastify: FastifyInstance) {
         include: { profile: true, wallet: true, stats: true }
       });
 
-      // Detects non-registered emails or missing password
       if (!user || !user.passwordHash) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
-      // Detects wrong password
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) {
         return reply.status(401).send({ error: 'Invalid credentials' });
@@ -162,6 +160,65 @@ export async function authRoutes(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error({ err }, 'Login failed');
       return reply.status(500).send({ error: 'Login failed' });
+    }
+  });
+
+  // --- DEV LOGIN (Testing Only) ---
+  fastify.post('/dev-login', async (request, reply) => {
+    // Only allow if explicitly enabled in environment variables
+    const isDevAuthEnabled = process.env.ENABLE_DEV_AUTH === 'true';
+
+    if (!isDevAuthEnabled) {
+      return reply.status(403).send({ error: 'Dev auth disabled' });
+    }
+
+    try {
+      // Hardcoded test user ID
+      const telegramId = '999001';
+
+      let user = await prisma.user.findUnique({
+        where: { telegramId },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            username: 'dev_tester',
+            firstName: 'Dev',
+            lastName: 'Tester',
+            photoUrl: undefined,
+            profile: { create: { level: 1, xp: 0, totalPigsEarned: 0, currentPigs: 5000 } },
+            wallet: { create: {} },
+            stats: { create: {} }
+          },
+          include: { profile: true, wallet: true, stats: true }
+        });
+      }
+
+      const token = fastify.jwt.sign({
+        userId: user.id,
+        telegramId: user.telegramId
+      });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          telegramId: user.telegramId,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          photoUrl: user.photoUrl,
+          profile: user.profile,
+          wallet: user.wallet,
+          stats: user.stats
+        }
+      };
+    } catch (err) {
+      fastify.log.error({ err }, 'Failed to process dev login');
+      return reply.status(500).send({ error: 'Dev authentication failed' });
     }
   });
 
@@ -231,4 +288,4 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to retrieve user data' });
     }
   });
-}
+        }
