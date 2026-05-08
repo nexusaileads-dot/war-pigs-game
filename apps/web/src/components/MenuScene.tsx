@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useTelegram } from './TelegramProvider';
 import { WalletButton } from './WalletButton';
@@ -11,6 +11,7 @@ const ASSET_BASE = '/assets/ui/home';
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const { user, logout } = useGameStore();
   const { hapticFeedback, isTelegramWebApp } = useTelegram();
+  const [showSettings, setShowSettings] = useState(false);
 
   const level = user?.profile?.level || 2;
   const xp = user?.profile?.xp || 1460;
@@ -21,52 +22,38 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
 
   const handleNavigate = (screen: Screen) => {
+    setShowSettings(false);
     if (isTelegramWebApp) { try { hapticFeedback?.('medium'); } catch (e) {} }
     onNavigate(screen);
-  };
-
-  const handleSettingsClick = () => {
-    // Ask if they want to logout or go to profile
-    if (window.confirm('Logout from War Pigs?')) {
-      logout();
-    }
-    // Or navigate to Profile if you prefer:
-    // handleNavigate('PROFILE');
   };
 
   return (
     <div style={{ width: '100%', height: '100dvh', background: '#030303', display: 'flex', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'relative', width: '100%', maxWidth: '430px', height: '100%', overflow: 'hidden', background: '#070707', color: '#fff', display: 'flex', flexDirection: 'column' }}>
         
-        {/* Background Image */}
         <img src={`${ASSET_BASE}/main-background.png`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 
-        {/* TOP BAR */}
-        <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} currentPigs={currentPigs} username={username} onSettings={handleSettingsClick} />
+        <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} currentPigs={currentPigs} username={username} onSettings={() => setShowSettings(true)} />
 
-        {/* MAIN CONTENT AREA */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
           
           {/* Left Column: Branding & Rewards */}
           <div style={{ position: 'absolute', top: 10, left: 12, width: 118, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', zIndex: 2, pointerEvents: 'none' }}>
             
-            {/* Logo */}
-            <img src={`${ASSET_BASE}/branding/war-pigs-logo.png`} alt="War Pigs" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img src={`${ASSET_BASE}/branding/war-pigs-logo.png`} alt="War Pigs" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 
-            {/* Daily Rewards Chest (Under Logo, No Timer) */}
+            {/* Rewards Chest (No Timer) */}
             <div style={{ width: 104, marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              <img src={`${ASSET_BASE}/reward/reward-chest.png`} alt="Daily reward" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img src={`${ASSET_BASE}/reward/reward-chest.png`} alt="Daily reward" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
             </div>
           </div>
 
-          {/* Right Column: Wallet */}
           <div style={{ position: 'absolute', top: 18, right: 12, zIndex: 20 }}>
             <WalletButton />
           </div>
 
           <div style={{ flex: 1, minHeight: 0 }} />
 
-          {/* BOTTOM SECTION */}
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, position: 'relative', zIndex: 2 }}>
             <button type="button" onClick={() => handleNavigate('CHAR_SELECT')} style={{ width: '100%', maxWidth: 304, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', display: 'block', lineHeight: 0, margin: 0 }}>
               <img src={`${ASSET_BASE}/cta/play-mission-button.png`} alt="Play Mission" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { const t = e.target as HTMLImageElement; t.style.background = '#ff6b35'; t.style.minHeight = '60px'; t.style.borderRadius = '8px'; }} />
@@ -83,6 +70,21 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#222', padding: 30, borderRadius: 15, width: '80%', maxWidth: 300 }}>
+            <h3 style={{ marginTop: 0, textAlign: 'center' }}>Settings</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15, marginTop: 20 }}>
+              <button onClick={() => alert('Sound Toggled')} style={btnStyle}>Sound: ON</button>
+              <button onClick={() => alert('Music Toggled')} style={btnStyle}>Music: ON</button>
+              <button onClick={() => { logout(); setShowSettings(false); }} style={{ ...btnStyle, background: '#d92a17', border: '1px solid #ff6b35' }}>LOGOUT</button>
+              <button onClick={() => setShowSettings(false)} style={{ ...btnStyle, background: '#444' }}>CLOSE</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -155,3 +157,4 @@ const NavItem: React.FC<{ src: string; alt: string; onClick: () => void }> = ({ 
 const topCellStyle: React.CSSProperties = { minHeight: 76, borderRight: '1px solid rgba(255,255,255,0.08)', boxSizing: 'border-box' };
 const iconCellStyle: React.CSSProperties = { minHeight: 76, border: 'none', borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer', padding: 0 };
 const badgeStyle: React.CSSProperties = { position: 'absolute', top: 10, right: 10, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: '#d92a17', color: '#fff', fontSize: 9, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 2px rgba(0,0,0,0.35)' };
+const btnStyle: React.CSSProperties = { padding: '12px 20px', background: '#333', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 6 };
