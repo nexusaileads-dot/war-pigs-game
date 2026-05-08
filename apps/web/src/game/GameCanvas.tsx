@@ -7,6 +7,10 @@ type GameCanvasProps = {
   onExit?: () => void | Promise<void>;
 };
 
+// Define a fixed landscape resolution for the game (16:9 aspect ratio)
+const GAME_WIDTH = 1280;
+const GAME_HEIGHT = 720;
+
 export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,11 +32,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
 
     try {
       const session = JSON.parse(sessionData);
-
       if (!session?.run?.id || !session?.sessionToken) {
         throw new Error('Invalid mission session payload.');
       }
-
       console.log('[GameCanvas] Starting mission:', session.run.id);
     } catch (err) {
       console.error('[GameCanvas] Invalid currentRun:', err);
@@ -44,37 +46,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: containerRef.current,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: '#000000',
-      pixelArt: false,
-      antialias: true,
-      roundPixels: false,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
+      backgroundColor: '#1a1a1a',
       scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.NO_CENTER,
-        width: window.innerWidth,
-        height: window.innerHeight
+        mode: Phaser.Scale.FIT,        // Fit the game within the screen, maintaining aspect ratio
+        autoCenter: Phaser.Scale.CENTER_BOTH, // Center it
+        width: GAME_WIDTH,
+        height: GAME_HEIGHT
       },
       physics: {
         default: 'arcade',
         arcade: {
-          gravity: {
-            x: 0,
-            y: 1850
-          },
+          gravity: { x: 0, y: 1850 },
           debug: false
         }
       },
       input: {
-        activePointers: 5,
-        keyboard: true,
-        mouse: true,
-        touch: true
-      },
-      render: {
-        pixelArt: false,
-        antialias: true
+        activePointers: 3
       },
       scene: [BootScene, GameScene]
     };
@@ -88,17 +77,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       return;
     }
 
-    const handleResize = () => {
-      if (!gameRef.current) return;
-      gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
-    };
-
     const handleGameEvent = async (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        type?: string;
-        state?: 'victory' | 'defeat' | 'paused';
-      }>;
-
+      const customEvent = event as CustomEvent<{ type?: string; state?: 'victory' | 'defeat' | 'paused' }>;
       const detail = customEvent.detail;
 
       if (!detail || isExitingRef.current) return;
@@ -120,15 +100,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       }
     };
 
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
     window.addEventListener('WAR_PIGS_EVENT', handleGameEvent);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
       window.removeEventListener('WAR_PIGS_EVENT', handleGameEvent);
-
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
@@ -138,17 +113,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
 
   const returnToMenu = async () => {
     sessionStorage.removeItem('currentRun');
-
     if (gameRef.current) {
       gameRef.current.destroy(true);
       gameRef.current = null;
     }
-
     if (onExit) {
       await onExit();
       return;
     }
-
     window.location.reload();
   };
 
@@ -157,40 +129,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       style={{
         position: 'fixed',
         inset: 0,
-        width: '100vw',
-        height: '100dvh',
-        overflow: 'hidden',
         background: '#000',
-        touchAction: 'none',
-        userSelect: 'none'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100
       }}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <div
         ref={containerRef}
         style={{
-          position: 'absolute',
-          inset: 0,
           width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          background: '#000',
-          touchAction: 'none'
+          height: '100%'
         }}
       />
 
       {isBooting && !error ? (
         <div style={overlayStyle}>
-          <div
-            style={{
-              color: '#ff6b35',
-              fontSize: '24px',
-              fontWeight: 900,
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase'
-            }}
-          >
-            Deploying to Mission...
+          <div style={{ color: '#ff6b35', fontSize: '24px', fontWeight: 900 }}>
+            DEPLOYING...
           </div>
         </div>
       ) : null}
@@ -198,28 +156,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       {error ? (
         <div style={overlayStyle}>
           <div style={errorBoxStyle}>
-            <h2
-              style={{
-                color: '#ff4444',
-                margin: '0 0 10px',
-                fontSize: '20px',
-                textTransform: 'uppercase'
-              }}
-            >
-              Mission Error
-            </h2>
-
-            <p
-              style={{
-                color: '#ccc',
-                margin: '0 0 20px',
-                fontSize: '14px',
-                lineHeight: 1.45
-              }}
-            >
-              {error}
-            </p>
-
+            <h2 style={{ color: '#ff4444', margin: '0 0 10px' }}>ERROR</h2>
+            <p style={{ color: '#ccc', margin: '0 0 20px' }}>{error}</p>
             <button type="button" onClick={() => void returnToMenu()} style={buttonStyle}>
               Return to Menu
             </button>
@@ -238,8 +176,7 @@ const overlayStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   background: '#0a0a0a',
-  padding: '20px',
-  boxSizing: 'border-box'
+  padding: '20px'
 };
 
 const errorBoxStyle: React.CSSProperties = {
@@ -248,7 +185,6 @@ const errorBoxStyle: React.CSSProperties = {
   borderRadius: '12px',
   padding: '24px',
   textAlign: 'center',
-  maxWidth: '90%',
   width: '400px'
 };
 
@@ -259,7 +195,5 @@ const buttonStyle: React.CSSProperties = {
   borderRadius: '8px',
   color: '#fff',
   fontWeight: 900,
-  fontSize: '14px',
-  cursor: 'pointer',
-  textTransform: 'uppercase'
+  cursor: 'pointer'
 };
