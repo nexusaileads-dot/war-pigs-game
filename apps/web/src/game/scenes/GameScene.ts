@@ -26,15 +26,14 @@ type EnemyConfig = {
   score: number;
 };
 
-// LANDSCAPE WORLD DIMENSIONS
-const WORLD_WIDTH = 4600;
-const WORLD_HEIGHT = 1280;
-const GROUND_Y = 1100;
-const EXTRACTION_X = 4300;
+// LANDSCAPE WORLD DIMENSIONS (Matches GameCanvas 1280x720 aspect)
+const WORLD_WIDTH = 4800;
+const WORLD_HEIGHT = 720;
+const GROUND_Y = 640; // Adjusted for landscape
 
 const PLAYER_SPEED = 320;
-const JUMP_SPEED = 820;
-const GRAVITY_Y = 2200;
+const JUMP_SPEED = -680;
+const GRAVITY_Y = 1400;
 
 const KILL_TARGET = 6;
 
@@ -79,7 +78,7 @@ const ENEMIES: Record<EnemyKind, EnemyConfig> = {
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
-  private weapon!: Phaser.GameObjects.Sprite; // Added Weapon Sprite
+  private weapon!: Phaser.GameObjects.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
 
@@ -125,12 +124,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    console.log('[GameScene] Level 1 booting');
+    console.log('[GameScene] Level 1 Landscape Booting');
 
     this.createFallbackTextures();
 
     const storedRun = sessionStorage.getItem('currentRun');
-
     if (!storedRun) {
       this.failMission('NO ACTIVE MISSION');
       return;
@@ -139,7 +137,6 @@ export class GameScene extends Phaser.Scene {
     try {
       this.runData = JSON.parse(storedRun) as CurrentRunPayload;
     } catch (error) {
-      console.error('[GameScene] Invalid currentRun:', error);
       this.failMission('MISSION DATA ERROR');
       return;
     }
@@ -167,11 +164,8 @@ export class GameScene extends Phaser.Scene {
     this.startTimers();
 
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setZoom(this.getCameraZoom());
 
     this.showMissionText('LEVEL 1: OUTSKIRTS BREACH');
-
-    this.scale.on('resize', this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
   }
 
@@ -179,14 +173,14 @@ export class GameScene extends Phaser.Scene {
     if (this.isGameOver || !this.player?.active) return;
 
     this.updatePlayerMovement();
-    this.updateWeaponPosition(); // Sync weapon to player
+    this.updateWeaponPosition();
     this.updateEnemies();
 
     if (this.fireHeld) {
       this.shoot();
     }
 
-    if (!this.tankSpawned && (this.player.x > 3300 || this.kills >= 5)) {
+    if (!this.tankSpawned && (this.player.x > 3500 || this.kills >= 5)) {
       this.spawnTank();
     }
 
@@ -233,26 +227,27 @@ export class GameScene extends Phaser.Scene {
     // Sky
     this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0x87CEEB).setDepth(-60);
     
-    // Background Hills (Parallax)
-    for (let i = 0; i < 12; i++) {
-      const x = i * 500;
-      this.add.triangle(x, GROUND_Y, 0, 0, -250, Phaser.Math.Between(200, 400), 250, Phaser.Math.Between(200, 400), 0x4a6741, 1).setDepth(-55).setScrollFactor(0.3);
+    // Parallax Hills
+    for (let i = 0; i < 15; i++) {
+      const x = i * 400;
+      this.add.triangle(x, GROUND_Y, 0, 0, -200, Phaser.Math.Between(100, 250), 200, Phaser.Math.Between(100, 250), 0x4a6741, 1).setDepth(-55).setScrollFactor(0.3);
     }
 
     // Ground
-    this.add.rectangle(WORLD_WIDTH / 2, GROUND_Y + 50, WORLD_WIDTH, 200, 0x3c2b21).setDepth(-1);
+    this.add.rectangle(WORLD_WIDTH / 2, GROUND_Y + 40, WORLD_WIDTH, 120, 0x3c2b21).setDepth(-1);
     this.add.rectangle(WORLD_WIDTH / 2, GROUND_Y, WORLD_WIDTH, 20, 0xb8a07d).setDepth(0);
   }
 
   private createPlatforms() {
     this.platforms = this.physics.add.staticGroup();
 
-    // Floating Platforms for Landscape layout
-    this.createPlatform(700, GROUND_Y - 250, 300, 40, 0x7b704c);
-    this.createPlatform(1400, GROUND_Y - 400, 300, 40, 0x6c744a);
-    this.createPlatform(2100, GROUND_Y - 250, 300, 40, 0x9a7c5a);
-    this.createPlatform(2800, GROUND_Y - 350, 300, 40, 0x7b704c);
-    this.createPlatform(3500, GROUND_Y - 300, 300, 40, 0x9a7c5a);
+    // Landscape Platforms
+    this.createPlatform(600, GROUND_Y - 150, 200, 30, 0x7b704c);
+    this.createPlatform(1200, GROUND_Y - 250, 200, 30, 0x6c744a);
+    this.createPlatform(1800, GROUND_Y - 150, 200, 30, 0x9a7c5a);
+    this.createPlatform(2400, GROUND_Y - 200, 200, 30, 0x7b704c);
+    this.createPlatform(3000, GROUND_Y - 150, 200, 30, 0x9a7c5a);
+    this.createPlatform(3600, GROUND_Y - 250, 200, 30, 0x6c744a);
   }
 
   private createPlatform(x: number, y: number, width: number, height: number, color: number) {
@@ -276,7 +271,7 @@ export class GameScene extends Phaser.Scene {
     const weaponKey = this.resolveTexture([this.runData.run.weaponId, 'oink_pistol'], 'fallback_weapon');
 
     // Create Player
-    this.player = this.physics.add.sprite(140, GROUND_Y - 70, charKey);
+    this.player = this.physics.add.sprite(140, GROUND_Y - 50, charKey);
     this.player.setDisplaySize(72, 72);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(20);
@@ -286,7 +281,7 @@ export class GameScene extends Phaser.Scene {
     body.setOffset(19, 16);
     body.setDragX(1100);
 
-    // Create Weapon (Attached to Player)
+    // Create Weapon
     this.weapon = this.add.sprite(this.player.x, this.player.y, weaponKey);
     this.weapon.setDepth(21);
     this.weapon.setScale(0.8);
@@ -294,19 +289,17 @@ export class GameScene extends Phaser.Scene {
 
   private updateWeaponPosition() {
     if (!this.weapon || !this.player) return;
-    
-    // Offset weapon slightly in front of player
     const offsetX = this.facing === 1 ? 25 : -25;
-    this.weapon.setPosition(this.player.x + offsetX, this.player.y + 15);
+    this.weapon.setPosition(this.player.x + offsetX, this.player.y + 10);
     this.weapon.setFlipX(this.facing === -1);
   }
 
   private createEnemies() {
-    this.spawnEnemy('soldier', 800, GROUND_Y - 70);
-    this.spawnEnemy('soldier', 1500, GROUND_Y - 70);
-    this.spawnEnemy('drone', 2000, GROUND_Y - 300);
-    this.spawnEnemy('soldier', 2600, GROUND_Y - 70);
-    this.spawnEnemy('soldier', 3200, GROUND_Y - 70);
+    this.spawnEnemy('soldier', 800, GROUND_Y - 50);
+    this.spawnEnemy('soldier', 1400, GROUND_Y - 50);
+    this.spawnEnemy('drone', 1800, GROUND_Y - 200);
+    this.spawnEnemy('soldier', 2500, GROUND_Y - 50);
+    this.spawnEnemy('soldier', 3200, GROUND_Y - 50);
   }
 
   private spawnEnemy(kind: EnemyKind, x: number, y: number) {
@@ -334,19 +327,19 @@ export class GameScene extends Phaser.Scene {
   private spawnTank() {
     if (this.tankSpawned) return;
     this.tankSpawned = true;
-    const tank = this.spawnEnemy('tank', 3900, GROUND_Y - 80);
+    const tank = this.spawnEnemy('tank', 4000, GROUND_Y - 60);
     tank.setTint(0xffe0a3);
     this.showMissionText('MINI TANK INCOMING');
   }
 
   private createExtractionZone() {
-    const x = WORLD_WIDTH - 300;
-    this.extractionZone = this.add.zone(x, GROUND_Y - 70, 110, 120);
+    const x = WORLD_WIDTH - 200;
+    this.extractionZone = this.add.zone(x, GROUND_Y - 50, 100, 100);
     this.physics.add.existing(this.extractionZone, true);
-    this.add.rectangle(x, GROUND_Y - 70, 110, 120, 0x00ff00, 0.12).setStrokeStyle(3, 0x00ff00, 0.45).setDepth(4);
+    this.add.rectangle(x, GROUND_Y - 50, 100, 100, 0x00ff00, 0.2).setStrokeStyle(3, 0x00ff00, 0.45).setDepth(4);
     
-    this.extractionText = this.add.text(x, GROUND_Y - 140, 'EXTRACTION\nLOCKED', {
-      fontSize: '18px', color: '#ff4d4f', align: 'center', fontStyle: 'bold'
+    this.extractionText = this.add.text(x, GROUND_Y - 120, 'EXTRACTION\nLOCKED', {
+      fontSize: '16px', color: '#ff4d4f', align: 'center', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(5);
   }
 
@@ -379,18 +372,23 @@ export class GameScene extends Phaser.Scene {
       const flying = enemy.getData('flying');
       const direction = this.player.x > enemy.x ? 1 : -1;
 
-      // FIX: Inverted Flip Logic (Sprites face Left by default)
-      enemy.setFlipX(direction === 1);
+      // FIX: If player is to the Right (1), we want to face Right.
+      // Assuming sprite faces LEFT by default: FlipX = true to face RIGHT.
+      // If sprite faces RIGHT by default: FlipX = true to face LEFT.
+      // Let's assume standard is Face Right.
+      // If player is right (1), face Right (FlipX false).
+      // If player is left (-1), face Left (FlipX true).
+      enemy.setFlipX(direction === -1);
 
       const distance = Math.abs(this.player.x - enemy.x);
 
       if (flying) {
         body.setVelocityX(direction * speed);
-        const targetY = this.player.y - 100;
+        const targetY = this.player.y - 80;
         if (enemy.y > targetY) body.setVelocityY(-speed * 0.5);
         else body.setVelocityY(speed * 0.5);
       } else {
-        if (distance > 100) body.setVelocityX(direction * speed);
+        if (distance > 80) body.setVelocityX(direction * speed);
         else body.setVelocityX(0);
       }
     });
@@ -406,7 +404,7 @@ export class GameScene extends Phaser.Scene {
     if (!bullet) return;
 
     bullet.setActive(true).setVisible(true);
-    bullet.setPosition(this.player.x + (this.facing * 30), this.player.y + 15);
+    bullet.setPosition(this.player.x + (this.facing * 30), this.player.y + 10);
     bullet.setDepth(30);
     bullet.setRotation(this.facing === 1 ? 0 : Math.PI);
 
@@ -546,13 +544,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHud() {
-    this.hudText = this.add.text(16, 16, '', { fontSize: '16px', fontFamily: 'monospace', color: '#fff', backgroundColor: '#00000088', padding: { x: 10, y: 5 } }).setScrollFactor(0).setDepth(100);
-    
-    this.healthBar = this.add.rectangle(16, 70, 200, 16, 0xff4d4f).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
-    this.progressBar = this.add.rectangle(16, 90, 0, 10, 0xffd166).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
+    // HUD Fixed to top-left of camera
+    this.hudText = this.add.text(20, 20, '', { 
+      fontSize: '18px', 
+      fontFamily: 'monospace', 
+      color: '#fff', 
+      backgroundColor: '#000000aa', 
+      padding: { x: 10, y: 5 } 
+    }).setScrollFactor(0).setDepth(100);
 
-    this.missionText = this.add.text(this.scale.width / 2, 100, '', { fontSize: '32px', color: '#ffdd57', fontStyle: 'bold' })
-      .setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
+    this.healthBar = this.add.rectangle(20, 60, 200, 16, 0xff4d4f).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
+    this.progressBar = this.add.rectangle(20, 80, 0, 10, 0xffd166).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
+
+    this.missionText = this.add.text(this.cameras.main.width / 2, 100, '', { 
+      fontSize: '32px', 
+      color: '#ffdd57', 
+      fontStyle: 'bold' 
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
   }
 
   private updateHud() {
@@ -562,16 +570,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTouchControls() {
-    const y = this.scale.height - 100;
-    this.addButton(100, y, 'LEFT', () => this.leftHeld = true, () => this.leftHeld = false);
-    this.addButton(200, y, 'RIGHT', () => this.rightHeld = true, () => this.rightHeld = false);
-    this.addButton(this.scale.width - 100, y, 'FIRE', () => this.fireHeld = true, () => this.fireHeld = false);
-    this.addButton(this.scale.width - 200, y, 'JUMP', () => this.jumpHeld = true, () => this.jumpHeld = false);
+    // Landscape Layout: Buttons in bottom corners
+    const y = WORLD_HEIGHT - 80; // 720 - 80 = 640
+    
+    // Left Side: Movement
+    this.addButton(80, y, 'LEFT', () => this.leftHeld = true, () => this.leftHeld = false);
+    this.addButton(180, y, 'RIGHT', () => this.rightHeld = true, () => this.rightHeld = false);
+
+    // Right Side: Actions
+    // Game Width is 1280
+    this.addButton(WORLD_WIDTH - 80, y, 'FIRE', () => this.fireHeld = true, () => this.fireHeld = false);
+    this.addButton(WORLD_WIDTH - 180, y, 'JUMP', () => this.jumpHeld = true, () => this.jumpHeld = false);
   }
 
   private addButton(x: number, y: number, text: string, onDown: () => void, onUp: () => void) {
-    const btn = this.add.circle(x, y, 40, 0x000000, 0.5).setInteractive().setScrollFactor(0).setDepth(100);
-    this.add.text(x, y, text, { fontSize: '12px', color: '#fff' }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+    // Buttons are fixed to camera (scrollFactor 0)
+    const btn = this.add.circle(x, y, 45, 0x000000, 0.5).setInteractive().setScrollFactor(0).setDepth(100);
+    this.add.text(x, y, text, { fontSize: '14px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+    
     btn.on('pointerdown', onDown).on('pointerup', onUp).on('pointerout', onUp);
   }
 
@@ -582,20 +598,8 @@ export class GameScene extends Phaser.Scene {
     return fallback;
   }
 
-  private getCameraZoom() {
-    const height = this.scale.height;
-    // Zoom out slightly on smaller landscape screens to show more vertical space
-    if (height < 500) return 0.8;
-    if (height < 800) return 0.9;
-    return 1;
-  }
-
-  private handleResize() {
-    if (this.missionText) this.missionText.setPosition(this.scale.width / 2, 100);
-  }
-
   private cleanup() {
     this.enemyShootTimer?.remove();
     this.missionTimer?.remove();
   }
-}
+  }
