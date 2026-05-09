@@ -7,16 +7,17 @@ type CurrentRunPayload = {
 };
 
 // --- WEAPON CONFIGURATIONS ---
-const WEAPONS: Record<string, { fireRate: number; damage: number; speed: number; scale: number; sprite: string }> = {
-  'oink_pistol': { fireRate: 350, damage: 1, speed: 1000, scale: 0.3, sprite: 'bullet' },
-  'sow_machinegun': { fireRate: 120, damage: 0.7, speed: 1200, scale: 0.35, sprite: 'bullet' },
-  'boar_rifle': { fireRate: 200, damage: 1.5, speed: 1400, scale: 0.4, sprite: 'bullet' },
-  'tusk_shotgun': { fireRate: 800, damage: 3, speed: 900, scale: 0.4, sprite: 'bullet' }, // Spread handled in code
-  'sniper_swine': { fireRate: 1200, damage: 6, speed: 2000, scale: 0.5, sprite: 'sniper_bullet' },
-  'belcha_minigun': { fireRate: 70, damage: 0.5, speed: 1100, scale: 0.5, sprite: 'bullet' },
-  'plasma_porker': { fireRate: 300, damage: 2, speed: 800, scale: 0.4, sprite: 'plasma_globule' },
-  'bacon_blaster': { fireRate: 600, damage: 4, speed: 900, scale: 0.5, sprite: 'rocket' },
-  'default': { fireRate: 350, damage: 1, speed: 1000, scale: 0.3, sprite: 'bullet' }
+// Adjusted gun scales to be larger, and added bulletScale to make projectiles smaller
+const WEAPONS: Record<string, { fireRate: number; damage: number; speed: number; scale: number; bulletScale: number; sprite: string }> = {
+  'oink_pistol': { fireRate: 350, damage: 1, speed: 1000, scale: 0.5, bulletScale: 0.4, sprite: 'bullet' },
+  'sow_machinegun': { fireRate: 120, damage: 0.7, speed: 1200, scale: 0.6, bulletScale: 0.4, sprite: 'bullet' },
+  'boar_rifle': { fireRate: 200, damage: 1.5, speed: 1400, scale: 0.65, bulletScale: 0.5, sprite: 'bullet' },
+  'tusk_shotgun': { fireRate: 800, damage: 3, speed: 900, scale: 0.65, bulletScale: 0.4, sprite: 'bullet' }, 
+  'sniper_swine': { fireRate: 1200, damage: 6, speed: 2000, scale: 0.8, bulletScale: 0.6, sprite: 'sniper_bullet' },
+  'belcha_minigun': { fireRate: 70, damage: 0.5, speed: 1100, scale: 0.8, bulletScale: 0.5, sprite: 'bullet' },
+  'plasma_porker': { fireRate: 300, damage: 2, speed: 800, scale: 0.65, bulletScale: 0.5, sprite: 'plasma_globule' },
+  'bacon_blaster': { fireRate: 600, damage: 4, speed: 900, scale: 0.8, bulletScale: 0.6, sprite: 'rocket' },
+  'default': { fireRate: 350, damage: 1, speed: 1000, scale: 0.5, bulletScale: 0.4, sprite: 'bullet' }
 };
 
 type EnemyKind = 'soldier' | 'drone' | 'tank';
@@ -26,12 +27,16 @@ const ENEMIES: Record<EnemyKind, any> = {
   tank: { kind: 'tank', keys: ['level1_mini_tank'], hp: 40, damage: 25, speed: 50, w: 140, h: 100, flying: false }
 };
 
-const WORLD_WIDTH = 4800; const WORLD_HEIGHT = 720; const GROUND_Y = 640;
+const WORLD_WIDTH = 4800; 
+const WORLD_HEIGHT = 720; 
+const GROUND_Y = 640;
+const KILL_TARGET = 10;
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private weapon!: Phaser.GameObjects.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
   
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -82,6 +87,7 @@ export class GameScene extends Phaser.Scene {
     this.createExtractionZone();
     this.createHud();
     this.createMobileControls();
+    this.createPauseButton();
     this.setupInput();
     this.setupCollisions();
     this.startTimers();
@@ -89,6 +95,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setZoom(1.1);
     this.showMissionText('LEVEL 1: OUTSKIRTS BREACH');
+    
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
   }
 
   update() {
@@ -99,22 +107,34 @@ export class GameScene extends Phaser.Scene {
     this.updateWeaponPosition();
     this.updateEnemies();
     
-    if (this.kills >= 5 && !this.tankSpawned) this.spawnTank();
+    // Trigger Mini Tank boss spawn when player gets 3 kills
+    if (this.kills >= 3 && !this.tankSpawned) {
+      this.spawnTank();
+    }
     
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (body.blocked.down) this.jumpsLeft = 2;
 
     this.bullets.getChildren().forEach((b: any) => { if(b.x < 0 || b.x > WORLD_WIDTH) b.destroy(); });
+    
+    // Safety net in case player somehow falls out of bounds
     if (this.player.y > WORLD_HEIGHT + 80) this.damagePlayer(999);
+    
     this.updateHud();
   }
 
   private createBackground() {
     this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT/2, WORLD_WIDTH, WORLD_HEIGHT, 0x87CEEB).setDepth(-60);
+    
+    // Perfectly align the 3 background images
     const bgW = 1600; 
     if (this.textures.exists('level1_bg_left')) this.add.image(0, 0, 'level1_bg_left').setOrigin(0,0).setDepth(-55).setDisplaySize(bgW, WORLD_HEIGHT);
     if (this.textures.exists('level1_bg_middle')) this.add.image(bgW, 0, 'level1_bg_middle').setOrigin(0,0).setDepth(-55).setDisplaySize(bgW, WORLD_HEIGHT);
     if (this.textures.exists('level1_bg_right')) this.add.image(bgW*2, 0, 'level1_bg_right').setOrigin(0,0).setDepth(-55).setDisplaySize(bgW, WORLD_HEIGHT);
+
+    // Floor rendering
+    this.add.rectangle(WORLD_WIDTH/2, GROUND_Y+50, WORLD_WIDTH, 100, 0x3c2b21).setDepth(-1);
+    this.add.rectangle(WORLD_WIDTH/2, GROUND_Y, WORLD_WIDTH, 20, 0xb8a07d).setDepth(0);
   }
 
   private createPlatforms() {
@@ -122,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     const floor = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT - 50, WORLD_WIDTH, 100, 0x000000, 0);
     this.physics.add.existing(floor, true);
     this.platforms.add(floor);
+    
     [{x:600,y:GROUND_Y-150}, {x:1200,y:GROUND_Y-250}, {x:1800,y:GROUND_Y-150}, {x:2400,y:GROUND_Y-200}].forEach(p => {
       const plat = this.add.rectangle(p.x, p.y, 200, 30, 0x7b704c, 1).setDepth(1);
       this.physics.add.existing(plat, true);
@@ -139,7 +160,7 @@ export class GameScene extends Phaser.Scene {
     const charKey = this.resolveTexture([this.runData.run.characterId], 'fallback_player');
     const wCfg = WEAPONS[this.runData.run.weaponId] || WEAPONS['default'];
     
-    // FIX: Spawn high in the air to prevent clipping into the floor
+    // Spawn high in the air to prevent clipping into the floor
     this.player = this.physics.add.sprite(140, 200, charKey);
     this.player.setDisplaySize(72, 72).setCollideWorldBounds(true).setDepth(20);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 54).setOffset(19, 16).setDragX(1100);
@@ -173,6 +194,7 @@ export class GameScene extends Phaser.Scene {
         if (isShotgun) angleOffset = (i - 1) * 0.15; // Spread
 
         b.setActive(true).setVisible(true).setPosition(this.player.x + (this.facing * 30), this.player.y + 10).setDepth(30).setRotation((this.facing === 1 ? 0 : Math.PI) + angleOffset);
+        b.setScale(wCfg.bulletScale); // Shrink the massive bullets
         b.setData('damage', dmg);
         
         const bdy = b.body as Phaser.Physics.Arcade.Body;
@@ -244,8 +266,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // --- STANDARD BOILERPLATE & FIXES BELOW ---
-  private jump() { if (this.isGameOver) return; const body = this.player.body as Phaser.Physics.Arcade.Body; if (this.jumpsLeft > 0) { body.setVelocityY(-680); this.jumpsLeft--; } }
+  private jump() { 
+    if (this.isGameOver) return; 
+    const body = this.player.body as Phaser.Physics.Arcade.Body; 
+    if (this.jumpsLeft > 0) { 
+      body.setVelocityY(-680); 
+      this.jumpsLeft--; 
+    } 
+  }
 
   private createEnemies() {
     this.spawnEnemy('soldier', 800, GROUND_Y - 50);
@@ -268,10 +296,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnTank() { 
-    if(this.tankSpawned) return; this.tankSpawned = true; 
+    if(this.tankSpawned) return; 
+    this.tankSpawned = true; 
     const spawnX = Math.min(this.player.x + 800, WORLD_WIDTH - 200);
     const t = this.spawnEnemy('tank', spawnX, GROUND_Y - 200); 
-    if(t) { t.setTint(0xffe0a3); this.cameras.main.shake(500, 0.02); this.showMissionText('WARNING: HEAVY ARMOR DETECTED'); } 
+    if(t) { 
+      t.setTint(0xffe0a3); 
+      this.cameras.main.shake(500, 0.02); 
+      this.showMissionText('WARNING: HEAVY ARMOR DETECTED'); 
+    } 
   }
 
   private createExtractionZone() {
@@ -308,7 +341,7 @@ export class GameScene extends Phaser.Scene {
       const sp = e.getData('speed'); const fly = e.getData('flying');
       const dir = this.player.x > e.x ? 1 : -1;
       
-      e.setFlipX(dir === 1); // Native face left, flip if player is to the right
+      e.setFlipX(dir === 1); 
       
       const dist = Math.abs(this.player.x - e.x);
       if (fly) { 
@@ -328,7 +361,7 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-SPACE', () => this.shoot());
     this.input.keyboard.on('keydown-W', () => this.jump());
     this.input.keyboard.on('keydown-UP', () => this.jump());
-    this.input.keyboard.on('keydown-E', () => this.activateSkill()); // PC Binding
+    this.input.keyboard.on('keydown-E', () => this.activateSkill()); 
   }
 
   private setupCollisions() {
@@ -338,7 +371,8 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.bullets, this.enemies, (b, e) => {
       const bullet = b as Phaser.Physics.Arcade.Image;
       const dmg = bullet.getData('damage') || 1;
-      bullet.destroy(); // FIX: Destroy instantly to prevent multi-frame hit overlaps
+      
+      bullet.destroy(); // Destroy instantly to prevent multi-hit overlap
       
       const en = e as Phaser.Physics.Arcade.Sprite;
       const hp = en.getData('hp') - dmg;
@@ -347,15 +381,19 @@ export class GameScene extends Phaser.Scene {
             const exp = this.add.sprite(en.x, en.y, 'explosion').setDisplaySize(60, 60).setDepth(25);
             this.time.delayedCall(200, () => exp.destroy());
         }
-        this.kills++; this.score += 100; en.destroy(); 
-        if (this.kills >= 10) this.unlockExtraction(); 
-      } else en.setData('hp', hp);
+        this.kills++; 
+        this.score += 100; 
+        en.destroy(); 
+        if (this.kills >= KILL_TARGET) this.unlockExtraction(); 
+      } else {
+        en.setData('hp', hp);
+      }
     }, undefined, this);
     
     this.physics.add.overlap(this.enemyBullets, this.player, (p, b) => { 
       const bullet = b as Phaser.Physics.Arcade.Image;
       const dmg = bullet.getData('damage') || 10;
-      bullet.destroy(); // FIX
+      bullet.destroy(); 
       this.damagePlayer(dmg); 
     }, undefined, this);
     
@@ -393,6 +431,20 @@ export class GameScene extends Phaser.Scene {
     this.missionText = this.add.text(this.cameras.main.width / 2, 100, '', { fontSize: '32px', color: '#ffdd57', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
   }
 
+  private createPauseButton() {
+    const camW = this.cameras.main.width;
+    const btn = this.add.text(camW - 20, 20, '❚❚', { fontSize: '24px', color: '#fff', backgroundColor: '#333', padding: {x:10, y:5} })
+      .setOrigin(1, 0).setScrollFactor(0).setDepth(100).setInteractive();
+    
+    btn.on('pointerdown', () => {
+      this.scene.pause();
+      const overlay = this.add.rectangle(camW/2, WORLD_HEIGHT/2, camW, WORLD_HEIGHT, 0x000000, 0.8).setScrollFactor(0).setDepth(300);
+      const txt = this.add.text(camW/2, WORLD_HEIGHT/2, 'PAUSED\n\nTAP TO RESUME', { color:'#fff', fontSize:'32px', align:'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
+      overlay.setInteractive();
+      overlay.on('pointerdown', () => { overlay.destroy(); txt.destroy(); this.scene.resume(); });
+    });
+  }
+
   private startTimers() {
     this.time.addEvent({ delay: 1500, callback: () => {
       if(this.isGameOver) return;
@@ -414,7 +466,8 @@ export class GameScene extends Phaser.Scene {
     if(!b) return;
     
     const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-    b.setActive(true).setVisible(true).setRotation(ang).setDepth(29); // FIX: Removed + Math.PI so standard bullets face player
+    b.setActive(true).setVisible(true).setRotation(ang).setDepth(29); 
+    b.setScale(0.5); // Shrink enemy bullets slightly
     b.setData('damage', e.getData('dmg') || 10);
     
     const bdy = b.body as Phaser.Physics.Arcade.Body;
@@ -429,7 +482,7 @@ export class GameScene extends Phaser.Scene {
     if (this.overshield > 0) {
         this.overshield -= a;
         if (this.overshield < 0) {
-            this.health += this.overshield; // subtract remainder from health
+            this.health += this.overshield; 
             this.overshield = 0;
         }
     } else {
@@ -456,7 +509,6 @@ export class GameScene extends Phaser.Scene {
     this.physics.pause();
     this.player.setTint(0xff0000);
 
-    // FIX: Cinematic Game Over Screen instead of instantly booting to menu
     const camW = this.cameras.main.width; const camH = this.cameras.main.height;
     this.add.rectangle(camW/2, camH/2, WORLD_WIDTH, WORLD_HEIGHT, 0x000000, 0.7).setScrollFactor(0).setDepth(400);
     this.add.text(camW/2, camH/2 - 40, 'MISSION FAILED', { fontSize: '64px', color: '#ff4d4f', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setScrollFactor(0).setDepth(401);
@@ -470,7 +522,7 @@ export class GameScene extends Phaser.Scene {
   private showMissionText(t: string) { if(!this.missionText) return; this.missionText.setText(t).setVisible(true); this.time.delayedCall(2000, () => this.missionText.setVisible(false)); }
   
   private updateHud() { 
-    this.hudText.setText(`KILLS: ${this.kills}/10 | TIME: ${this.remainingSeconds}`); 
+    this.hudText.setText(`KILLS: ${this.kills}/${KILL_TARGET} | TIME: ${this.remainingSeconds}`); 
     this.healthBar.width = 200 * (Math.max(0, this.health) / this.maxHealth); 
     this.shieldBar.width = Math.min(200, this.overshield);
     if (this.skillBtnText) this.skillBtnText.setText(this.skillCooldown > 0 ? `${this.skillCooldown}s` : 'SKILL');
