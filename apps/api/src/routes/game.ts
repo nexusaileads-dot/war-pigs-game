@@ -11,15 +11,13 @@ const economy = new EconomyService();
 const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function gameRoutes(fastify: FastifyInstance) {
-  // Apply stricter rate limits to high-value gameplay endpoints
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (request.url.startsWith('/api/game/start') || request.url.startsWith('/api/game/complete')) {
-      // Apply rate limit config directly (not nested under .config)
-      (reply.context.config as any).rateLimit = strictRateLimitConfig;
-    }
-  });
+  // FIX: Removed dangerous global context mutation. 
+  // Rate limits are now applied correctly in the route configuration blocks below.
 
-  fastify.post('/start', { preHandler: authenticate }, async (request, reply) => {
+  fastify.post('/start', { 
+    config: { rateLimit: strictRateLimitConfig }, 
+    preHandler: authenticate 
+  }, async (request, reply) => {
     const { levelId, characterId, weaponId } = request.body as {
       levelId?: string;
       characterId?: string;
@@ -121,7 +119,10 @@ export async function gameRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.post('/complete', { preHandler: authenticate }, async (request, reply) => {
+  fastify.post('/complete', { 
+    config: { rateLimit: strictRateLimitConfig }, 
+    preHandler: authenticate 
+  }, async (request, reply) => {
     const { runId, stats, sessionToken, clientHash } = request.body as {
       runId?: string;
       stats?: {
@@ -148,7 +149,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
-    // Validate session has not expired (session.createdAt is a number timestamp)
     const now = Date.now();
     if (now - session.createdAt > SESSION_MAX_AGE_MS) {
       await gameSession.endSession(sessionToken);
@@ -161,10 +161,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     });
 
     if (!run || run.status !== 'ACTIVE') {
-      return reply.status(400).send({ error: 'Invalid run' });
+      return reply.status(400).send({ error: 'Invalid or already processed run' });
     }
 
-    // Sanitize and clamp stats with explicit accuracy handling (0-100 scale)
     const safeStats = {
       kills: Math.max(0, Math.floor(Number(stats.kills) || 0)),
       damageDealt: Math.max(0, Math.floor(Number(stats.damageDealt) || 0)),
@@ -185,65 +184,59 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     const validation = calculator.validateRunStats(rewardInput, maxPossibleKills);
     if (!validation.valid) {
-      fastify.log.warn(
-        `Potential cheat detected: ${validation.reason}, User: ${userId}, Run: ${runId}`
-      );
+      fastify.log.warn(`Potential cheat detected: ${validation.reason}, User: ${userId}, Run: ${runId}`);
     }
 
     const rewards = calculator.calculateRewards(rewardInput);
-    // Use configurable reward multiplier from env or level config
     const rewardMultiplier = Number(process.env.MAX_REWARD_MULTIPLIER) || 5;
     const maxPossibleReward = run.level.baseReward * rewardMultiplier;
 
     if (rewards.total > maxPossibleReward) {
-      fastify.log.error(
-        `Reward cap exceeded: ${rewards.total} > ${maxPossibleReward}, User: ${userId}, Run: ${runId}`
-      );
+      fastify.log.error(`Reward cap exceeded: ${rewards.total} > ${maxPossibleReward}, User: ${userId}, Run: ${runId}`);
       return reply.status(400).send({ error: 'Reward calculation error' });
     }
 
-    // Single transaction: update run + stats + grant rewards (idempotent design)
-    await prisma.$transaction(async (tx) => {
-      await tx.gameRun.update({
-        where: { id: runId },
-        data: {
-          status: 'COMPLETED',
-          endedAt: new Date(),
-          score: safeStats.kills * 100 + (safeStats.bossKilled ? 1000 : 0),
-          kills: safeStats.kills,
-          damageDealt: safeStats.damageDealt,
-          damageTaken: safeStats.damageTaken,
-          accuracy: safeStats.accuracy,
-          rewardsEarned: rewards.total,
-          xpEarned: rewards.xpEarned,
-          clientHash,
-          serverValidated: validation.valid
+    // Single transaction: verify idempotency, update run, update stats, grant rewards
+    try {
+      await prisma.$transaction(async (tx) => {
+        // FIX: Re-verify status INSIDE the transaction to guarantee 100% idempotency
+        const lockedRun = await tx.gameRun.findUnique({ where: { id: runId } });
+        if (lockedRun?.status !== 'ACTIVE') {
+          throw new Error('Run already processed');
         }
-      });
 
-      await tx.playerStats.upsert({
-        where: { userId },
-        update: {
-          totalKills: { increment: safeStats.kills },
-          totalRuns: { increment: 1 },
-          totalBossKills: { increment: safeStats.bossKilled ? 1 : 0 }
-        },
-        create: {
-          userId,
-          totalKills: safeStats.kills,
-          totalRuns: 1,
-          totalBossKills: safeStats.bossKilled ? 1 : 0
-        }
-      });
-
-      // Idempotent reward granting: check if already granted before applying
-      const existingGrant = await tx.rewardGrant?.findFirst({
-        where: { runId, userId }
-      });
-      if (!existingGrant) {
-        await tx.rewardGrant?.create({
-          data: { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
+        await tx.gameRun.update({
+          where: { id: runId },
+          data: {
+            status: 'COMPLETED',
+            endedAt: new Date(),
+            score: safeStats.kills * 100 + (safeStats.bossKilled ? 1000 : 0),
+            kills: safeStats.kills,
+            damageDealt: safeStats.damageDealt,
+            damageTaken: safeStats.damageTaken,
+            accuracy: safeStats.accuracy,
+            rewardsEarned: rewards.total,
+            xpEarned: rewards.xpEarned,
+            clientHash,
+            serverValidated: validation.valid
+          }
         });
+
+        await tx.playerStats.upsert({
+          where: { userId },
+          update: {
+            totalKills: { increment: safeStats.kills },
+            totalRuns: { increment: 1 },
+            totalBossKills: { increment: safeStats.bossKilled ? 1 : 0 }
+          },
+          create: {
+            userId,
+            totalKills: safeStats.kills,
+            totalRuns: 1,
+            totalBossKills: safeStats.bossKilled ? 1 : 0
+          }
+        });
+
         // Update profile economy fields atomically
         await tx.profile.update({
           where: { userId },
@@ -253,8 +246,13 @@ export async function gameRoutes(fastify: FastifyInstance) {
             xp: { increment: rewards.xpEarned }
           }
         });
+      });
+    } catch (error: any) {
+      if (error.message === 'Run already processed') {
+        return reply.status(400).send({ error: 'Run already completed' });
       }
-    });
+      throw error;
+    }
 
     await gameSession.endSession(sessionToken);
 
@@ -282,7 +280,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
-    // Validate session expiration (session.createdAt is a number timestamp)
     const now = Date.now();
     if (now - session.createdAt > SESSION_MAX_AGE_MS) {
       await gameSession.endSession(sessionToken);
@@ -336,7 +333,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/leaderboard', async () => {
-    // NOTE: Ensure database index exists: CREATE INDEX idx_profile_earnings ON Profile(totalPigsEarned DESC)
     const topPlayers = await prisma.profile.findMany({
       take: 100,
       orderBy: { totalPigsEarned: 'desc' },
