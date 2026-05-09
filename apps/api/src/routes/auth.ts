@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { authRateLimitConfig } from '../middleware/rateLimiter';
 import bcrypt from 'bcryptjs';
 
-// Helper to generate a unique username if collision occurs
+// Helper to generate a unique username if collision occurs (Used for Telegram/Social logins)
 const generateUniqueUsername = async (base: string): Promise<string> => {
   let username = base;
   let exists = await prisma.user.findUnique({ where: { username } });
@@ -57,14 +57,8 @@ async function provisionUserAssets(userId: string, username: string) {
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (request.url.startsWith('/api/auth')) {
-      (reply.context.config as any).rateLimit = authRateLimitConfig;
-    }
-  });
-
   // --- EMAIL REGISTRATION ---
-  fastify.post('/register', async (request, reply) => {
+  fastify.post('/register', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const email = (body?.email as string)?.toLowerCase().trim();
     const password = body?.password as string;
@@ -91,18 +85,17 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const finalUsername = await generateUniqueUsername(username);
 
       const user = await prisma.user.create({
         data: {
           email,
           passwordHash,
-          username: finalUsername,
-          firstName: finalUsername
+          username,
+          firstName: username
         }
       });
 
-      await provisionUserAssets(user.id, finalUsername);
+      await provisionUserAssets(user.id, username);
 
       const token = fastify.jwt.sign({ userId: user.id });
 
@@ -119,7 +112,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // --- EMAIL LOGIN ---
-  fastify.post('/login', async (request, reply) => {
+  fastify.post('/login', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const email = (body?.email as string)?.toLowerCase().trim();
     const password = body?.password as string;
@@ -164,8 +157,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // --- DEV LOGIN (Testing Only) ---
-  fastify.post('/dev-login', async (request, reply) => {
-    // Only allow if explicitly enabled in environment variables
+  fastify.post('/dev-login', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const isDevAuthEnabled = process.env.ENABLE_DEV_AUTH === 'true';
 
     if (!isDevAuthEnabled) {
@@ -173,7 +165,6 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      // Hardcoded test user ID
       const telegramId = '999001';
 
       let user = await prisma.user.findUnique({
@@ -195,6 +186,8 @@ export async function authRoutes(fastify: FastifyInstance) {
           },
           include: { profile: true, wallet: true, stats: true }
         });
+        
+        await provisionUserAssets(user.id, 'dev_tester');
       }
 
       const token = fastify.jwt.sign({
@@ -223,7 +216,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // --- TELEGRAM LOGIN (Legacy) ---
-  fastify.post('/telegram', async (request, reply) => {
+  fastify.post('/telegram', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const initData = body?.initData as string | undefined;
 
@@ -249,10 +242,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (!user) {
+        // FIX: Ensure Telegram users don't crash the DB if an email user took their exact TG username
+        let baseUsername = telegramUser.username || `tg_${telegramUser.id}`;
+        const finalUsername = await generateUniqueUsername(baseUsername);
+
         user = await prisma.user.create({
           data: {
             telegramId,
-            username: telegramUser.username || `tg_${telegramUser.id}`,
+            username: finalUsername,
             firstName: telegramUser.first_name,
             lastName: telegramUser.last_name,
             photoUrl: telegramUser.photo_url
@@ -288,4 +285,4 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to retrieve user data' });
     }
   });
-        }
+}
