@@ -9,7 +9,8 @@ export const AuthScene: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { login, register, isLoading } = useGameStore();
+  // FIX: Destructured initAuth to handle Dev Login state without a hard page reload
+  const { login, register, initAuth, isLoading } = useGameStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +34,9 @@ export const AuthScene: React.FC = () => {
     try {
       const { data } = await apiClient.post('/api/auth/dev-login');
       localStorage.setItem('token', data.token);
-      // Reload page to update store via initAuth in App.tsx
-      window.location.reload(); 
+      
+      // FIX: Seamlessly initialize auth state without jarring window.location.reload()
+      await initAuth(); 
     } catch (err: any) {
       setError(err.response?.data?.error || 'Dev login failed. Is ENABLE_DEV_AUTH=true set on backend?');
     }
@@ -98,14 +100,14 @@ export const AuthScene: React.FC = () => {
           {mode === 'login' ? (
             <>
               Don't have an account?{' '}
-              <button onClick={() => { setMode('register'); setError(null); }} style={linkStyle}>
+              <button type="button" onClick={() => { setMode('register'); setError(null); }} style={linkStyle}>
                 Register
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => { setMode('login'); setError(null); }} style={linkStyle}>
+              <button type="button" onClick={() => { setMode('login'); setError(null); }} style={linkStyle}>
                 Login
               </button>
             </>
@@ -113,26 +115,29 @@ export const AuthScene: React.FC = () => {
         </div>
 
         {/* DEV LOGIN BUTTON */}
-        <div style={{ marginTop: '30px', borderTop: '1px solid #333', paddingTop: '20px', textAlign: 'center' }}>
-          <button 
-            onClick={handleDevLogin}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: '#333',
-              border: '1px solid #555',
-              borderRadius: '8px',
-              color: '#fff',
-              fontWeight: 800,
-              cursor: 'pointer'
-            }}
-          >
-            DEV LOGIN (BYPASS)
-          </button>
-          <p style={{ fontSize: '10px', color: '#666', marginTop: '8px' }}>
-            Requires ENABLE_DEV_AUTH=true on server
-          </p>
-        </div>
+        {import.meta.env.DEV && ( // Optional: Hide Dev button entirely in production build
+          <div style={{ marginTop: '30px', borderTop: '1px solid #333', paddingTop: '20px', textAlign: 'center' }}>
+            <button 
+              type="button"
+              onClick={handleDevLogin}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#333',
+                border: '1px solid #555',
+                borderRadius: '8px',
+                color: '#fff',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              DEV LOGIN (BYPASS)
+            </button>
+            <p style={{ fontSize: '10px', color: '#666', marginTop: '8px' }}>
+              Requires ENABLE_DEV_AUTH=true on server
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
