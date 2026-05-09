@@ -52,7 +52,7 @@ export class GameScene extends Phaser.Scene {
   private lastFired = 0; private fireRate = 220;
   private isGameOver = false; private extractionUnlocked = false; private tankSpawned = false;
   
-  // Joystick
+  // Joystick & Mobile Controls
   private joystickPointer: Phaser.Input.Pointer | null = null;
   private joystickBase!: Phaser.GameObjects.Arcade;
   private joystickThumb!: Phaser.GameObjects.Arcade;
@@ -83,7 +83,7 @@ export class GameScene extends Phaser.Scene {
     this.createEnemies();
     this.createExtractionZone();
     this.createHud();
-    this.createJoystick();
+    this.createMobileControls();
     this.createPauseButton();
     this.setupInput();
     this.setupCollisions();
@@ -116,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.makeCircleTexture('fallback_drone', 30, 0xba2e2e, 0x2b0505);
     this.makeRectTexture('fallback_tank', 140, 100, 0x676b42, 0x25250f);
     this.makeRectTexture('fallback_weapon', 40, 20, 0x555555, 0x333333);
+    this.makeCircleTexture('fallback_enemy_bullet', 8, 0xff0000, 0x660000); // FIX: Added missing enemy bullet fallback
   }
   
   private makeRectTexture(k: string, w: number, h: number, f: number, s: number) { 
@@ -147,7 +148,6 @@ export class GameScene extends Phaser.Scene {
   private createPlatforms() {
     this.platforms = this.physics.add.staticGroup();
     
-    // FIX: Add a solid floor body so enemies don't fall through
     const floorHeight = 100;
     const floor = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT - (floorHeight/2), WORLD_WIDTH, floorHeight, 0x000000, 0);
     this.physics.add.existing(floor, true);
@@ -201,6 +201,7 @@ export class GameScene extends Phaser.Scene {
     const cfg = ENEMIES[kind];
     const key = this.resolveTexture(cfg.textureKeys, cfg.fallbackKey);
     const en = this.enemies.get(x, y, key) as Phaser.Physics.Arcade.Sprite;
+    if (!en) return en;
     en.setActive(true).setVisible(true).setDisplaySize(cfg.width, cfg.height).setDepth(17);
     en.setData('kind', cfg.kind); en.setData('hp', cfg.hp); en.setData('speed', cfg.speed); en.setData('flying', cfg.flying);
     const b = en.body as Phaser.Physics.Arcade.Body;
@@ -208,7 +209,7 @@ export class GameScene extends Phaser.Scene {
     return en;
   }
 
-  private spawnTank() { if(this.tankSpawned) return; this.tankSpawned = true; const t = this.spawnEnemy('tank', 4000, GROUND_Y - 60); t.setTint(0xffe0a3); this.showMissionText('MINI TANK INCOMING'); }
+  private spawnTank() { if(this.tankSpawned) return; this.tankSpawned = true; const t = this.spawnEnemy('tank', 4000, GROUND_Y - 60); if(t) { t.setTint(0xffe0a3); this.showMissionText('MINI TANK INCOMING'); } }
 
   private createExtractionZone() {
     const x = WORLD_WIDTH - 200;
@@ -251,7 +252,7 @@ export class GameScene extends Phaser.Scene {
     const b = this.bullets.get(this.player.x, this.player.y, 'bullet') as Phaser.Physics.Arcade.Image;
     if (!b) return;
     b.setActive(true).setVisible(true).setPosition(this.player.x + (this.facing * 30), this.player.y + 10).setDepth(30).setRotation(this.facing === 1 ? 0 : Math.PI);
-    b.setDisplaySize(12, 6); // Smaller bullet
+    b.setDisplaySize(12, 6);
     
     const bdy = b.body as Phaser.Physics.Arcade.Body;
     bdy.enable = true; bdy.setAllowGravity(false); bdy.setVelocityX(this.facing * 800);
@@ -304,14 +305,28 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.extractionZone, () => { if (this.extractionUnlocked) this.completeMission(); }, undefined, this);
   }
 
-  private createJoystick() {
+  private createMobileControls() {
     const y = WORLD_HEIGHT - 80;
-    const x = 150;
-    this.joystickBase = this.add.circle(x, y, 50, 0x000000, 0.3).setDepth(150).setScrollFactor(0);
-    this.joystickThumb = this.add.circle(x, y, 25, 0xffffff, 0.5).setDepth(151).setScrollFactor(0);
+    const joyX = 150;
+    
+    // Joystick
+    this.joystickBase = this.add.circle(joyX, y, 50, 0x000000, 0.3).setDepth(150).setScrollFactor(0);
+    this.joystickThumb = this.add.circle(joyX, y, 25, 0xffffff, 0.5).setDepth(151).setScrollFactor(0);
+
+    // FIX: Added Mobile Action Buttons
+    const camW = this.cameras.main.width;
+    const shootBtn = this.add.circle(camW - 150, y, 40, 0xff6b35, 0.5).setDepth(150).setScrollFactor(0).setInteractive();
+    const jumpBtn = this.add.circle(camW - 70, y - 50, 40, 0x4dabf7, 0.5).setDepth(150).setScrollFactor(0).setInteractive();
+
+    this.add.text(camW - 150, y, 'FIRE', { fontSize: '14px', color: '#fff' }).setOrigin(0.5).setDepth(151).setScrollFactor(0);
+    this.add.text(camW - 70, y - 50, 'JUMP', { fontSize: '14px', color: '#fff' }).setOrigin(0.5).setDepth(151).setScrollFactor(0);
+
+    shootBtn.on('pointerdown', () => this.shoot());
+    jumpBtn.on('pointerdown', () => this.jump());
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x < this.cameras.main.width / 2) { this.joystickPointer = pointer; }
+      // Only capture joystick if touch is on the left side of the screen
+      if (pointer.x < camW / 2) { this.joystickPointer = pointer; }
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => { if (this.joystickPointer === pointer) { } });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => { if (this.joystickPointer === pointer) { this.joystickPointer = null; } });
@@ -325,13 +340,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPauseButton() {
-    const btn = this.add.text(WORLD_WIDTH - 20, 20, '❚❚', { fontSize: '24px', color: '#fff', backgroundColor: '#333', padding: {x:10, y:5} })
+    // FIX: Position based on camera width, not world width
+    const camW = this.cameras.main.width;
+    const btn = this.add.text(camW - 20, 20, '❚❚', { fontSize: '24px', color: '#fff', backgroundColor: '#333', padding: {x:10, y:5} })
       .setOrigin(1, 0).setScrollFactor(0).setDepth(100).setInteractive();
     
     btn.on('pointerdown', () => {
       this.scene.pause();
-      const overlay = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT/2, WORLD_WIDTH, WORLD_HEIGHT, 0x000000, 0.8).setDepth(300);
-      const txt = this.add.text(WORLD_WIDTH/2, WORLD_HEIGHT/2, 'PAUSED\n\nTAP TO RESUME', { color:'#fff', fontSize:'32px', align:'center' }).setOrigin(0.5).setDepth(301);
+      const overlay = this.add.rectangle(camW/2, WORLD_HEIGHT/2, camW, WORLD_HEIGHT, 0x000000, 0.8).setScrollFactor(0).setDepth(300);
+      const txt = this.add.text(camW/2, WORLD_HEIGHT/2, 'PAUSED\n\nTAP TO RESUME', { color:'#fff', fontSize:'32px', align:'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
       overlay.setInteractive();
       overlay.on('pointerdown', () => { overlay.destroy(); txt.destroy(); this.scene.resume(); });
     });
@@ -348,7 +365,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private enemyShoot(e: Phaser.Physics.Arcade.Sprite) {
-    const b = this.enemyBullets.get(e.x, e.y, 'enemy_bullet') as Phaser.Physics.Arcade.Image;
+    // FIX: Using resolved fallback texture so Phaser doesn't crash on missing 'enemy_bullet'
+    const bulletKey = this.resolveTexture(['rocket', 'plasma_globule'], 'fallback_enemy_bullet');
+    const b = this.enemyBullets.get(e.x, e.y, bulletKey) as Phaser.Physics.Arcade.Image;
     if(!b) return;
     const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
     b.setActive(true).setVisible(true).setRotation(ang).setDepth(29);
@@ -362,12 +381,13 @@ export class GameScene extends Phaser.Scene {
   private unlockExtraction() { this.extractionUnlocked = true; this.extractionText.setText('EXTRACTION\nREADY').setColor('#00ff00'); this.showMissionText('EXTRACTION UNLOCKED'); }
   private async completeMission() {
     if(this.isGameOver) return; this.isGameOver = true; this.showMissionText('MISSION COMPLETE');
-    try { await apiClient.post('/api/game/complete', { runId: this.runData.run.id, sessionToken: this.runData.sessionToken, clientHash: 'lvl1-done', stats: { kills: this.kills, damageDealt: this.score, damageTaken: 0, accuracy: 1, timeElapsed: 0, wavesCleared: 1, bossKilled: false } }); } catch (e) {}
+    try { await apiClient.post('/api/game/complete', { runId: this.runData.run.id, sessionToken: this.runData.sessionToken, clientHash: 'lvl1-done', stats: { kills: this.kills, damageDealt: this.score, damageTaken: 0, accuracy: 1, timeElapsed: 0, wavesCleared: 1, bossKilled: false } }); } catch (e) { console.error("Mission API completion failed", e); }
     window.dispatchEvent(new CustomEvent('WAR_PIGS_EVENT', { detail: { type: 'STATE_CHANGE', state: 'victory' } }));
   }
   private failMission(r: string) { if(this.isGameOver) return; this.isGameOver = true; this.showMissionText(r); window.dispatchEvent(new CustomEvent('WAR_PIGS_EVENT', { detail: { type: 'STATE_CHANGE', state: 'defeat' } })); }
   private showMissionText(t: string) { if(!this.missionText) return; this.missionText.setText(t).setVisible(true); this.time.delayedCall(2000, () => this.missionText.setVisible(false)); }
-  private updateHud() { this.hudText.setText(`KILLS: ${this.kills}/${KILL_TARGET} | TIME: ${this.remainingSeconds}`); this.healthBar.width = 200 * (this.health / this.maxHealth); }
+  // FIX: clamp health visually so the rectangle width doesn't break
+  private updateHud() { this.hudText.setText(`KILLS: ${this.kills}/${KILL_TARGET} | TIME: ${this.remainingSeconds}`); this.healthBar.width = 200 * (Math.max(0, this.health) / this.maxHealth); }
   private resolveTexture(k: string[], f: string) { for (const i of k) if (i && this.textures.exists(i)) return i; return f; }
   private cleanup() {}
 }
