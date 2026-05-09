@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
+import { useGameStore } from '../store/gameStore';
 
 type Level = {
   id: string;
@@ -31,6 +32,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   onBack,
   onStart
 }) => {
+  const { user } = useGameStore(); // FIX: Pulled user profile from store to check equipment reliably
   const [levels, setLevels] = useState<Level[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [startingLevelId, setStartingLevelId] = useState<string | null>(null);
@@ -93,10 +95,12 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
       setStartingLevelId(levelId);
       sessionStorage.removeItem('currentRun');
 
-      const inventoryRes = await apiClient.get('/api/inventory');
-      const equipped = inventoryRes.data?.equipped;
+      // FIX: Use the reliable global state instead of making a brittle, extra API call
+      const characterId = user?.profile?.equippedCharacterId;
+      const weaponId = user?.profile?.equippedWeaponId;
 
-      if (!equipped?.characterId || !equipped?.weaponId) {        window.dispatchEvent(
+      if (!characterId || !weaponId) {
+        window.dispatchEvent(
           new CustomEvent('WAR_PIGS_NOTICE', {
             detail: {
               title: 'Loadout Required',
@@ -110,8 +114,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
 
       const startRes = await apiClient.post<StartRunResponse>('/api/game/start', {
         levelId,
-        characterId: equipped.characterId,
-        weaponId: equipped.weaponId
+        characterId,
+        weaponId
       });
 
       const payload = startRes.data;
@@ -145,7 +149,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
       if (!savedRun) {
         window.dispatchEvent(
           new CustomEvent('WAR_PIGS_NOTICE', {
-            detail: {              title: 'Mission Session Error',
+            detail: {
+              title: 'Mission Session Error',
               message: 'Mission session could not be saved on this device.',
               type: 'error'
             }
@@ -194,7 +199,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         }}
       >
         Loading Level 1...
-      </div>    );
+      </div>
+    );
   }
 
   if (loadError) {
@@ -243,7 +249,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   }
 
   if (levels.length === 0) {
-    return (      <div
+    return (
+      <div
         style={{
           minHeight: '100vh',
           background: '#0a0a0a',
@@ -292,7 +299,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
     <div
       style={{
         minHeight: '100vh',
-        background: '#0a0a0a',        color: '#fff',
+        background: '#0a0a0a',
+        color: '#fff',
         padding: '20px',
         boxSizing: 'border-box',
         overflowY: 'auto'
@@ -341,7 +349,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         <SummaryBox label="Completed" value={summary.completed} />
       </div>
 
-      <div        style={{
+      <div
+        style={{
           maxWidth: '720px',
           margin: '0 auto',
           display: 'flex',
@@ -390,7 +399,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                         fontSize: '12px',
                         fontWeight: 800
                       }}
-                    >                      COMPLETED
+                    >
+                      COMPLETED
                     </div>
                   ) : null}
 
@@ -439,7 +449,8 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                 ) : (
                   <div
                     style={{
-                      minWidth: '110px',                      padding: '12px 16px',
+                      minWidth: '110px',
+                      padding: '12px 16px',
                       background: '#111',
                       color: '#777',
                       borderRadius: '10px',
@@ -488,5 +499,6 @@ const InfoPill: React.FC<{ label: string; value: string }> = ({ label, value }) 
     >
       <div style={{ color: '#888', fontSize: '10px', textTransform: 'uppercase' }}>{label}</div>
       <div style={{ color: '#fff', fontSize: '13px', fontWeight: 800 }}>{value}</div>
-    </div>  );
+    </div>
+  );
 };
