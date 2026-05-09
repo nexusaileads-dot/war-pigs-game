@@ -89,7 +89,10 @@ export class GameScene extends Phaser.Scene {
     this.setupCollisions();
     this.startTimers();
 
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    // Arcade style tight camera follow
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.setZoom(1.1); // Slight zoom for that arcade feel
+
     this.showMissionText('LEVEL 1: OUTSKIRTS BREACH');
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
   }
@@ -101,6 +104,11 @@ export class GameScene extends Phaser.Scene {
     this.updatePlayerMovement();
     this.updateWeaponPosition();
     this.updateEnemies();
+    
+    // FIX: Trigger Tank Spawn midway through the kills
+    if (this.kills >= 3 && !this.tankSpawned) {
+      this.spawnTank();
+    }
     
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (body.blocked.down) { this.jumpsLeft = 2; }
@@ -116,7 +124,7 @@ export class GameScene extends Phaser.Scene {
     this.makeCircleTexture('fallback_drone', 30, 0xba2e2e, 0x2b0505);
     this.makeRectTexture('fallback_tank', 140, 100, 0x676b42, 0x25250f);
     this.makeRectTexture('fallback_weapon', 40, 20, 0x555555, 0x333333);
-    this.makeCircleTexture('fallback_enemy_bullet', 8, 0xff0000, 0x660000); // FIX: Added missing enemy bullet fallback
+    this.makeCircleTexture('fallback_enemy_bullet', 8, 0xff0000, 0x660000); 
   }
   
   private makeRectTexture(k: string, w: number, h: number, f: number, s: number) { 
@@ -178,8 +186,9 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setSize(34, 54).setOffset(19, 16).setDragX(1100);
 
+    // FIX: Reduced weapon scale slightly so it isn't massive
     this.weapon = this.add.sprite(this.player.x, this.player.y, weapKey);
-    this.weapon.setDepth(21).setScale(0.7);
+    this.weapon.setDepth(21).setScale(0.4); 
   }
 
   private updateWeaponPosition() {
@@ -209,7 +218,20 @@ export class GameScene extends Phaser.Scene {
     return en;
   }
 
-  private spawnTank() { if(this.tankSpawned) return; this.tankSpawned = true; const t = this.spawnEnemy('tank', 4000, GROUND_Y - 60); if(t) { t.setTint(0xffe0a3); this.showMissionText('MINI TANK INCOMING'); } }
+  private spawnTank() { 
+    if(this.tankSpawned) return; 
+    this.tankSpawned = true; 
+    
+    // Spawn just slightly ahead of the player so it drops in dramatically
+    const spawnX = Math.min(this.player.x + 800, WORLD_WIDTH - 200);
+    const t = this.spawnEnemy('tank', spawnX, GROUND_Y - 200); 
+    
+    if(t) { 
+      t.setTint(0xffe0a3); 
+      this.cameras.main.shake(500, 0.02); // Arcade boss rumble effect
+      this.showMissionText('WARNING: HEAVY ARMOR DETECTED'); 
+    } 
+  }
 
   private createExtractionZone() {
     const x = WORLD_WIDTH - 200;
@@ -252,10 +274,10 @@ export class GameScene extends Phaser.Scene {
     const b = this.bullets.get(this.player.x, this.player.y, 'bullet') as Phaser.Physics.Arcade.Image;
     if (!b) return;
     b.setActive(true).setVisible(true).setPosition(this.player.x + (this.facing * 30), this.player.y + 10).setDepth(30).setRotation(this.facing === 1 ? 0 : Math.PI);
-    b.setDisplaySize(12, 6);
+    b.setDisplaySize(20, 10); // Slightly larger, visible bullet
     
     const bdy = b.body as Phaser.Physics.Arcade.Body;
-    bdy.enable = true; bdy.setAllowGravity(false); bdy.setVelocityX(this.facing * 800);
+    bdy.enable = true; bdy.setAllowGravity(false); bdy.setVelocityX(this.facing * 1200); // Faster bullets
     this.time.delayedCall(1000, () => { b.setActive(false).setVisible(false); });
   }
 
@@ -274,11 +296,25 @@ export class GameScene extends Phaser.Scene {
       if (!e.active) return;
       const b = e.body as Phaser.Physics.Arcade.Body;
       const sp = e.getData('speed'); const fly = e.getData('flying');
+      
       const dir = this.player.x > e.x ? 1 : -1;
-      e.setFlipX(dir === -1);
+      
+      // FIX: Assuming native sprites face LEFT (very common for enemies). 
+      // If the player is to the right (dir === 1), we must flip the sprite horizontally so it doesn't moonwalk.
+      e.setFlipX(dir === 1); 
+
       const dist = Math.abs(this.player.x - e.x);
-      if (fly) { b.setVelocityX(dir * sp); const ty = this.player.y - 80; if (e.y > ty) b.setVelocityY(-sp * 0.5); else b.setVelocityY(sp * 0.5); }
-      else { b.setVelocityX(dist > 80 ? dir * sp : 0); }
+      
+      // Stop moving if they get too close so they stand and shoot instead of merging with player
+      if (fly) { 
+        b.setVelocityX(dist > 100 ? dir * sp : 0); 
+        const ty = this.player.y - 120; // Hover above player
+        if (e.y > ty) b.setVelocityY(-sp * 0.5); 
+        else b.setVelocityY(sp * 0.5); 
+      }
+      else { 
+        b.setVelocityX(dist > 150 ? dir * sp : 0); 
+      }
     });
   }
 
@@ -298,22 +334,37 @@ export class GameScene extends Phaser.Scene {
       (b as any).setActive(false).setVisible(false);
       const en = e as Phaser.Physics.Arcade.Sprite;
       const hp = en.getData('hp') - 1;
-      if (hp <= 0) { this.kills++; this.score += 100; en.destroy(); if (this.kills >= KILL_TARGET) this.unlockExtraction(); }
+      if (hp <= 0) { 
+        // Mini explosion effect on death
+        if (this.textures.exists('explosion')) {
+            const exp = this.add.sprite(en.x, en.y, 'explosion').setDisplaySize(60, 60).setDepth(25);
+            this.time.delayedCall(200, () => exp.destroy());
+        }
+        this.kills++; 
+        this.score += 100; 
+        en.destroy(); 
+        if (this.kills >= KILL_TARGET) this.unlockExtraction(); 
+      }
       else en.setData('hp', hp);
     }, undefined, this);
-    this.physics.add.overlap(this.enemyBullets, this.player, (p, b) => { (b as any).setActive(false).setVisible(false); this.damagePlayer(10); }, undefined, this);
-    this.physics.add.overlap(this.player, this.extractionZone, () => { if (this.extractionUnlocked) this.completeMission(); }, undefined, this);
+    
+    this.physics.add.overlap(this.enemyBullets, this.player, (p, b) => { 
+      (b as any).setActive(false).setVisible(false); 
+      this.damagePlayer(10); 
+    }, undefined, this);
+    
+    this.physics.add.overlap(this.player, this.extractionZone, () => { 
+      if (this.extractionUnlocked) this.completeMission(); 
+    }, undefined, this);
   }
 
   private createMobileControls() {
     const y = WORLD_HEIGHT - 80;
     const joyX = 150;
     
-    // Joystick
     this.joystickBase = this.add.circle(joyX, y, 50, 0x000000, 0.3).setDepth(150).setScrollFactor(0);
     this.joystickThumb = this.add.circle(joyX, y, 25, 0xffffff, 0.5).setDepth(151).setScrollFactor(0);
 
-    // FIX: Added Mobile Action Buttons
     const camW = this.cameras.main.width;
     const shootBtn = this.add.circle(camW - 150, y, 40, 0xff6b35, 0.5).setDepth(150).setScrollFactor(0).setInteractive();
     const jumpBtn = this.add.circle(camW - 70, y - 50, 40, 0x4dabf7, 0.5).setDepth(150).setScrollFactor(0).setInteractive();
@@ -325,7 +376,6 @@ export class GameScene extends Phaser.Scene {
     jumpBtn.on('pointerdown', () => this.jump());
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // Only capture joystick if touch is on the left side of the screen
       if (pointer.x < camW / 2) { this.joystickPointer = pointer; }
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => { if (this.joystickPointer === pointer) { } });
@@ -340,7 +390,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPauseButton() {
-    // FIX: Position based on camera width, not world width
     const camW = this.cameras.main.width;
     const btn = this.add.text(camW - 20, 20, '❚❚', { fontSize: '24px', color: '#fff', backgroundColor: '#333', padding: {x:10, y:5} })
       .setOrigin(1, 0).setScrollFactor(0).setDepth(100).setInteractive();
@@ -355,38 +404,53 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startTimers() {
-    this.time.addEvent({ delay: 2000, callback: () => {
+    this.time.addEvent({ delay: 1500, callback: () => {
       if(this.isGameOver) return;
       this.enemies.getChildren().forEach((e: any) => {
-        if(Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y) < 600 && Math.random() < 0.3) this.enemyShoot(e);
+        if(Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y) < 800 && Math.random() < 0.4) this.enemyShoot(e);
       });
     }, loop: true });
     this.time.addEvent({ delay: 1000, callback: () => { this.remainingSeconds--; if(this.remainingSeconds<=0) this.failMission('TIME UP'); }, loop: true });
   }
 
   private enemyShoot(e: Phaser.Physics.Arcade.Sprite) {
-    // FIX: Using resolved fallback texture so Phaser doesn't crash on missing 'enemy_bullet'
     const bulletKey = this.resolveTexture(['rocket', 'plasma_globule'], 'fallback_enemy_bullet');
     const b = this.enemyBullets.get(e.x, e.y, bulletKey) as Phaser.Physics.Arcade.Image;
     if(!b) return;
+    
     const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-    b.setActive(true).setVisible(true).setRotation(ang).setDepth(29);
+    
+    // FIX: If the enemy bullet sprite natively faces left, we must invert its visual rotation so it flies head-first
+    b.setActive(true).setVisible(true).setRotation(ang + Math.PI).setDepth(29);
+    
     const bdy = b.body as Phaser.Physics.Arcade.Body;
     bdy.enable = true; bdy.setAllowGravity(false);
-    this.physics.velocityFromRotation(ang, 400, bdy.velocity);
+    this.physics.velocityFromRotation(ang, 500, bdy.velocity); // Slightly faster enemy bullets
     this.time.delayedCall(2000, () => { b.setActive(false).setVisible(false); });
   }
 
-  private damagePlayer(a: number) { if(this.isGameOver) return; this.health -= a; this.cameras.main.shake(100, 0.01); if(this.health <= 0) this.failMission('DIED'); }
+  private damagePlayer(a: number) { 
+    if(this.isGameOver) return; 
+    this.health -= a; 
+    this.cameras.main.shake(150, 0.015); // Hit feedback 
+    
+    // Flash red
+    this.player.setTint(0xff0000);
+    this.time.delayedCall(100, () => this.player.clearTint());
+
+    if(this.health <= 0) this.failMission('DIED'); 
+  }
+  
   private unlockExtraction() { this.extractionUnlocked = true; this.extractionText.setText('EXTRACTION\nREADY').setColor('#00ff00'); this.showMissionText('EXTRACTION UNLOCKED'); }
+  
   private async completeMission() {
     if(this.isGameOver) return; this.isGameOver = true; this.showMissionText('MISSION COMPLETE');
-    try { await apiClient.post('/api/game/complete', { runId: this.runData.run.id, sessionToken: this.runData.sessionToken, clientHash: 'lvl1-done', stats: { kills: this.kills, damageDealt: this.score, damageTaken: 0, accuracy: 1, timeElapsed: 0, wavesCleared: 1, bossKilled: false } }); } catch (e) { console.error("Mission API completion failed", e); }
+    try { await apiClient.post('/api/game/complete', { runId: this.runData.run.id, sessionToken: this.runData.sessionToken, clientHash: 'lvl1-done', stats: { kills: this.kills, damageDealt: this.score, damageTaken: 0, accuracy: 1, timeElapsed: 0, wavesCleared: 1, bossKilled: this.tankSpawned } }); } catch (e) { console.error("Mission API completion failed", e); }
     window.dispatchEvent(new CustomEvent('WAR_PIGS_EVENT', { detail: { type: 'STATE_CHANGE', state: 'victory' } }));
   }
+  
   private failMission(r: string) { if(this.isGameOver) return; this.isGameOver = true; this.showMissionText(r); window.dispatchEvent(new CustomEvent('WAR_PIGS_EVENT', { detail: { type: 'STATE_CHANGE', state: 'defeat' } })); }
   private showMissionText(t: string) { if(!this.missionText) return; this.missionText.setText(t).setVisible(true); this.time.delayedCall(2000, () => this.missionText.setVisible(false)); }
-  // FIX: clamp health visually so the rectangle width doesn't break
   private updateHud() { this.hudText.setText(`KILLS: ${this.kills}/${KILL_TARGET} | TIME: ${this.remainingSeconds}`); this.healthBar.width = 200 * (Math.max(0, this.health) / this.maxHealth); }
   private resolveTexture(k: string[], f: string) { for (const i of k) if (i && this.textures.exists(i)) return i; return f; }
   private cleanup() {}
