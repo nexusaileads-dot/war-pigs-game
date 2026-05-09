@@ -5,7 +5,8 @@ import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
 import { LevelSelect } from './components/LevelSelect';
-import { GameCanvas } from './components/GameCanvas';
+// FIXED: Pointed to the correct GameCanvas in the game directory
+import { GameCanvas } from './game/GameCanvas'; 
 import { AuthScene } from './components/AuthScene';
 import { useGameStore } from './store/gameStore';
 
