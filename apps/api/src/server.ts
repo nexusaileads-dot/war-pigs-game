@@ -25,9 +25,17 @@ async function start() {
       server.log.warn('FRONTEND_URL not set; CORS will deny all origins');
     }
 
+    // FIX: Support multiple frontend URLs (comma-separated) for Vercel/Railway preview environments
+    const allowedOrigins = process.env.FRONTEND_URL 
+      ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+      : (isProd ? false : true);
+
+    // FIX: Explicitly declare allowed methods and headers to prevent browser preflight (OPTIONS) failures.
     await server.register(cors, {
-      origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : (isProd ? false : true),
-      credentials: true
+      origin: allowedOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization']
     });
 
     const jwtSecret = process.env.JWT_SECRET;
