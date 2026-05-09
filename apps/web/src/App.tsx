@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { GameNoticeProvider } from './components/GameNoticeProvider';
-import { TelegramProvider } from './components/TelegramProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
 import { LevelSelect } from './components/LevelSelect';
-// FIXED: Pointed to the correct GameCanvas in the game directory
 import { GameCanvas } from './game/GameCanvas'; 
 import { AuthScene } from './components/AuthScene';
 import { useGameStore } from './store/gameStore';
@@ -61,11 +59,9 @@ export default function App() {
   // If no user or token, show Auth
   if (!user || !token) {
     return (
-      <TelegramProvider>
-        <GameNoticeProvider>
-           <AuthScene />
-        </GameNoticeProvider>
-      </TelegramProvider>
+      <GameNoticeProvider>
+         <AuthScene />
+      </GameNoticeProvider>
     );
   }
 
@@ -88,22 +84,20 @@ export default function App() {
   };
 
   return (
-    <TelegramProvider>
-      <GameNoticeProvider>
-        <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
-          {renderScreen()}
-          <button 
-            onClick={logout}
-            style={{
-              position: 'absolute', top: 10, right: 10, zIndex: 9999,
-              background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333',
-              padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </GameNoticeProvider>
-    </TelegramProvider>
+    <GameNoticeProvider>
+      <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
+        {renderScreen()}
+        <button 
+          onClick={logout}
+          style={{
+            position: 'absolute', top: 10, right: 10, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333',
+            padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'
+          }}
+        >
+          Logout
+        </button>
+      </div>
+    </GameNoticeProvider>
   );
 }
