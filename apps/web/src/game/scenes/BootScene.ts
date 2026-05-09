@@ -8,11 +8,30 @@ export class BootScene extends Phaser.Scene {
   preload() {
     console.log('[BootScene] Loading assets...');
 
+    // Add a loading indicator so the screen isn't purely black during load
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+    
+    const loadingText = this.add.text(width / 2, height / 2, 'LOADING ASSETS...', {
+      font: '24px monospace',
+      color: '#ff6b35' // Matching your UI theme
+    });
+    loadingText.setOrigin(0.5, 0.5);
+
     // Helper to handle Vercel/Vite base paths correctly
     const asset = (path: string) => {
       const base = import.meta.env.BASE_URL || '/';
       return `${base.endsWith('/') ? base : base + '/'}${path}`;
     };
+
+    // CRITICAL FIX: Prevent silent failures if an asset path is wrong/missing
+    this.load.on('loaderror', (fileObj: Phaser.Loader.File) => {
+      console.error(`[BootScene] FATAL: Failed to load asset key: "${fileObj.key}" at URL: "${fileObj.src}"`);
+    });
+
+    this.load.on('complete', () => {
+      loadingText.destroy();
+    });
 
     // --- BACKGROUNDS ---
     this.load.image('level1_bg_left', asset('assets/backgrounds/level1-left.png'));
