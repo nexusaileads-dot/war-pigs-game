@@ -86,8 +86,10 @@ apiClient.interceptors.response.use(
 
     if (status === 401) {
       localStorage.removeItem('token');
-      sessionStorage.removeItem('hasActiveRun'); // Fixed key mismatch
+      // FIX: Matches the exact key used in App.tsx, GameCanvas.tsx, and GameScene.ts
+      sessionStorage.removeItem('currentRun'); 
       // Optional: trigger global auth reset event here
+      window.dispatchEvent(new Event('AUTH_EXPIRED'));
     }
 
     if (import.meta.env.DEV) {
@@ -96,9 +98,10 @@ apiClient.interceptors.response.use(
     }
 
     // Optional: auto-retry idempotent GET requests on transient errors
-    if (isIdempotent && status && status >= 500) {
+    if (isIdempotent && status && status >= 500 && error.config) {
       try {
-        return await withRetry(() => axios.request(error.config!), 1, true);
+        // FIX: Use apiClient.request instead of axios.request to preserve baseURL and interceptors
+        return await withRetry(() => apiClient.request(error.config!), 1, true);
       } catch (retryError) {
         // Fall through to original error handling
       }
