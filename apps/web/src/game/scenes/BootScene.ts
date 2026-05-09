@@ -27,11 +27,11 @@ export class BootScene extends Phaser.Scene {
 
     this.load.on('complete', () => loadingText.destroy());
 
-    // Backgrounds
-    this.load.image('level1_bg_left', asset('assets/sprites/level1-left.png'));
-    this.load.image('level1_bg_middle', asset('assets/sprites/level1-middle.png'));
-    this.load.image('level1_bg_right', asset('assets/sprites/level1-right.png'));
-
+   // Backgrounds
+    this.load.image('level1_bg_left', asset('assets/backgrounds/level1-left.png'));
+    this.load.image('level1_bg_middle', asset('assets/backgrounds/level1-middle.png'));
+    this.load.image('level1_bg_right', asset('assets/backgrounds/level1-right.png'));
+    
     // Characters (Keys map to database IDs)
     this.load.image('grunt_bacon', asset('assets/sprites/Grunt-Bacon.png'));
     this.load.image('iron_tusk', asset('assets/sprites/Iron-Tusk.png'));
