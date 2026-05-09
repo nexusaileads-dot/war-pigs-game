@@ -10,7 +10,9 @@ datasource db {
 
 model User {
   id           String          @id @default(uuid())
-  telegramId   String          @unique
+  telegramId   String?         @unique // Optional for email login users
+  email        String?         @unique // Added for email login
+  passwordHash String?         // Added for email login
   username     String?
   firstName    String?
   lastName     String?
@@ -24,6 +26,7 @@ model User {
   inventory    InventoryItem[]
   runs         GameRun[]
   transactions Transaction[]
+  rewardGrants RewardGrant[]
 }
 
 model Profile {
@@ -43,6 +46,8 @@ model Profile {
 
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+
+  @@index([totalPigsEarned], map: "idx_profile_earnings_desc")
 }
 
 model Wallet {
@@ -84,11 +89,11 @@ model InventoryItem {
   timesUsed    Int               @default(0)
   acquiredAt   DateTime          @default(now())
 
-  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Cascade)
-  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Cascade)
+  character    Character?        @relation(fields: [characterId], references: [characterId], onDelete: Restrict)
+  weapon       Weapon?           @relation(fields: [weaponId], references: [weaponId], onDelete: Restrict)
 
-  @@unique([userId, characterId])
-  @@unique([userId, weaponId])
+  @@unique([userId, itemType, characterId])
+  @@unique([userId, itemType, weaponId])
   @@index([userId])
   @@index([characterId])
   @@index([weaponId])
@@ -188,6 +193,21 @@ model Transaction {
   @@index([userId])
   @@index([type])
   @@index([referenceId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model RewardGrant {
+  id          String   @id @default(uuid())
+  runId       String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pigsGranted Int      @default(0)
+  xpGranted   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([runId, userId])
+  @@index([runId])
+  @@index([userId])
 }
 
 enum InventoryItemType {

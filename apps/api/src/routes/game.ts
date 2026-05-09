@@ -4,11 +4,21 @@ import { RewardCalculator } from '@war-pigs/game-logic';
 import { authenticate } from '../middleware/auth';
 import { GameSessionService } from '../services/GameSessionService';
 import { EconomyService } from '../services/EconomyService';
+import { strictRateLimitConfig } from '../middleware/rateLimiter';
 
 const gameSession = new GameSessionService();
 const economy = new EconomyService();
+const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function gameRoutes(fastify: FastifyInstance) {
+  // Apply stricter rate limits to high-value gameplay endpoints
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.url.startsWith('/api/game/start') || request.url.startsWith('/api/game/complete')) {
+      // Apply rate limit config directly (not nested under .config)
+      (reply.context.config as any).rateLimit = strictRateLimitConfig;
+    }
+  });
+
   fastify.post('/start', { preHandler: authenticate }, async (request, reply) => {
     const { levelId, characterId, weaponId } = request.body as {
       levelId?: string;
@@ -22,91 +32,60 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     const userId = request.user.userId;
 
-    const [charOwnership, weaponOwnership, level, profile, existingActiveRun] =
-      await Promise.all([
-        prisma.inventoryItem.findFirst({
-          where: {
-            userId,
-            itemType: 'CHARACTER',
-            characterId
-          }
-        }),
-        prisma.inventoryItem.findFirst({
-          where: {
-            userId,
-            itemType: 'WEAPON',
-            weaponId
-          }
-        }),
-        prisma.level.findUnique({
-          where: { id: levelId }
-        }),
-        prisma.profile.findUnique({
-          where: { userId }
-        }),
-        prisma.gameRun.findFirst({
-          where: {
-            userId,
-            status: 'ACTIVE'
-          },
-          orderBy: {
-            startedAt: 'desc'
-          }
-        })
-      ]);
+    // Pre-check ownership and level existence (read-only, safe outside transaction)
+    const [charOwnership, weaponOwnership, level, profile] = await Promise.all([
+      prisma.inventoryItem.findFirst({
+        where: { userId, itemType: 'CHARACTER', characterId }
+      }),
+      prisma.inventoryItem.findFirst({
+        where: { userId, itemType: 'WEAPON', weaponId }
+      }),
+      prisma.level.findUnique({ where: { id: levelId } }),
+      prisma.profile.findUnique({ where: { userId } })
+    ]);
 
     if (!charOwnership || !weaponOwnership) {
       return reply.status(400).send({ error: 'Character or weapon not owned' });
     }
-
     if (!level) {
       return reply.status(404).send({ error: 'Level not found' });
     }
-
     if (!profile) {
       return reply.status(404).send({ error: 'Profile not found' });
     }
-
     if (level.unlockRequirement > 0 && profile.level < level.unlockRequirement) {
       return reply.status(403).send({ error: 'Level not unlocked' });
     }
 
+    // Atomic transaction: check active run + create new run + update inventory/profile
     const run = await prisma.$transaction(async (tx) => {
+      // Re-check for active run INSIDE transaction to prevent race condition
+      const existingActiveRun = await tx.gameRun.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        orderBy: { startedAt: 'desc' }
+      });
+
       if (existingActiveRun) {
         await tx.gameRun.update({
           where: { id: existingActiveRun.id },
-          data: {
-            status: 'FAILED',
-            endedAt: new Date()
-          }
+          data: { status: 'FAILED', endedAt: new Date() }
         });
       }
 
-      await tx.inventoryItem.update({
-        where: { id: charOwnership.id },
-        data: {
-          timesUsed: {
-            increment: 1
-          }
-        }
-      });
-
-      await tx.inventoryItem.update({
-        where: { id: weaponOwnership.id },
-        data: {
-          timesUsed: {
-            increment: 1
-          }
-        }
-      });
-
-      await tx.profile.update({
-        where: { userId },
-        data: {
-          equippedCharacterId: characterId,
-          equippedWeaponId: weaponId
-        }
-      });
+      await Promise.all([
+        tx.inventoryItem.update({
+          where: { id: charOwnership.id },
+          data: { timesUsed: { increment: 1 } }
+        }),
+        tx.inventoryItem.update({
+          where: { id: weaponOwnership.id },
+          data: { timesUsed: { increment: 1 } }
+        }),
+        tx.profile.update({
+          where: { userId },
+          data: { equippedCharacterId: characterId, equippedWeaponId: weaponId }
+        })
+      ]);
 
       return tx.gameRun.create({
         data: {
@@ -116,9 +95,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
           weaponId,
           status: 'ACTIVE'
         },
-        include: {
-          level: true
-        }
+        include: { level: true }
       });
     });
 
@@ -165,39 +142,41 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
 
     const userId = request.user.userId;
-
     const session = await gameSession.getSession(sessionToken);
+
     if (!session || session.userId !== userId) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
+    // Validate session has not expired (session.createdAt is a number timestamp)
+    const now = Date.now();
+    if (now - session.createdAt > SESSION_MAX_AGE_MS) {
+      await gameSession.endSession(sessionToken);
+      return reply.status(400).send({ error: 'Session expired' });
+    }
+
     const run = await prisma.gameRun.findFirst({
-      where: {
-        id: runId,
-        userId
-      },
-      include: {
-        level: true
-      }
+      where: { id: runId, userId },
+      include: { level: true }
     });
 
     if (!run || run.status !== 'ACTIVE') {
       return reply.status(400).send({ error: 'Invalid run' });
     }
 
+    // Sanitize and clamp stats with explicit accuracy handling (0-100 scale)
     const safeStats = {
-      kills: Math.max(0, Number(stats.kills) || 0),
-      damageDealt: Math.max(0, Number(stats.damageDealt) || 0),
-      damageTaken: Math.max(0, Number(stats.damageTaken) || 0),
-      accuracy: Math.max(0, Math.min(1, Number(stats.accuracy) || 0)),
-      timeElapsed: Math.max(0, Number(stats.timeElapsed) || 0),
-      wavesCleared: Math.max(0, Number(stats.wavesCleared) || 0),
+      kills: Math.max(0, Math.floor(Number(stats.kills) || 0)),
+      damageDealt: Math.max(0, Math.floor(Number(stats.damageDealt) || 0)),
+      damageTaken: Math.max(0, Math.floor(Number(stats.damageTaken) || 0)),
+      accuracy: Math.max(0, Math.min(100, Number(stats.accuracy) || 0)),
+      timeElapsed: Math.max(0, Math.floor(Number(stats.timeElapsed) || 0)),
+      wavesCleared: Math.max(0, Math.floor(Number(stats.wavesCleared) || 0)),
       bossKilled: Boolean(stats.bossKilled)
     };
 
     const calculator = new RewardCalculator();
     const maxPossibleKills = Math.max(5, run.level.waves * 5);
-
     const rewardInput = {
       ...safeStats,
       difficulty: run.level.difficulty,
@@ -205,7 +184,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
     };
 
     const validation = calculator.validateRunStats(rewardInput, maxPossibleKills);
-
     if (!validation.valid) {
       fastify.log.warn(
         `Potential cheat detected: ${validation.reason}, User: ${userId}, Run: ${runId}`
@@ -213,12 +191,18 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
 
     const rewards = calculator.calculateRewards(rewardInput);
-    const maxPossibleReward = Math.max(run.level.baseReward, run.level.baseReward * 5);
+    // Use configurable reward multiplier from env or level config
+    const rewardMultiplier = Number(process.env.MAX_REWARD_MULTIPLIER) || 5;
+    const maxPossibleReward = run.level.baseReward * rewardMultiplier;
 
     if (rewards.total > maxPossibleReward) {
+      fastify.log.error(
+        `Reward cap exceeded: ${rewards.total} > ${maxPossibleReward}, User: ${userId}, Run: ${runId}`
+      );
       return reply.status(400).send({ error: 'Reward calculation error' });
     }
 
+    // Single transaction: update run + stats + grant rewards (idempotent design)
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
@@ -251,9 +235,27 @@ export async function gameRoutes(fastify: FastifyInstance) {
           totalBossKills: safeStats.bossKilled ? 1 : 0
         }
       });
+
+      // Idempotent reward granting: check if already granted before applying
+      const existingGrant = await tx.rewardGrant?.findFirst({
+        where: { runId, userId }
+      });
+      if (!existingGrant) {
+        await tx.rewardGrant?.create({
+          data: { runId, userId, pigsGranted: rewards.total, xpGranted: rewards.xpEarned }
+        });
+        // Update profile economy fields atomically
+        await tx.profile.update({
+          where: { userId },
+          data: {
+            currentPigs: { increment: rewards.total },
+            totalPigsEarned: { increment: rewards.total },
+            xp: { increment: rewards.xpEarned }
+          }
+        });
+      }
     });
 
-    await economy.grantRewards(userId, rewards.total, rewards.xpEarned, runId);
     await gameSession.endSession(sessionToken);
 
     return {
@@ -280,11 +282,15 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid session' });
     }
 
+    // Validate session expiration (session.createdAt is a number timestamp)
+    const now = Date.now();
+    if (now - session.createdAt > SESSION_MAX_AGE_MS) {
+      await gameSession.endSession(sessionToken);
+      return reply.status(400).send({ error: 'Session expired' });
+    }
+
     const run = await prisma.gameRun.findFirst({
-      where: {
-        id: runId,
-        userId
-      }
+      where: { id: runId, userId }
     });
 
     if (!run || run.status !== 'ACTIVE') {
@@ -294,28 +300,17 @@ export async function gameRoutes(fastify: FastifyInstance) {
     await prisma.$transaction(async (tx) => {
       await tx.gameRun.update({
         where: { id: runId },
-        data: {
-          status: 'FAILED',
-          endedAt: new Date()
-        }
+        data: { status: 'FAILED', endedAt: new Date() }
       });
 
       await tx.playerStats.upsert({
         where: { userId },
-        update: {
-          totalRuns: { increment: 1 }
-        },
-        create: {
-          userId,
-          totalKills: 0,
-          totalRuns: 1,
-          totalBossKills: 0
-        }
+        update: { totalRuns: { increment: 1 } },
+        create: { userId, totalKills: 0, totalRuns: 1, totalBossKills: 0 }
       });
     });
 
     await gameSession.endSession(sessionToken);
-
     return { success: true };
   });
 
@@ -323,20 +318,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const userId = request.user.userId;
 
     const [profile, levels, completedRuns] = await Promise.all([
-      prisma.profile.findUnique({
-        where: { userId }
-      }),
-      prisma.level.findMany({
-        orderBy: { levelNumber: 'asc' }
-      }),
+      prisma.profile.findUnique({ where: { userId } }),
+      prisma.level.findMany({ orderBy: { levelNumber: 'asc' } }),
       prisma.gameRun.findMany({
-        where: {
-          userId,
-          status: 'COMPLETED'
-        },
-        select: {
-          levelId: true
-        }
+        where: { userId, status: 'COMPLETED' },
+        select: { levelId: true }
       })
     ]);
 
@@ -350,17 +336,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/leaderboard', async () => {
+    // NOTE: Ensure database index exists: CREATE INDEX idx_profile_earnings ON Profile(totalPigsEarned DESC)
     const topPlayers = await prisma.profile.findMany({
       take: 100,
       orderBy: { totalPigsEarned: 'desc' },
       include: {
-        user: {
-          select: {
-            username: true,
-            firstName: true,
-            photoUrl: true
-          }
-        }
+        user: { select: { username: true, firstName: true, photoUrl: true } }
       }
     });
 
@@ -372,4 +353,4 @@ export async function gameRoutes(fastify: FastifyInstance) {
       totalEarned: player.totalPigsEarned
     }));
   });
-        }
+}

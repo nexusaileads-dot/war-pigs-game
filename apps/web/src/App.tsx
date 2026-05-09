@@ -1,165 +1,108 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useGameStore } from './store/gameStore';
+import React, { useEffect, useState } from 'react';
+import { GameNoticeProvider } from './components/GameNoticeProvider';
 import { TelegramProvider } from './components/TelegramProvider';
-import { AppAlertProvider } from './components/AppAlertProvider';
 import { MenuScene } from './components/MenuScene';
 import { CharacterSelect } from './components/CharacterSelect';
 import { WeaponSelect } from './components/WeaponSelect';
 import { LevelSelect } from './components/LevelSelect';
-import { Shop } from './components/Shop';
-import { Profile } from './components/Profile';
-import { GameCanvas } from './game/GameCanvas';
-import { SolanaWalletProvider } from './providers/SolanaWalletProvider';
+import { GameCanvas } from './components/GameCanvas';
+import { AuthScene } from './components/AuthScene';
+import { useGameStore } from './store/gameStore';
 
 type Screen =
   | 'MENU'
   | 'CHAR_SELECT'
   | 'WEAPON_SELECT'
   | 'LEVEL_SELECT'
-  | 'SHOP'
-  | 'PROFILE'
   | 'GAME';
 
 export default function App() {
-  const { initAuth, isLoading, user, refreshProfile } = useGameStore();
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
+  const { user, token, isLoading, initAuth, logout } = useGameStore();
 
+  // Initialize auth ONCE on mount
   useEffect(() => {
-    void initAuth();
-  }, [initAuth]);
+    initAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty array ensures this runs only once
 
+  // Check for active run on mount
   useEffect(() => {
-    const hasRun = !!sessionStorage.getItem('currentRun');
-    if (user && hasRun) {
-      setCurrentScreen('GAME');
+    const activeRun = sessionStorage.getItem('currentRun');
+    if (activeRun && user) {
+      // Optional: Resume game automatically
+      // setCurrentScreen('GAME');
     }
   }, [user]);
 
-  const handleGameExit = async () => {
-    try {
-      await refreshProfile();
-    } catch (error) {
-      console.error('[App] Failed to refresh profile on game exit:', error);
-    }
-    setCurrentScreen('MENU');
+  const navigateTo = (screen: Screen) => {
+    setCurrentScreen(screen);
   };
 
-  const authFailedMessage = useMemo(() => {
-    const devEnabled = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
-    return devEnabled
-      ? 'AUTH FAILED. DEV LOGIN DID NOT COMPLETE.'
-      : 'AUTH FAILED. LAUNCH VIA TELEGRAM.';
-  }, []);
+  const startGame = () => {
+    const activeRun = sessionStorage.getItem('currentRun');
+    if (!activeRun) {
+      console.error('[App] Attempted to start game without valid session.');
+      navigateTo('LEVEL_SELECT');
+      return;
+    }
+    navigateTo('GAME');
+  };
 
   if (isLoading) {
     return (
-      <AppAlertProvider>
-        <div
-          style={{
-            width: '100%',
-            minHeight: '100vh',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#0a0a0a',
-            color: '#ff6b35',
-            fontFamily: 'monospace',
-            letterSpacing: '0.05em',
-            padding: '24px',
-            boxSizing: 'border-box'
-          }}
-        >
-          LOADING SWINE CORPS DATA...
-        </div>
-      </AppAlertProvider>
+      <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Loading...
+      </div>
     );
   }
 
-  if (!user) {
+  // If no user or token, show Auth
+  if (!user || !token) {
     return (
-      <AppAlertProvider>
-        <div
-          style={{
-            width: '100%',
-            minHeight: '100vh',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#0a0a0a',
-            color: '#ff6b35',
-            fontFamily: 'monospace',
-            textAlign: 'center',
-            padding: '24px',
-            boxSizing: 'border-box'
-          }}
-        >
-          <div
-            style={{
-              maxWidth: '520px',
-              padding: '20px',
-              border: '2px solid #ff6b35',
-              borderRadius: '12px',
-              background: '#141414'
-            }}
-          >
-            {authFailedMessage}
-          </div>
-        </div>
-      </AppAlertProvider>
+      <TelegramProvider>
+        <GameNoticeProvider>
+           <AuthScene />
+        </GameNoticeProvider>
+      </TelegramProvider>
     );
   }
 
-  let screen: React.ReactNode;
-
-  switch (currentScreen) {
-    case 'MENU':
-      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
-      break;
-
-    case 'CHAR_SELECT':
-      screen = (
-        <CharacterSelect
-          onBack={() => setCurrentScreen('MENU')}
-          onStart={() => setCurrentScreen('LEVEL_SELECT')}
-        />
-      );
-      break;
-
-    case 'WEAPON_SELECT':
-      screen = <WeaponSelect onBack={() => setCurrentScreen('MENU')} />;
-      break;
-
-    case 'LEVEL_SELECT':
-      screen = (
-        <LevelSelect
-          onBack={() => setCurrentScreen('CHAR_SELECT')}
-          onStart={() => setCurrentScreen('GAME')}
-        />
-      );
-      break;
-
-    case 'SHOP':
-      screen = <Shop onBack={() => setCurrentScreen('MENU')} />;
-      break;
-
-    case 'PROFILE':
-      screen = <Profile onBack={() => setCurrentScreen('MENU')} />;
-      break;
-
-    case 'GAME':
-      screen = <GameCanvas onExit={handleGameExit} />;
-      break;
-
-    default:
-      screen = <MenuScene onNavigate={(next) => setCurrentScreen(next as Screen)} />;
-      break;
-  }
+  // Render Game Screens
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'MENU': return <MenuScene onNavigate={navigateTo} />;
+      case 'CHAR_SELECT': return <CharacterSelect onBack={() => navigateTo('MENU')} onStart={() => navigateTo('WEAPON_SELECT')} />;
+      case 'WEAPON_SELECT': return <WeaponSelect onBack={() => navigateTo('CHAR_SELECT')} onStart={() => navigateTo('LEVEL_SELECT')} />;
+      case 'LEVEL_SELECT': return <LevelSelect onBack={() => navigateTo('WEAPON_SELECT')} onStart={startGame} />;
+      case 'GAME':
+        const activeRun = sessionStorage.getItem('currentRun');
+        if (!activeRun) {
+          navigateTo('LEVEL_SELECT');
+          return null;
+        }
+        return <GameCanvas onExit={() => navigateTo('MENU')} />;
+      default: return <MenuScene onNavigate={navigateTo} />;
+    }
+  };
 
   return (
-    <AppAlertProvider>
-      <SolanaWalletProvider>
-        <TelegramProvider>{screen}</TelegramProvider>
-      </SolanaWalletProvider>
-    </AppAlertProvider>
+    <TelegramProvider>
+      <GameNoticeProvider>
+        <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
+          {renderScreen()}
+          <button 
+            onClick={logout}
+            style={{
+              position: 'absolute', top: 10, right: 10, zIndex: 9999,
+              background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #333',
+              padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </GameNoticeProvider>
+    </TelegramProvider>
   );
 }

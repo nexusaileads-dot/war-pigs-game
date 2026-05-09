@@ -12,8 +12,8 @@ export class Boss {
   templateId: string;
   name: string;
   title: string;
-  x: number;
-  y: number;
+  x: number = 0; // FIXED: Initialized to 0
+  y: number = 0; // FIXED: Initialized to 0
   health: number;
   maxHealth: number;
   baseDamage: number;

@@ -8,17 +8,18 @@ const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '')
   .filter(Boolean);
 
 export async function adminRoutes(fastify: FastifyInstance) {
+  // Secure all routes with authentication
   fastify.addHook('preHandler', authenticate);
 
+  // Custom authorization hook: check against whitelist
   fastify.addHook('preHandler', async (request, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: request.user.userId },
-      select: {
-        telegramId: true
-      }
+      select: { telegramId: true }
     });
 
     if (!user || !ADMIN_TELEGRAM_IDS.includes(user.telegramId)) {
+      fastify.log.warn({ userId: request.user.userId }, 'Unauthorized admin access attempt');
       return reply.status(403).send({ error: 'Admin only' });
     }
   });
@@ -36,9 +37,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const user = await prisma.user.findUnique({
       where: { telegramId },
-      select: {
-        id: true
-      }
+      select: { id: true }
     });
 
     if (!user) {
@@ -64,6 +63,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       })
     ]);
 
+    fastify.log.info({ telegramId, amount, admin: request.user.userId }, 'Admin granted currency');
+
     return { success: true };
   });
 
@@ -83,4 +84,4 @@ export async function adminRoutes(fastify: FastifyInstance) {
       totalPigsDistributed: totalEarned._sum.amount || 0
     };
   });
-    }
+}

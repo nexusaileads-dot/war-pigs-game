@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 
-interface Level {
+type Level = {
   id: string;
   levelNumber: number;
   name: string;
@@ -13,7 +13,7 @@ interface Level {
   unlocked: boolean;
   completed: boolean;
   isBossLevel?: boolean;
-}
+};
 
 type StartRunResponse = {
   run?: {
@@ -37,54 +37,52 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadLevels = async () => {
-      try {
-        setLoadError(null);
-
-        const res = await apiClient.get('/api/game/levels');
-        const incoming = Array.isArray(res.data) ? res.data : [];
-
-        const normalized = incoming
-          .filter((level: Partial<Level>) => !!level?.id)
-          .map((level: Partial<Level>) => ({
-            id: level.id as string,
-            levelNumber: Number(level.levelNumber ?? 0),
-            name: level.name || 'Outskirts Breach',
-            description:
-              level.levelNumber === 1
-                ? 'Clear 6 threats, destroy the mini tank, and reach extraction.'
-                : level.description || 'No description available.',
-            difficulty: Number(level.difficulty ?? 1),
-            waves: Number(level.waves ?? 1),
-            baseReward: Number(level.baseReward ?? 0),
-            unlockRequirement: Number(level.unlockRequirement ?? 0),
-            unlocked: Boolean(level.unlocked),
-            completed: Boolean(level.completed),
-            isBossLevel: Boolean(level.isBossLevel)
-          }))
-          .filter((level: Level) => level.levelNumber === 1)
-          .sort((a: Level, b: Level) => a.levelNumber - b.levelNumber);
-
-        setLevels(normalized);
-      } catch (error) {
-        console.error('[LevelSelect] Failed to load levels:', error);
-        setLoadError('Failed to load Level 1.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    sessionStorage.removeItem('currentRun');
     void loadLevels();
   }, []);
+
+  const loadLevels = async () => {
+    try {
+      setLoadError(null);
+      setIsLoading(true);
+
+      const res = await apiClient.get('/api/game/levels');
+      const incoming = Array.isArray(res.data) ? res.data : [];
+      const normalized: Level[] = incoming
+        .filter((level: Partial<Level>) => Boolean(level?.id))
+        .map((level: Partial<Level>) => ({
+          id: String(level.id),
+          levelNumber: Number(level.levelNumber ?? 0),
+          name: level.name || 'Unknown Mission',
+          description: level.description || 'No description available.',
+          difficulty: Number(level.difficulty ?? 1),
+          waves: Number(level.waves ?? 1),
+          baseReward: Number(level.baseReward ?? 0),
+          unlockRequirement: Number(level.unlockRequirement ?? 0),
+          unlocked: Boolean(level.unlocked),
+          completed: Boolean(level.completed),
+          isBossLevel: Boolean(level.isBossLevel)
+        }))
+        .filter((level) => level.levelNumber === 1)
+        .sort((a, b) => a.levelNumber - b.levelNumber);
+
+      setLevels(normalized);
+    } catch (error) {
+      console.error('[LevelSelect] Failed to load levels:', error);
+      setLoadError('Failed to load Level 1.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const summary = useMemo(() => {
     const unlocked = levels.filter((level) => level.unlocked).length;
     const completed = levels.filter((level) => level.completed).length;
 
     return {
+      total: levels.length,
       unlocked,
-      completed,
-      total: levels.length
+      completed
     };
   }, [levels]);
 
@@ -93,12 +91,20 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
 
     try {
       setStartingLevelId(levelId);
+      sessionStorage.removeItem('currentRun');
 
       const inventoryRes = await apiClient.get('/api/inventory');
       const equipped = inventoryRes.data?.equipped;
 
-      if (!equipped?.characterId || !equipped?.weaponId) {
-        alert('Equip a unit and weapon before deployment.');
+      if (!equipped?.characterId || !equipped?.weaponId) {        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {
+              title: 'Loadout Required',
+              message: 'Equip one unit and one weapon before deploying.',
+              type: 'warning'
+            }
+          })
+        );
         return;
       }
 
@@ -118,26 +124,55 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         !payload?.sessionToken
       ) {
         console.error('[LevelSelect] Invalid start payload:', payload);
-        alert('Mission session could not be created.');
+
+        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {
+              title: 'Mission Failed To Start',
+              message: 'The server did not return a valid mission session.',
+              type: 'error'
+            }
+          })
+        );
+
         return;
       }
 
-      sessionStorage.setItem(
-        'currentRun',
-        JSON.stringify({
-          ...payload,
-          run: {
-            ...payload.run,
-            characterUpgradeLevel: payload.run.characterUpgradeLevel ?? 0,
-            weaponUpgradeLevel: payload.run.weaponUpgradeLevel ?? 0
+      sessionStorage.setItem('currentRun', JSON.stringify(payload));
+
+      const savedRun = sessionStorage.getItem('currentRun');
+
+      if (!savedRun) {
+        window.dispatchEvent(
+          new CustomEvent('WAR_PIGS_NOTICE', {
+            detail: {              title: 'Mission Session Error',
+              message: 'Mission session could not be saved on this device.',
+              type: 'error'
+            }
+          })
+        );
+
+        return;
+      }
+
+      onStart();
+    } catch (error: any) {
+      console.error('[LevelSelect] Failed to start Level 1:', error);
+
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to start Level 1.';
+
+      window.dispatchEvent(
+        new CustomEvent('WAR_PIGS_NOTICE', {
+          detail: {
+            title: 'Deployment Failed',
+            message,
+            type: 'error'
           }
         })
       );
-
-      onStart();
-    } catch (error) {
-      console.error('[LevelSelect] Failed to start Level 1:', error);
-      alert('Failed to start Level 1.');
     } finally {
       setStartingLevelId(null);
     }
@@ -147,41 +182,43 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
     return (
       <div
         style={{
-          padding: '20px',
-          color: '#fff',
-          height: '100%',
+          minHeight: '100vh',
+          background: '#0a0a0a',
+          color: '#ff6b35',
           display: 'flex',
-          justifyContent: 'center',
           alignItems: 'center',
-          background: '#0a0a0a'
+          justifyContent: 'center',
+          fontWeight: 800,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase'
         }}
       >
-        LOADING LEVEL 1...
-      </div>
-    );
+        Loading Level 1...
+      </div>    );
   }
 
   if (loadError) {
     return (
       <div
         style={{
-          padding: '20px',
+          minHeight: '100vh',
+          background: '#0a0a0a',
           color: '#fff',
-          height: '100%',
-          background: '#0a0a0a'
+          padding: '20px',
+          boxSizing: 'border-box'
         }}
       >
         <button
+          type="button"
           onClick={onBack}
           style={{
             padding: '10px 20px',
-            marginBottom: '20px',
             background: '#444',
             border: '2px solid #ff6b35',
             color: '#fff',
             borderRadius: '8px',
             cursor: 'pointer',
-            fontWeight: 'bold'
+            fontWeight: 800
           }}
         >
           BACK
@@ -206,26 +243,26 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   }
 
   if (levels.length === 0) {
-    return (
-      <div
+    return (      <div
         style={{
-          padding: '20px',
+          minHeight: '100vh',
+          background: '#0a0a0a',
           color: '#fff',
-          height: '100%',
-          background: '#0a0a0a'
+          padding: '20px',
+          boxSizing: 'border-box'
         }}
       >
         <button
+          type="button"
           onClick={onBack}
           style={{
             padding: '10px 20px',
-            marginBottom: '20px',
             background: '#444',
             border: '2px solid #ff6b35',
             color: '#fff',
             borderRadius: '8px',
             cursor: 'pointer',
-            fontWeight: 'bold'
+            fontWeight: 800
           }}
         >
           BACK
@@ -244,7 +281,7 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         >
           <h2 style={{ marginTop: 0, color: '#ff6b35' }}>Level 1 Not Found</h2>
           <p style={{ color: '#bbb', marginBottom: 0 }}>
-            Seed or create mission levelNumber 1 in the API database.
+            Seed Level 1 in the database before deploying.
           </p>
         </div>
       </div>
@@ -254,25 +291,25 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   return (
     <div
       style={{
+        minHeight: '100vh',
+        background: '#0a0a0a',        color: '#fff',
         padding: '20px',
-        color: '#fff',
-        height: '100%',
-        overflowY: 'auto',
-        background: '#0a0a0a',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflowY: 'auto'
       }}
     >
       <button
+        type="button"
         onClick={onBack}
         style={{
           padding: '10px 20px',
-          marginBottom: '20px',
+          marginBottom: '26px',
           background: '#444',
           border: '2px solid #ff6b35',
           color: '#fff',
           borderRadius: '8px',
           cursor: 'pointer',
-          fontWeight: 'bold'
+          fontWeight: 800
         }}
       >
         BACK
@@ -282,8 +319,9 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
         style={{
           textAlign: 'center',
           color: '#ff6b35',
-          marginBottom: '12px',
-          textTransform: 'uppercase'
+          margin: '0 0 16px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em'
         }}
       >
         Level 1
@@ -291,26 +329,24 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
 
       <div
         style={{
-          maxWidth: '860px',
+          maxWidth: '720px',
           margin: '0 auto 18px',
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '12px',
-          flexWrap: 'wrap'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '10px'
         }}
       >
-        <InfoPill label="Available" value={String(summary.total)} color="#ffffff" />
-        <InfoPill label="Unlocked" value={String(summary.unlocked)} color="#4caf50" />
-        <InfoPill label="Completed" value={String(summary.completed)} color="#ff6b35" />
+        <SummaryBox label="Missions" value={summary.total} />
+        <SummaryBox label="Unlocked" value={summary.unlocked} />
+        <SummaryBox label="Completed" value={summary.completed} />
       </div>
 
-      <div
-        style={{
+      <div        style={{
+          maxWidth: '720px',
+          margin: '0 auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
-          maxWidth: '860px',
-          margin: '0 auto'
+          gap: '14px'
         }}
       >
         {levels.map((level) => {
@@ -320,12 +356,11 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
             <div
               key={level.id}
               style={{
-                background: level.unlocked ? '#222' : '#111',
+                background: '#222',
                 padding: '18px',
                 borderRadius: '14px',
-                border: `2px solid ${level.unlocked ? '#ff6b35' : '#222'}`,
-                opacity: level.unlocked ? 1 : 0.55,
-                boxShadow: level.unlocked ? '0 8px 22px rgba(0,0,0,0.28)' : 'none'
+                border: `2px solid ${level.unlocked ? '#ff6b35' : '#333'}`,
+                opacity: level.unlocked ? 1 : 0.55
               }}
             >
               <div
@@ -338,52 +373,29 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                 }}
               >
                 <div style={{ flex: 1, minWidth: '240px' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      flexWrap: 'wrap',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <h3 style={{ margin: 0, color: '#fff' }}>
-                      Level {level.levelNumber}: Outskirts Breach
-                    </h3>
+                  <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: '24px' }}>
+                    Mission {level.levelNumber}: {level.name}
+                  </h3>
 
-                    <span
+                  {level.completed ? (
+                    <div
                       style={{
-                        background: '#4b1616',
-                        color: '#ffd54f',
-                        border: '1px solid #8b0000',
+                        display: 'inline-block',
+                        marginBottom: '10px',
+                        padding: '3px 9px',
                         borderRadius: '999px',
-                        padding: '2px 8px',
-                        fontSize: '11px',
-                        fontWeight: 700
+                        background: '#18361c',
+                        border: '1px solid #2e7d32',
+                        color: '#7ee787',
+                        fontSize: '12px',
+                        fontWeight: 800
                       }}
-                    >
-                      MINI TANK
-                    </span>
+                    >                      COMPLETED
+                    </div>
+                  ) : null}
 
-                    {level.completed ? (
-                      <span
-                        style={{
-                          background: '#18361c',
-                          color: '#7ee787',
-                          border: '1px solid #2e7d32',
-                          borderRadius: '999px',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700
-                        }}
-                      >
-                        COMPLETED
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <p style={{ margin: '0 0 12px 0', color: '#bbb', fontSize: '14px' }}>
-                    Clear 4 soldiers, 1 drone, and 1 mini tank. Reach extraction after all threats are removed.
+                  <p style={{ color: '#bbb', margin: '0 0 12px', lineHeight: 1.45 }}>
+                    {level.description}
                   </p>
 
                   <div
@@ -391,20 +403,24 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                       gap: '8px',
-                      fontSize: '12px'
+                      fontSize: '13px'
                     }}
                   >
-                    <Spec label="Difficulty" value="1" color="#ffb74d" />
-                    <Spec label="Threats" value="6" color="#fff" />
-                    <Spec label="Objective" value="Extraction" color="#90caf9" />
-                    <Spec label="Reward" value={`${level.baseReward} $PIGS`} color="#ffd700" />
+                    <InfoPill label="Difficulty" value={String(level.difficulty)} />
+                    <InfoPill label="Waves" value={String(level.waves)} />
+                    <InfoPill label="Reward" value={`${level.baseReward} $PIGS`} />
+                    <InfoPill
+                      label="Status"
+                      value={level.unlocked ? 'Ready' : `Requires Level ${level.unlockRequirement}`}
+                    />
                   </div>
                 </div>
 
                 {level.unlocked ? (
                   <button
+                    type="button"
+                    disabled={Boolean(startingLevelId)}
                     onClick={() => void handleStart(level.id)}
-                    disabled={!!startingLevelId}
                     style={{
                       minWidth: '130px',
                       padding: '12px 16px',
@@ -413,20 +429,22 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
                       border: 'none',
                       borderRadius: '10px',
                       cursor: startingLevelId ? 'not-allowed' : 'pointer',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase'
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
                     }}
                   >
-                    {isStarting ? 'DEPLOYING...' : 'DEPLOY'}
+                    {isStarting ? 'Deploying...' : 'Deploy'}
                   </button>
                 ) : (
                   <div
                     style={{
-                      padding: '10px 14px',
-                      background: '#1a1a1a',
+                      minWidth: '110px',                      padding: '12px 16px',
+                      background: '#111',
                       color: '#777',
-                      borderRadius: '8px',
-                      fontWeight: 'bold'
+                      borderRadius: '10px',
+                      fontWeight: 900,
+                      textAlign: 'center'
                     }}
                   >
                     LOCKED
@@ -441,35 +459,34 @@ export const LevelSelect: React.FC<{ onBack: () => void; onStart: () => void }> 
   );
 };
 
-const InfoPill: React.FC<{ label: string; value: string; color: string }> = ({
-  label,
-  value,
-  color
-}) => {
+const SummaryBox: React.FC<{ label: string; value: number }> = ({ label, value }) => {
   return (
     <div
       style={{
         background: '#161616',
         border: '1px solid #2d2d2d',
         borderRadius: '10px',
-        padding: '10px 14px',
-        color: '#ddd',
-        fontSize: '14px'
+        padding: '10px 12px',
+        textAlign: 'center'
       }}
     >
-      {label}: <span style={{ color, fontWeight: 700 }}>{value}</span>
+      <div style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: '#fff', fontSize: '18px', fontWeight: 900 }}>{value}</div>
     </div>
   );
 };
 
-const Spec: React.FC<{ label: string; value: string; color: string }> = ({
-  label,
-  value,
-  color
-}) => {
+const InfoPill: React.FC<{ label: string; value: string }> = ({ label, value }) => {
   return (
-    <div style={{ color: '#ddd' }}>
-      {label}: <span style={{ color, fontWeight: 700 }}>{value}</span>
-    </div>
-  );
+    <div
+      style={{
+        background: '#161616',
+        border: '1px solid #333',
+        borderRadius: '8px',
+        padding: '8px 10px'
+      }}
+    >
+      <div style={{ color: '#888', fontSize: '10px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: '#fff', fontSize: '13px', fontWeight: 800 }}>{value}</div>
+    </div>  );
 };

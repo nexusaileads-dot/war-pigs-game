@@ -1,166 +1,130 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useGameStore } from '../store/gameStore';
 import { apiClient } from '../api/client';
 
-type ProfileUser = {
-  username?: string | null;
-  firstName?: string | null;
-  profile?: {
-    level: number;
-    xp: number;
-    currentPigs: number;
-    totalPigsEarned: number;
-  } | null;
-  stats?: {
-    totalKills: number;
-    totalRuns: number;
-    totalBossKills: number;
-  } | null;
-  wallet?: {
-    solanaAddress?: string | null;
-    pendingRewards: number;
-    claimedRewards: number;
-    lastClaimAt?: string | null;
-  } | null;
+// Helper to format dates nicely
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return 'Never';
+  try {
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return 'Invalid Date';
+  }
 };
 
 export const Profile: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const [profileData, setProfileData] = useState<ProfileUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading: storeLoading } = useGameStore();
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const res = await apiClient.get('/api/auth/me');
-        setProfileData(res.data.user);
-      } catch (error) {
-        console.error('Failed to load profile:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void loadProfile();
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          color: '#fff',
-          background: '#0a0a0a',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      >
-        LOADING PROFILE...
-      </div>
-    );
+  // Fallback if store is loading
+  if (storeLoading) {
+    return <div style={centerContainerStyle}>LOADING SOLDIER DOSSIER...</div>;
   }
 
-  if (!profileData) {
-    return (
-      <div
-        style={{
-          padding: '20px',
-          color: '#fff',
-          background: '#0a0a0a',
-          minHeight: '100vh'
-        }}
-      >
-        <button
-          onClick={onBack}
-          style={{
-            padding: '10px',
-            marginBottom: '20px',
-            background: '#ff6b35',
-            border: 'none',
-            color: '#fff',
-            borderRadius: '4px'
-          }}
-        >
-          Back
-        </button>
-        <div>PROFILE UNAVAILABLE.</div>
-      </div>
-    );
-  }
+  const handleClaim = async () => {
+    if (!user?.wallet?.solanaAddress || !user.wallet.pendingRewards) return;
 
-  const profile = profileData.profile;
-  const stats = profileData.stats;
-  const wallet = profileData.wallet;
+    try {
+      setIsClaiming(true);
+      setClaimError(null);
+      
+      // NOTE: Ensure this route exists in backend (apps/api/src/routes/economy.ts or similar)
+      // or use the generic /api/economy/claim endpoint.
+      // We assume the backend validates the session and calls EconomyService.claimRewards.
+      await apiClient.post('/api/economy/claim'); 
+      
+      // Refresh store to reflect new balance
+      await useGameStore.getState().refreshProfile();
+    } catch (error: any) {
+      setClaimError(error?.response?.data?.error || 'Claim failed.');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const profile = user?.profile;
+  const stats = user?.stats;
+  const wallet = user?.wallet;
 
   return (
-    <div
-      style={{
-        padding: '20px',
-        color: '#fff',
-        background: '#0a0a0a',
-        minHeight: '100vh'
-      }}
-    >
-      <button
-        onClick={onBack}
-        style={{
-          padding: '10px',
-          marginBottom: '20px',
-          background: '#ff6b35',
-          border: 'none',
-          color: '#fff',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        Back
-      </button>
+    <div style={containerStyle}>
+      <button onClick={onBack} style={backButtonStyle}>BACK TO MENU</button>
 
-      <h2>Soldier: {profileData.username || profileData.firstName || 'Anonymous'}</h2>
-
-      <div
-        style={{
-          background: '#222',
-          padding: '15px',
-          borderRadius: '8px',
-          marginTop: '20px'
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Profile</h3>
-        <p>Level: {profile?.level ?? 1}</p>
-        <p>XP: {profile?.xp ?? 0}</p>
-        <p>$PIGS: {profile?.currentPigs ?? 0}</p>
-        <p>Total Earned: {profile?.totalPigsEarned ?? 0}</p>
+      <div style={headerStyle}>
+        <h2 style={{ margin: 0 }}>Soldier: {user?.username || user?.firstName || 'Anonymous'}</h2>
+        <div style={{ color: '#ffd700', fontWeight: 800, marginTop: 8 }}>
+          Level {profile?.level ?? 1}
+        </div>
       </div>
 
-      <div
-        style={{
-          background: '#222',
-          padding: '15px',
-          borderRadius: '8px',
-          marginTop: '20px'
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Combat Stats</h3>
-        <p>Total Kills: {stats?.totalKills ?? 0}</p>
-        <p>Total Runs: {stats?.totalRuns ?? 0}</p>
-        <p>Bosses Defeated: {stats?.totalBossKills ?? 0}</p>
+      {/* Stats Grid */}
+      <div style={gridStyle}>
+        <StatCard label="Current Balance" value={`${profile?.currentPigs ?? 0} $PIGS`} color="#ff6b35" />
+        <StatCard label="Total Earned" value={`${profile?.totalPigsEarned ?? 0} $PIGS`} color="#888" />
+        <StatCard label="Total Kills" value={String(stats?.totalKills ?? 0)} color="#fff" />
+        <StatCard label="Runs Completed" value={String(stats?.totalRuns ?? 0)} color="#fff" />
+        <StatCard label="Bosses Defeated" value={String(stats?.totalBossKills ?? 0)} color="#ffd700" />
       </div>
 
-      <div
-        style={{
-          background: '#222',
-          padding: '15px',
-          borderRadius: '8px',
-          marginTop: '20px'
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Wallet</h3>
-        <p>Address: {wallet?.solanaAddress || 'Not linked'}</p>
-        <p>Pending Rewards: {wallet?.pendingRewards ?? 0}</p>
-        <p>Claimed Rewards: {wallet?.claimedRewards ?? 0}</p>
-        <p>Last Claim: {wallet?.lastClaimAt || 'Never'}</p>
+      {/* Wallet Section */}
+      <div style={sectionStyle}>
+        <h3 style={{ marginTop: 0, color: '#ff6b35' }}>Wallet</h3>
+        
+        <div style={{ color: '#ccc', fontSize: 14, marginBottom: 10 }}>
+          <span style={{ color: '#888' }}>Address:</span> {wallet?.solanaAddress ? `${wallet.solanaAddress.slice(0, 6)}...${wallet.solanaAddress.slice(-4)}` : 'Not Linked'}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', padding: 12, borderRadius: 8 }}>
+          <div>
+            <div style={{ color: '#888', fontSize: 12 }}>Pending Rewards</div>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{wallet?.pendingRewards ?? 0} $PIGS</div>
+          </div>
+          
+          <button 
+            onClick={() => void handleClaim()}
+            disabled={!wallet?.solanaAddress || !wallet?.pendingRewards || isClaiming}
+            style={{
+              padding: '10px 16px',
+              background: (wallet?.pendingRewards ?? 0) > 0 ? '#ff6b35' : '#444',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              fontWeight: 'bold',
+              cursor: (!wallet?.solanaAddress || !(wallet?.pendingRewards ?? 0)) ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isClaiming ? 'PROCESSING...' : 'CLAIM TO SOLANA'}
+          </button>
+        </div>
+
+        {claimError && <div style={{ color: '#ff6b6b', marginTop: 8, fontSize: 12 }}>{claimError}</div>}
+        
+        <div style={{ color: '#666', fontSize: 11, marginTop: 12, textAlign: 'right' }}>
+          Last Claim: {formatDate(wallet?.lastClaimAt)}
+        </div>
       </div>
     </div>
   );
 };
+
+// --- Subcomponents ---
+const StatCard: React.FC<{ label: string; value: string; color: string }> = ({ label, value, color }) => (
+  <div style={{ background: '#222', padding: 14, borderRadius: 8, textAlign: 'center' }}>
+    <div style={{ color: '#888', fontSize: 11, marginBottom: 4 }}>{label}</div>
+    <div style={{ color, fontSize: 18, fontWeight: 900 }}>{value}</div>
+  </div>
+);
+
+// --- Styles ---
+const containerStyle: React.CSSProperties = { padding: 20, color: '#fff', background: '#0a0a0a', minHeight: '100vh', boxSizing: 'border-box' };
+const centerContainerStyle: React.CSSProperties = { ...containerStyle, display: 'flex', justifyContent: 'center', alignItems: 'center' };
+const backButtonStyle: React.CSSProperties = { padding: '10px 16px', background: '#444', border: 'none', color: '#fff', borderRadius: 6, cursor: 'pointer', marginBottom: 20 };
+const headerStyle: React.CSSProperties = { marginBottom: 24, borderBottom: '1px solid #333', paddingBottom: 16 };
+const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 24 };
+const sectionStyle: React.CSSProperties = { background: '#161616', padding: 20, borderRadius: 12, border: '1px solid #333' };

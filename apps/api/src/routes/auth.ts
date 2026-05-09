@@ -2,99 +2,230 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '@war-pigs/database';
 import { validateTelegramData } from '../middleware/validateTelegram';
 import { authenticate } from '../middleware/auth';
+import { authRateLimitConfig } from '../middleware/rateLimiter';
+import bcrypt from 'bcryptjs';
 
-async function findOrCreateUserFromTelegramUser(telegramUser: {
-  id: number;
-  username?: string;
-  first_name: string;
-  last_name?: string;
-  photo_url?: string;
-}) {
-  const telegramId = telegramUser.id.toString();
+// Helper to generate a unique username if collision occurs
+const generateUniqueUsername = async (base: string): Promise<string> => {
+  let username = base;
+  let exists = await prisma.user.findUnique({ where: { username } });
+  let counter = 1;
+  while (exists) {
+    username = `${base}${counter}`;
+    exists = await prisma.user.findUnique({ where: { username } });
+    counter++;
+  }
+  return username;
+};
 
-  const user = await prisma.$transaction(async (tx) => {
-    const existingUser = await tx.user.findUnique({
-      where: { telegramId },
-      include: {
-        profile: true,
-        wallet: true,
-        stats: true
+async function provisionUserAssets(userId: string, username: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.profile.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        level: 1,
+        xp: 0,
+        totalPigsEarned: 0,
+        currentPigs: 5000,
+        equippedCharacterId: 'grunt_bacon',
+        equippedWeaponId: 'oink_pistol'
       }
     });
 
-    if (existingUser) {
-      return tx.user.update({
-        where: { id: existingUser.id },
-        data: {
-          username: telegramUser.username,
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          photoUrl: telegramUser.photo_url
-        },
-        include: {
-          profile: true,
-          wallet: true,
-          stats: true
-        }
-      });
-    }
+    await tx.wallet.upsert({
+      where: { userId },
+      update: {},
+      create: { userId }
+    });
 
-    const createdUser = await tx.user.create({
-      data: {
-        telegramId,
-        username: telegramUser.username,
-        firstName: telegramUser.first_name,
-        lastName: telegramUser.last_name,
-        photoUrl: telegramUser.photo_url,
-        profile: {
-          create: {
-            level: 1,
-            xp: 0,
-            totalPigsEarned: 0,
-            currentPigs: 5000,
-            equippedCharacterId: 'grunt_bacon',
-            equippedWeaponId: 'oink_pistol'
-          }
-        },
-        wallet: {
-          create: {}
-        },
-        stats: {
-          create: {}
-        }
-      },
-      include: {
-        profile: true,
-        wallet: true,
-        stats: true
-      }
+    await tx.playerStats.upsert({
+      where: { userId },
+      update: {},
+      create: { userId }
     });
 
     await tx.inventoryItem.createMany({
       data: [
-        {
-          userId: createdUser.id,
-          itemType: 'CHARACTER',
-          characterId: 'grunt_bacon'
-        },
-        {
-          userId: createdUser.id,
-          itemType: 'WEAPON',
-          weaponId: 'oink_pistol'
-        }
+        { userId, itemType: 'CHARACTER', characterId: 'grunt_bacon' },
+        { userId, itemType: 'WEAPON', weaponId: 'oink_pistol' }
       ],
       skipDuplicates: true
     });
-
-    return createdUser;
   });
-
-  return user;
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.url.startsWith('/api/auth')) {
+      (reply.context.config as any).rateLimit = authRateLimitConfig;
+    }
+  });
+
+  // --- EMAIL REGISTRATION ---
+  fastify.post('/register', async (request, reply) => {
+    const body = request.body as Record<string, unknown>;
+    const email = (body?.email as string)?.toLowerCase().trim();
+    const password = body?.password as string;
+    const username = (body?.username as string)?.trim();
+
+    if (!email || !password || !username) {
+      return reply.status(400).send({ error: 'Email, password, and username are required' });
+    }
+
+    if (password.length < 6) {
+      return reply.status(400).send({ error: 'Password must be at least 6 characters' });
+    }
+
+    try {
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ email }, { username }] }
+      });
+
+      if (existingUser) {
+        if (existingUser.email === email) {
+          return reply.status(409).send({ error: 'Email already in use' });
+        }
+        return reply.status(409).send({ error: 'Username already taken' });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const finalUsername = await generateUniqueUsername(username);
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          username: finalUsername,
+          firstName: finalUsername
+        }
+      });
+
+      await provisionUserAssets(user.id, finalUsername);
+
+      const token = fastify.jwt.sign({ userId: user.id });
+
+      const fullUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      return { token, user: fullUser };
+    } catch (err) {
+      fastify.log.error({ err }, 'Registration failed');
+      return reply.status(500).send({ error: 'Registration failed' });
+    }
+  });
+
+  // --- EMAIL LOGIN ---
+  fastify.post('/login', async (request, reply) => {
+    const body = request.body as Record<string, unknown>;
+    const email = (body?.email as string)?.toLowerCase().trim();
+    const password = body?.password as string;
+
+    if (!email || !password) {
+      return reply.status(400).send({ error: 'Email and password are required' });
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      if (!user || !user.passwordHash) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const token = fastify.jwt.sign({ userId: user.id });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          photoUrl: user.photoUrl,
+          profile: user.profile,
+          wallet: user.wallet,
+          stats: user.stats
+        }
+      };
+    } catch (err) {
+      fastify.log.error({ err }, 'Login failed');
+      return reply.status(500).send({ error: 'Login failed' });
+    }
+  });
+
+  // --- DEV LOGIN (Testing Only) ---
+  fastify.post('/dev-login', async (request, reply) => {
+    // Only allow if explicitly enabled in environment variables
+    const isDevAuthEnabled = process.env.ENABLE_DEV_AUTH === 'true';
+
+    if (!isDevAuthEnabled) {
+      return reply.status(403).send({ error: 'Dev auth disabled' });
+    }
+
+    try {
+      // Hardcoded test user ID
+      const telegramId = '999001';
+
+      let user = await prisma.user.findUnique({
+        where: { telegramId },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            username: 'dev_tester',
+            firstName: 'Dev',
+            lastName: 'Tester',
+            photoUrl: undefined,
+            profile: { create: { level: 1, xp: 0, totalPigsEarned: 0, currentPigs: 5000 } },
+            wallet: { create: {} },
+            stats: { create: {} }
+          },
+          include: { profile: true, wallet: true, stats: true }
+        });
+      }
+
+      const token = fastify.jwt.sign({
+        userId: user.id,
+        telegramId: user.telegramId
+      });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          telegramId: user.telegramId,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          photoUrl: user.photoUrl,
+          profile: user.profile,
+          wallet: user.wallet,
+          stats: user.stats
+        }
+      };
+    } catch (err) {
+      fastify.log.error({ err }, 'Failed to process dev login');
+      return reply.status(500).send({ error: 'Dev authentication failed' });
+    }
+  });
+
+  // --- TELEGRAM LOGIN (Legacy) ---
   fastify.post('/telegram', async (request, reply) => {
-    const { initData } = request.body as { initData?: string };
+    const body = request.body as Record<string, unknown>;
+    const initData = body?.initData as string | undefined;
 
     if (!initData) {
       return reply.status(400).send({ error: 'Missing initData' });
@@ -102,86 +233,59 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      fastify.log.error('TELEGRAM_BOT_TOKEN is not configured');
       return reply.status(500).send({ error: 'Server configuration error' });
     }
 
-    const telegramUser = validateTelegramData(initData, botToken);
+    const telegramUser = validateTelegramData(initData, { botToken, logFailures: true });
     if (!telegramUser) {
       return reply.status(401).send({ error: 'Invalid Telegram data' });
     }
 
-    const user = await findOrCreateUserFromTelegramUser(telegramUser);
+    try {
+      const telegramId = telegramUser.id.toString();
+      let user = await prisma.user.findUnique({
+        where: { telegramId },
+        include: { profile: true, wallet: true, stats: true }
+      });
 
-    const token = fastify.jwt.sign({
-      userId: user.id,
-      telegramId: user.telegramId
-    });
-
-    return {
-      token,
-      user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        photoUrl: user.photoUrl,
-        profile: user.profile,
-        wallet: user.wallet,
-        stats: user.stats
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            username: telegramUser.username || `tg_${telegramUser.id}`,
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            photoUrl: telegramUser.photo_url
+          },
+          include: { profile: true, wallet: true, stats: true }
+        });
+        await provisionUserAssets(user.id, user.username || 'player');
       }
-    };
-  });
 
-  fastify.post('/dev-login', async (_request, reply) => {
-    if (process.env.ENABLE_DEV_AUTH !== 'true') {
-      return reply.status(403).send({ error: 'Dev auth disabled' });
+      const token = fastify.jwt.sign({ userId: user.id });
+
+      return { token, user };
+    } catch (err) {
+      fastify.log.error({ err }, 'Telegram auth failed');
+      return reply.status(500).send({ error: 'Authentication failed' });
     }
-
-    const user = await findOrCreateUserFromTelegramUser({
-      id: 999001,
-      username: 'dev_tester',
-      first_name: 'Dev',
-      last_name: 'Tester',
-      photo_url: undefined
-    });
-
-    const token = fastify.jwt.sign({
-      userId: user.id,
-      telegramId: user.telegramId
-    });
-
-    return {
-      token,
-      user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        photoUrl: user.photoUrl,
-        profile: user.profile,
-        wallet: user.wallet,
-        stats: user.stats
-      }
-    };
   });
 
+  // --- GET CURRENT USER ---
   fastify.get('/me', { preHandler: authenticate }, async (request, reply) => {
-    const user = await prisma.user.findUnique({
-      where: { id: request.user.userId },
-      include: {
-        profile: true,
-        wallet: true,
-        stats: true
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: request.user.userId },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
       }
-    });
 
-    if (!user) {
-      return reply.status(404).send({ error: 'User not found' });
+      return { user };
+    } catch (err) {
+      return reply.status(500).send({ error: 'Failed to retrieve user data' });
     }
-
-    return { user };
   });
-            }
+        }

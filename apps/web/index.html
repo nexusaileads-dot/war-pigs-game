@@ -11,34 +11,18 @@
     <title>WAR PIGS</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-      html,
-      body,
-      #root {
+      /* Minimal reset - defer to global.css for layout rules */
+      html, body, #root {
         margin: 0;
         padding: 0;
         width: 100%;
         min-height: 100%;
         background: #0a0a0a;
       }
-
-      body {
-        overflow: hidden;
-        font-family: Arial, Helvetica, sans-serif;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      img {
-        user-select: none;
-        -webkit-user-drag: none;
-      }
-
-      button,
-      canvas {
-        touch-action: manipulation;
-      }
+      /* Removed body { overflow: hidden } to avoid specificity conflict with global.css */
+      * { box-sizing: border-box; }
+      img { user-select: none; -webkit-user-drag: none; }
+      button, canvas { touch-action: manipulation; }
     </style>
   </head>
   <body>
