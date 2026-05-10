@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { WalletButton } from './WalletButton';
+import { apiClient } from '../api/client';
 
 type Screen = 'MENU' | 'CHAR_SELECT' | 'WEAPON_SELECT' | 'LEVEL_SELECT' | 'SHOP' | 'PROFILE' | 'PVP' | 'CLANS' | 'LEADERBOARD' | 'GAME';
 interface Props { onNavigate: (screen: Screen) => void; }
@@ -8,7 +9,7 @@ interface Props { onNavigate: (screen: Screen) => void; }
 const ASSET_BASE = '/assets/ui/home';
 
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
-  const { user, logout } = useGameStore();
+  const { user, logout, refreshProfile } = useGameStore();
   const [showSettings, setShowSettings] = useState(false);
 
   const level = user?.profile?.level || 2;
@@ -26,7 +27,8 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
   return (
     <div style={{ width: '100%', height: '100dvh', background: '#030303', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
-      {/* FIX: Widened layout for Landscape display (matches Phaser 16:9 canvas size) */}
+      
+      {/* Widened layout for Landscape display */}
       <div style={{ position: 'relative', width: '100%', maxWidth: '1280px', height: '100%', maxHeight: '720px', overflow: 'hidden', background: '#070707', color: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 0 50px rgba(0,0,0,0.8)' }}>
         
         <img src={`${ASSET_BASE}/main-background.png`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -68,17 +70,37 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Settings Modal */}
+      {/* Settings & Withdrawal Modal */}
       {showSettings && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: '#222', padding: 30, borderRadius: 15, width: '80%', maxWidth: 400, border: '2px solid #ff6b35' }}>
-            <h3 style={{ marginTop: 0, textAlign: 'center', fontSize: 24, color: '#ff6b35', textTransform: 'uppercase' }}>Settings</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 15, marginTop: 20 }}>
+          <div style={{ background: '#1a1111', padding: 30, borderRadius: 15, width: '90%', maxWidth: 450, border: '2px solid #ff6b35', maxHeight: '90vh', overflowY: 'auto' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 24, color: '#ff6b35', textTransform: 'uppercase' }}>Settings & Wallet</h3>
+              <button onClick={() => setShowSettings(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer' }}>×</button>
+            </div>
+
+            {/* Game Settings */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 30 }}>
               <button onClick={() => alert('Sound Toggled')} style={btnStyle}>SOUND: ON</button>
               <button onClick={() => alert('Music Toggled')} style={btnStyle}>MUSIC: ON</button>
-              <button onClick={() => { logout(); setShowSettings(false); }} style={{ ...btnStyle, background: '#d92a17', border: 'none' }}>LOGOUT</button>
-              <button onClick={() => setShowSettings(false)} style={{ ...btnStyle, background: '#444', border: 'none' }}>CLOSE</button>
             </div>
+
+            {/* Withdrawal Section */}
+            <div style={{ background: '#0a0a0a', padding: 20, borderRadius: 10, border: '1px solid #333', marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#ffd700', textTransform: 'uppercase' }}>Withdraw $PIGS</h4>
+              <p style={{ fontSize: 12, color: '#aaa', marginBottom: 15, lineHeight: 1.4 }}>
+                Convert your In-Game Pigs to real <strong>$PIGS</strong> tokens on Solana. Withdrawals are processed in batches for security and may take up to 12 hours.
+              </p>
+              
+              <WithdrawalForm 
+                currentBalance={currentPigs} 
+                onClose={() => setShowSettings(false)} 
+                onSuccess={() => refreshProfile()}
+              />
+            </div>
+
+            <button onClick={() => { logout(); setShowSettings(false); }} style={{ ...btnStyle, background: '#d92a17', border: 'none', width: '100%' }}>LOGOUT ACCOUNT</button>
           </div>
         </div>
       )}
@@ -86,7 +108,85 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   );
 };
 
-// TopBar & Subcomponents
+// --- Withdrawal Form Subcomponent ---
+const WithdrawalForm: React.FC<{ currentBalance: number; onClose: () => void; onSuccess: () => void; }> = ({ currentBalance, onClose, onSuccess }) => {
+  const [address, setAddress] = useState('');
+  const [amount, setAmount] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const withdrawAmount = parseInt(amount);
+
+    if (!address || address.length < 32) return setError('Invalid Solana address.');
+    if (!withdrawAmount || withdrawAmount < 1000) return setError('Minimum withdrawal is 1,000 Pigs.');
+    if (withdrawAmount > currentBalance) return setError('Insufficient In-Game Pigs balance.');
+
+    setStatus('loading');
+    try {
+      await apiClient.post('/api/wallet/withdraw', { address, amount: withdrawAmount });
+      setStatus('success');
+      setMessage('Withdrawal requested successfully! Your funds will arrive soon.');
+      onSuccess(); // Refresh profile to show new balance
+      setTimeout(onClose, 3000); 
+    } catch (err: any) {
+      setStatus('error');
+      setMessage(err.response?.data?.error || 'Failed to process withdrawal.');
+    }
+  };
+
+  const setError = (msg: string) => {
+    setStatus('error');
+    setMessage(msg);
+  };
+
+  if (status === 'success') {
+    return <div style={{ color: '#4caf50', fontWeight: 'bold', textAlign: 'center', padding: 20 }}>{message}</div>;
+  }
+
+  return (
+    <form onSubmit={handleWithdraw} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <label style={{ fontSize: 11, color: '#888', fontWeight: 'bold' }}>SOLANA WALLET ADDRESS</label>
+        <input 
+          type="text" 
+          value={address} 
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Paste your Phantom address here..."
+          style={{ width: '100%', padding: '10px', background: '#111', border: '1px solid #333', color: '#fff', borderRadius: 6, marginTop: 4, boxSizing: 'border-box' }}
+        />
+      </div>
+      
+      <div>
+        <label style={{ fontSize: 11, color: '#888', fontWeight: 'bold' }}>AMOUNT TO WITHDRAW (Current: {currentBalance})</label>
+        <input 
+          type="number" 
+          value={amount} 
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="e.g. 5000"
+          min="1000"
+          max={currentBalance}
+          style={{ width: '100%', padding: '10px', background: '#111', border: '1px solid #333', color: '#fff', borderRadius: 6, marginTop: 4, boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {status === 'error' && <div style={{ color: '#ff4d4f', fontSize: 12, fontWeight: 'bold' }}>{message}</div>}
+
+      <button 
+        type="submit" 
+        disabled={status === 'loading'}
+        style={{ padding: '12px', background: '#ff6b35', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: status === 'loading' ? 'not-allowed' : 'pointer', marginTop: 5, textTransform: 'uppercase' }}
+      >
+        {status === 'loading' ? 'PROCESSING...' : 'REQUEST WITHDRAWAL'}
+      </button>
+    </form>
+  );
+};
+
+
+// --- Subcomponents ---
+
 const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress: number; currentPigs: number; username: string; onSettings: () => void; }> = ({ level, xp, xpTarget, xpProgress, currentPigs, username, onSettings }) => {
   return (
     <div style={{ height: 80, zIndex: 3, display: 'grid', gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)', flexShrink: 0 }}>
