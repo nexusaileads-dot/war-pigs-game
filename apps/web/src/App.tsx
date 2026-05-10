@@ -8,7 +8,7 @@ import { LevelSelect } from './components/LevelSelect';
 import { Shop } from './components/Shop';
 import { PvPMenu } from './components/PvPMenu';
 import { GameCanvas } from './game/GameCanvas'; 
-import { PvPCanvas } from './game/PvPCanvas'; // ADDED THIS IMPORT
+import { PvPCanvas } from './game/PvPCanvas'; 
 import { AuthScene } from './components/AuthScene';
 import { useGameStore } from './store/gameStore';
 
@@ -25,7 +25,9 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
   const [pvpRoomData, setPvpRoomData] = useState<any>(null);
-  const { user, token, isLoading, initAuth, logout } = useGameStore();
+  
+  // Notice we removed `logout` from here since it is now handled cleanly inside the MenuScene settings!
+  const { user, token, isLoading, initAuth } = useGameStore();
 
   // Initialize auth ONCE on mount
   useEffect(() => {
@@ -37,7 +39,7 @@ export default function App() {
   useEffect(() => {
     const activeRun = sessionStorage.getItem('currentRun');
     if (activeRun && user) {
-      // Optional: Resume game automatically
+      // Optional: Resume game automatically by uncommenting below
       // setCurrentScreen('GAME');
     }
   }, [user]);
@@ -79,7 +81,7 @@ export default function App() {
     );
   }
 
-  // Render Game Screens
+  // Render Game Screens based on current state
   const renderScreen = () => {
     switch (currentScreen) {
       case 'MENU': return <MenuScene onNavigate={navigateTo} />;
@@ -100,7 +102,6 @@ export default function App() {
           navigateTo('PVP');
           return null;
         }
-        // FIX: Now mounts the actual PvP Canvas and passes the socket room data!
         return <PvPCanvas roomData={pvpRoomData} onExit={() => navigateTo('PVP')} />;
       default: return <MenuScene onNavigate={navigateTo} />;
     }
@@ -111,19 +112,6 @@ export default function App() {
       <LandscapeOverlay />
       <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
         {renderScreen()}
-        {currentScreen !== 'GAME' && currentScreen !== 'PVP_GAME' && (
-          <button 
-            onClick={logout}
-            style={{
-              position: 'absolute', top: 20, right: 20, zIndex: 9999,
-              background: '#333', color: '#fff', border: '2px solid #555',
-              padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            LOGOUT
-          </button>
-        )}
       </div>
     </GameNoticeProvider>
   );
