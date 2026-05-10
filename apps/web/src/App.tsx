@@ -25,8 +25,6 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('MENU');
   const [pvpRoomData, setPvpRoomData] = useState<any>(null);
-  
-  // Notice we removed `logout` from here since it is now handled cleanly inside the MenuScene settings!
   const { user, token, isLoading, initAuth } = useGameStore();
 
   // Initialize auth ONCE on mount
@@ -39,7 +37,7 @@ export default function App() {
   useEffect(() => {
     const activeRun = sessionStorage.getItem('currentRun');
     if (activeRun && user) {
-      // Optional: Resume game automatically by uncommenting below
+      // Optional: Resume game automatically
       // setCurrentScreen('GAME');
     }
   }, [user]);
@@ -65,7 +63,7 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', color: '#ff6b35', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+      <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', color: '#ff6b35', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '24px' }}>
         LOADING...
       </div>
     );
@@ -81,7 +79,7 @@ export default function App() {
     );
   }
 
-  // Render Game Screens based on current state
+  // Render Game Screens
   const renderScreen = () => {
     switch (currentScreen) {
       case 'MENU': return <MenuScene onNavigate={navigateTo} />;
@@ -112,6 +110,7 @@ export default function App() {
       <LandscapeOverlay />
       <div style={{ width: '100%', height: '100vh', background: '#0a0a0a', overflow: 'hidden' }}>
         {renderScreen()}
+        {/* The rogue floating logout button has been removed. Users log out via the settings gear icon! */}
       </div>
     </GameNoticeProvider>
   );
