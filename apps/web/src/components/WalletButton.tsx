@@ -1,35 +1,47 @@
-import React from 'react';
-import { useGameNotice } from './GameNoticeProvider';
+import React, { useEffect } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useGameStore } from '../store/gameStore';
+import { apiClient } from '../api/client';
 
 export const WalletButton: React.FC = () => {
-  const { showNotice } = useGameNotice();
+  const { publicKey, wallet } = useWallet();
+  const { setConnectedWallet, user } = useGameStore();
+
+  useEffect(() => {
+    if (publicKey) {
+      const address = publicKey.toBase58();
+      const provider = wallet?.adapter.name || 'Unknown';
+      
+      // Update global Zustand store
+      setConnectedWallet(address, provider);
+      
+      // Link the wallet to the user's account in the database
+      if (user && user.wallet?.solanaAddress !== address) {
+        apiClient.post('/api/auth/link-wallet', { address })
+          .then(() => console.log('[Wallet] Linked to database successfully.'))
+          .catch(err => console.error('[Wallet] Failed to link wallet:', err));
+      }
+    } else {
+      setConnectedWallet(null, null);
+    }
+  }, [publicKey, wallet, setConnectedWallet, user]);
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        showNotice({
-          title: 'Wallet Connect',
-          message:
-            'Wallet connection is temporarily disabled while gameplay repairs are being deployed.',
-          variant: 'info'
-        });
-      }}
-      style={{
-        padding: '10px 14px',
-        borderRadius: '10px',
-        border: '2px solid #7c4dff',
-        background: '#141414',
-        color: '#ffffff',
-        fontWeight: 800,
-        fontSize: '12px',
-        letterSpacing: '0.04em',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        boxShadow: '0 0 14px rgba(124, 77, 255, 0.35)'
-      }}
-    >
-      CONNECT WALLET
-    </button>
+    <div style={{ position: 'relative', zIndex: 9999 }}>
+      <WalletMultiButton 
+        style={{ 
+          background: '#ff6b35', 
+          height: '40px', 
+          padding: '0 16px', 
+          borderRadius: '8px', 
+          fontWeight: 900, 
+          fontFamily: 'monospace',
+          border: '2px solid #555',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+          textTransform: 'uppercase'
+        }} 
+      />
+    </div>
   );
 };
