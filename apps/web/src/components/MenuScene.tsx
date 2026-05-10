@@ -8,12 +8,19 @@ interface Props { onNavigate: (screen: Screen) => void; }
 const ASSET_BASE = '/assets/ui/home';
 
 export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
-  const { user, logout } = useGameStore();
+  const { user, logout, connectedWalletAddress } = useGameStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [showBank, setShowBank] = useState(false);
+  
+  // Bank Form State
+  const [bankMode, setBankMode] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
+  const [amount, setAmount] = useState('');
 
-  const level = user?.profile?.level || 2;
-  const xp = user?.profile?.xp || 1460;
-  const currentPigs = user?.profile?.currentPigs || 8690;
+  const level = user?.profile?.level || 1;
+  const xp = user?.profile?.xp || 0;
+  const currentPigs = user?.profile?.currentPigs || 0;
+  // Fallback for on-chain balance display (we will sync this with the actual Solana RPC later)
+  const cryptoPigs = user?.wallet?.claimedRewards || 0; 
   const username = user?.username || user?.firstName || 'Player';
 
   const xpTarget = Math.max(2500, level * 1250);
@@ -21,7 +28,15 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
   const handleNavigate = (screen: Screen) => {
     setShowSettings(false);
+    setShowBank(false);
     onNavigate(screen);
+  };
+
+  const handleBankAction = () => {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return alert('Enter a valid amount.');
+    // Placeholder for actual Web3 transaction logic
+    alert(`Initiating ${bankMode} of ${amount} $PIGS via Solana. Awaiting Smart Contract approval...`);
+    setAmount('');
   };
 
   return (
@@ -30,7 +45,12 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
         
         <img src={`${ASSET_BASE}/main-background.png`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 
-        <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} currentPigs={currentPigs} username={username} onSettings={() => setShowSettings(true)} />
+        <TopBar 
+          level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} 
+          currentPigs={currentPigs} cryptoPigs={cryptoPigs} username={username} 
+          onSettings={() => setShowSettings(true)} 
+          onOpenBank={() => setShowBank(true)} 
+        />
 
         <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
           
@@ -42,7 +62,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* FIX: Moved Wallet button slightly lower so it doesn't overlap the Top Bar on mobile screens */}
+          {/* Wallet Button */}
           <div style={{ position: 'absolute', top: 15, right: '2%', zIndex: 20 }}>
             <WalletButton />
           </div>
@@ -80,14 +100,60 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Bank Modal (Deposit / Withdraw) */}
+      {showBank && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#141414', padding: 30, borderRadius: 15, width: '90%', maxWidth: 450, border: '2px solid #ffb300', boxShadow: '0 0 30px rgba(255, 179, 0, 0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 24, color: '#ffb300', textTransform: 'uppercase' }}>TREASURY</h3>
+              <button onClick={() => setShowBank(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>✖</button>
+            </div>
+
+            {!connectedWalletAddress ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#aaa' }}>
+                <p>You must connect a Solana wallet to Deposit or Withdraw $PIGS.</p>
+                <p style={{ fontSize: 12, color: '#ff6b35' }}>Use the SELECT WALLET button in the top right.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                  <button onClick={() => setBankMode('DEPOSIT')} style={{ flex: 1, padding: 12, background: bankMode === 'DEPOSIT' ? '#ff6b35' : '#333', border: 'none', color: '#fff', fontWeight: 'bold', borderRadius: 8, cursor: 'pointer' }}>DEPOSIT (To Game)</button>
+                  <button onClick={() => setBankMode('WITHDRAW')} style={{ flex: 1, padding: 12, background: bankMode === 'WITHDRAW' ? '#ff6b35' : '#333', border: 'none', color: '#fff', fontWeight: 'bold', borderRadius: 8, cursor: 'pointer' }}>WITHDRAW (To Wallet)</button>
+                </div>
+
+                <div style={{ background: '#000', padding: 15, borderRadius: 8, marginBottom: 20, border: '1px solid #333' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888', marginBottom: 5 }}>
+                    <span>{bankMode === 'DEPOSIT' ? 'Wallet Balance' : 'Game Balance'}</span>
+                    <span>{bankMode === 'DEPOSIT' ? `$PIGS ${cryptoPigs}` : `PIGS ${currentPigs}`}</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    placeholder="Enter Amount..." 
+                    value={amount} 
+                    onChange={e => setAmount(e.target.value)} 
+                    style={{ width: '100%', background: 'transparent', border: 'none', color: '#fff', fontSize: 24, outline: 'none' }}
+                  />
+                </div>
+
+                <button onClick={handleBankAction} style={{ width: '100%', padding: 15, background: '#4caf50', border: 'none', color: '#fff', fontWeight: 'bold', fontSize: 16, borderRadius: 8, cursor: 'pointer' }}>
+                  CONFIRM {bankMode}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// --- FIX: Made TopBar responsive using clamp() and Flexbox ---
-const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress: number; currentPigs: number; username: string; onSettings: () => void; }> = ({ level, xp, xpTarget, xpProgress, currentPigs, username, onSettings }) => {
+// --- TopBar with Dual Currency Support ---
+const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress: number; currentPigs: number; cryptoPigs: number; username: string; onSettings: () => void; onOpenBank: () => void; }> = ({ level, xp, xpTarget, xpProgress, currentPigs, cryptoPigs, username, onSettings, onOpenBank }) => {
   return (
-    <div style={{ height: 'clamp(60px, 10vh, 80px)', zIndex: 3, display: 'grid', gridTemplateColumns: '1.7fr 1.15fr 0.58fr 0.58fr', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)', flexShrink: 0 }}>
+    <div style={{ height: 'clamp(60px, 10vh, 80px)', zIndex: 3, display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 0.5fr 0.5fr', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)', flexShrink: 0 }}>
+      
+      {/* Player Stats */}
       <div style={topCellStyle}>
         <div style={{ display: 'grid', gridTemplateColumns: 'clamp(30px, 5vw, 50px) 1fr', gap: '1vw', alignItems: 'center', height: '100%', padding: '0 2vw' }}>
           <img src={`${ASSET_BASE}/topbar/player-rank-badge.png`} alt="Rank" draggable={false} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
@@ -98,22 +164,37 @@ const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress
               <div style={{ height: 'clamp(6px, 1vh, 10px)', background: 'rgba(255,255,255,0.12)', borderRadius: 999, overflow: 'hidden' }}>
                 <div style={{ width: `${xpProgress}%`, height: '100%', background: 'linear-gradient(90deg, #ffb300 0%, #ff7e00 100%)' }} />
               </div>
-              <div style={{ fontSize: 'clamp(7px, 1vw, 10px)', fontWeight: 800, color: '#e2e2e2', whiteSpace: 'nowrap' }}>{xp} / {xpTarget}</div>
+              <div style={{ fontSize: 'clamp(7px, 1vw, 10px)', fontWeight: 800, color: '#e2e2e2', whiteSpace: 'nowrap' }}>{xp}/{xpTarget}</div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Dual Currency Panel */}
       <div style={topCellStyle}>
         <div style={{ position: 'relative', height: '100%', padding: '1vh 1vw' }}>
           <img src={`${ASSET_BASE}/topbar/topbar-panel.png`} alt="" draggable={false} style={{ position: 'absolute', top: '10%', left: '5%', right: '5%', bottom: '10%', width: '90%', height: '80%', objectFit: 'fill' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+          
           <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 'clamp(18px, 3vw, 30px)', height: 'clamp(18px, 3vw, 30px)', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #ffd14d 0%, #ffb323 55%, #8a4e00 100%)', boxShadow: '0 0 0 1px rgba(255,255,255,0.12)' }} />
-              <span style={{ fontSize: 'clamp(12px, 1.8vw, 16px)', fontWeight: 900, color: '#fff1c9' }}>{currentPigs}</span>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Game Pigs */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 'clamp(14px, 2vw, 18px)', height: 'clamp(14px, 2vw, 18px)', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #ffd14d 0%, #ffb323 55%, #8a4e00 100%)', boxShadow: '0 0 0 1px rgba(255,255,255,0.12)' }} />
+                <span style={{ fontSize: 'clamp(11px, 1.5vw, 14px)', fontWeight: 900, color: '#fff1c9' }}>{currentPigs}</span>
+              </div>
+              {/* $PIGS Token (On-Chain) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 'clamp(14px, 2vw, 18px)', height: 'clamp(14px, 2vw, 18px)', borderRadius: '50%', background: '#111', border: '1px solid #ff6b35', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 'bold', color: '#ff6b35' }}>$</div>
+                <span style={{ fontSize: 'clamp(11px, 1.5vw, 14px)', fontWeight: 900, color: '#ff6b35' }}>{cryptoPigs}</span>
+              </div>
             </div>
+
+            <img onClick={onOpenBank} src={`${ASSET_BASE}/topbar/plus-button.png`} alt="Bank" draggable={false} style={{ width: 'clamp(20px, 3vw, 28px)', height: 'clamp(20px, 3vw, 28px)', objectFit: 'contain', cursor: 'pointer' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
         </div>
       </div>
+
       <button style={iconCellStyle} type="button">
         <img src={`${ASSET_BASE}/topbar/mail-icon.png`} alt="Mail" draggable={false} style={{ width: 'clamp(18px, 3vw, 28px)', height: 'clamp(18px, 3vw, 28px)', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         <div style={badgeStyle}>2</div>
