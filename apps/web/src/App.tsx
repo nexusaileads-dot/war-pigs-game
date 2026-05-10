@@ -127,5 +127,4 @@ export default function App() {
       </div>
     </GameNoticeProvider>
   );
-              }
-      
+}
