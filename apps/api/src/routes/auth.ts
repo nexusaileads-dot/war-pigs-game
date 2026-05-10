@@ -1,10 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@war-pigs/database';
-import { validateTelegramData } from '../middleware/validateTelegram';
 import { authenticate } from '../middleware/auth';
 import { authRateLimitConfig } from '../middleware/rateLimiter';
 import bcrypt from 'bcryptjs';
 
+// Helper to generate a unique username if collision occurs (Useful if you add OAuth/Web3 Login later)
 const generateUniqueUsername = async (base: string): Promise<string> => {
   let username = base;
   let exists = await prisma.user.findUnique({ where: { username } });
@@ -17,7 +17,7 @@ const generateUniqueUsername = async (base: string): Promise<string> => {
   return username;
 };
 
-// FIX: Now accepts a transaction client (tx) so it can be rolled back safely
+// Helper to initialize a new player's database rows inside a transaction
 async function provisionUserAssets(tx: any, userId: string) {
   await tx.profile.upsert({
     where: { userId },
@@ -27,7 +27,7 @@ async function provisionUserAssets(tx: any, userId: string) {
       level: 1,
       xp: 0,
       totalPigsEarned: 0,
-      currentPigs: 5000,
+      currentPigs: 5000, // Starter currency
       equippedCharacterId: 'grunt_bacon',
       equippedWeaponId: 'oink_pistol'
     }
@@ -55,6 +55,8 @@ async function provisionUserAssets(tx: any, userId: string) {
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
+  
+  // --- EMAIL REGISTRATION ---
   fastify.post('/register', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const email = (body?.email as string)?.toLowerCase().trim();
@@ -70,6 +72,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
+      // Check for existing user
       const existingUser = await prisma.user.findFirst({
         where: { OR: [{ email }, { username }] }
       });
@@ -81,10 +84,15 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       const passwordHash = await bcrypt.hash(password, 10);
 
-      // FIX: Atomic transaction. If provisionUserAssets fails, the user creation is reverted!
+      // Use transaction to ensure full account provisioning safely
       const user = await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
-          data: { email, passwordHash, username, firstName: username }
+          data: { 
+            email, 
+            passwordHash, 
+            username, 
+            firstName: username 
+          }
         });
         
         await provisionUserAssets(tx, newUser.id);
@@ -101,7 +109,6 @@ export async function authRoutes(fastify: FastifyInstance) {
       return { token, user: fullUser };
     } catch (err: any) {
       fastify.log.error({ err }, 'Registration failed');
-      // Surface DB constraint errors so you actually know what broke
       const isConstraint = err.code === 'P2003';
       return reply.status(500).send({ 
         error: isConstraint ? 'Database Error: Missing base items. Seed the database.' : 'Registration failed' 
@@ -109,6 +116,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // --- EMAIL LOGIN ---
   fastify.post('/login', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
     const body = request.body as Record<string, unknown>;
     const email = (body?.email as string)?.toLowerCase().trim();
@@ -128,7 +136,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
-      // FIX: Guard against corrupted/orphaned profiles preventing login
+      // Guard against corrupted/orphaned profiles
       if (!user.profile) {
          return reply.status(500).send({ error: 'Account corrupted: Missing profile. Please create a new account.' });
       }
@@ -143,13 +151,99 @@ export async function authRoutes(fastify: FastifyInstance) {
       return {
         token,
         user: {
-          id: user.id, username: user.username, firstName: user.firstName, photoUrl: user.photoUrl,
-          profile: user.profile, wallet: user.wallet, stats: user.stats
+          id: user.id, 
+          username: user.username, 
+          firstName: user.firstName, 
+          photoUrl: user.photoUrl,
+          profile: user.profile, 
+          wallet: user.wallet, 
+          stats: user.stats
         }
       };
     } catch (err) {
       fastify.log.error({ err }, 'Login failed');
       return reply.status(500).send({ error: 'Login failed' });
+    }
+  });
+
+  // --- DEV LOGIN (Testing Only) ---
+  fastify.post('/dev-login', { config: { rateLimit: authRateLimitConfig } }, async (request, reply) => {
+    const isDevAuthEnabled = process.env.ENABLE_DEV_AUTH === 'true';
+
+    if (!isDevAuthEnabled) {
+      return reply.status(403).send({ error: 'Dev auth disabled' });
+    }
+
+    try {
+      const devEmail = 'dev@warpigs.com';
+
+      let user = await prisma.user.findUnique({
+        where: { email: devEmail },
+        include: { profile: true, wallet: true, stats: true }
+      });
+
+      if (!user) {
+        user = await prisma.$transaction(async (tx) => {
+          const newUser = await tx.user.create({
+            data: {
+              email: devEmail,
+              username: 'dev_tester',
+              firstName: 'Dev',
+              lastName: 'Tester',
+            }
+          });
+          await provisionUserAssets(tx, newUser.id);
+          
+          return await tx.user.findUniqueOrThrow({
+              where: { id: newUser.id },
+              include: { profile: true, wallet: true, stats: true }
+          });
+        });
+      }
+
+      const token = fastify.jwt.sign({
+        userId: user.id
+      });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          profile: user.profile,
+          wallet: user.wallet,
+          stats: user.stats
+        }
+      };
+    } catch (err) {
+      fastify.log.error({ err }, 'Failed to process dev login');
+      return reply.status(500).send({ error: 'Dev authentication failed' });
+    }
+  });
+
+  // --- LINK SOLANA WALLET ---
+  fastify.post('/link-wallet', { preHandler: authenticate }, async (request, reply) => {
+    const body = request.body as { address?: string };
+    
+    if (!body?.address) {
+      return reply.status(400).send({ error: 'Wallet address is required' });
+    }
+
+    try {
+      const userId = request.user.userId;
+
+      // Update the user's wallet record in the database
+      await prisma.wallet.upsert({
+        where: { userId },
+        update: { solanaAddress: body.address },
+        create: { userId, solanaAddress: body.address }
+      });
+
+      return { success: true, address: body.address };
+    } catch (err) {
+      fastify.log.error({ err }, 'Failed to link wallet');
+      return reply.status(500).send({ error: 'Failed to link wallet' });
     }
   });
 
