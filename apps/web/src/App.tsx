@@ -8,6 +8,7 @@ import { LevelSelect } from './components/LevelSelect';
 import { Shop } from './components/Shop';
 import { PvPMenu } from './components/PvPMenu';
 import { GameCanvas } from './game/GameCanvas'; 
+import { PvPCanvas } from './game/PvPCanvas'; // ADDED THIS IMPORT
 import { AuthScene } from './components/AuthScene';
 import { useGameStore } from './store/gameStore';
 
@@ -99,8 +100,8 @@ export default function App() {
           navigateTo('PVP');
           return null;
         }
-        // We will build PvPCanvas next!
-        return <div style={{ color: '#fff', textAlign: 'center', marginTop: 100 }}>PVP GAME STARTING...<br/>Room: {pvpRoomData.roomId}</div>;
+        // FIX: Now mounts the actual PvP Canvas and passes the socket room data!
+        return <PvPCanvas roomData={pvpRoomData} onExit={() => navigateTo('PVP')} />;
       default: return <MenuScene onNavigate={navigateTo} />;
     }
   };
@@ -126,4 +127,5 @@ export default function App() {
       </div>
     </GameNoticeProvider>
   );
-}
+              }
+      
