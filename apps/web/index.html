@@ -2,27 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no"
-    />
-    <meta name="theme-color" content="#0a0a0a" />
-    <meta name="description" content="WAR PIGS - Tactical Swine Warfare on Telegram Mini Apps." />
-    <title>WAR PIGS</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="icon" type="image/png" href="/assets/sprites/pig-token.png" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <title>War Pigs</title>
+    
     <style>
-      /* Minimal reset - defer to global.css for layout rules */
-      html, body, #root {
+      /* Global reset to prevent white borders and scrolling */
+      html, body {
         margin: 0;
         padding: 0;
         width: 100%;
-        min-height: 100%;
-        background: #0a0a0a;
+        height: 100%;
+        overflow: hidden;
+        background-color: #000;
+        -webkit-touch-callout: none; /* Prevents pull-to-refresh on iOS */
+        user-select: none; /* Prevents accidental text selection while playing */
       }
-      /* Removed body { overflow: hidden } to avoid specificity conflict with global.css */
-      * { box-sizing: border-box; }
-      img { user-select: none; -webkit-user-drag: none; }
-      button, canvas { touch-action: manipulation; }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
     </style>
   </head>
   <body>
