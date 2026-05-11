@@ -13,7 +13,7 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showBank, setShowBank] = useState(false);
 
-  const level = user?.profile?.level || 2;
+  const level = user?.profile?.level || 1;
   const xp = user?.profile?.xp || 1460;
   const currentPigs = user?.profile?.currentPigs || 3000;
   const username = user?.username || user?.firstName || 'Player';
@@ -32,45 +32,46 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100dvh', background: '#030303', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ width: '100vw', height: '100dvh', background: '#000', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
       
-      <div style={{ position: 'relative', width: '100%', maxWidth: '1280px', height: '100%', maxHeight: '720px', overflow: 'hidden', background: '#070707', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: '1280px', height: '100%', display: 'flex', flexDirection: 'column' }}>
         
         {/* Background Image */}
         <img src={`${ASSET_BASE}/main-background.png`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 
-        {/* Top Navigation Bar */}
-        <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} currentPigs={currentPigs} username={username} onSettings={() => setShowSettings(true)} />
+        {/* TOP BAR: STRICTLY 14% OF SCREEN HEIGHT */}
+        <div style={{ height: '14vh', minHeight: '50px', zIndex: 10 }}>
+          <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} currentPigs={currentPigs} username={username} onSettings={() => setShowSettings(true)} />
+        </div>
 
-        {/* Main Content Area */}
-        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, justifyContent: 'space-between' }}>
+        {/* MIDDLE AREA: STRICTLY 72% OF SCREEN HEIGHT */}
+        <div style={{ height: '72vh', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
           
-          {/* Top Left Branding */}
-          <div style={{ position: 'absolute', top: 10, left: 15, height: '60px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', zIndex: 2, pointerEvents: 'none' }}>
+          {/* Logo - Pinned to top left of middle area */}
+          <div style={{ position: 'absolute', top: '2vh', left: '2vw', height: '15vh', pointerEvents: 'none' }}>
             <img src={`${ASSET_BASE}/branding/war-pigs-logo.png`} alt="War Pigs" draggable={false} style={{ height: '100%', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
 
-          {/* Central Play Area - Fixed Heights to prevent shrinking */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0', zIndex: 2 }}>
-            
-            {/* Play Mission Button */}
-            <button type="button" onClick={() => handleNavigate('LEVEL_SELECT')} style={{ height: '70px', marginBottom: '15px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', transition: 'transform 0.1s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-              <img src={`${ASSET_BASE}/cta/play-mission-button.png`} alt="Play Mission" draggable={false} style={{ height: '100%', width: 'auto', objectFit: 'contain' }} onError={(e) => { const t = e.target as HTMLImageElement; t.style.background = '#ff6b35'; t.style.minWidth = '200px'; t.style.borderRadius = '8px'; }} />
-            </button>
+          {/* Play Mission Button - Huge (35% of middle area) */}
+          <button type="button" onClick={() => handleNavigate('LEVEL_SELECT')} style={{ height: '35%', padding: 0, margin: '0 0 4vh 0', border: 'none', background: 'transparent', cursor: 'pointer', transition: 'transform 0.1s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+            <img src={`${ASSET_BASE}/cta/play-mission-button.png`} alt="Play Mission" draggable={false} style={{ height: '100%', width: 'auto', objectFit: 'contain' }} onError={(e) => { const t = e.target as HTMLImageElement; t.style.background = '#ff6b35'; t.style.minWidth = '200px'; t.style.borderRadius = '8px'; }} />
+          </button>
 
-            {/* Menu Cards Row - Removed excessive gap, forced fixed height */}
-            <div style={{ height: '110px', display: 'flex', justifyContent: 'center', gap: '15px' }}>
-              <MenuCard src={`${ASSET_BASE}/cards/armory-card.png`} alt="Armory" onClick={() => handleNavigate('WEAPON_SELECT')} />
-              <MenuCard src={`${ASSET_BASE}/cards/units-card.png`} alt="Units" onClick={() => handleNavigate('CHAR_SELECT')} />
-              <MenuCard src={`${ASSET_BASE}/cards/pvp-card.png`} alt="PVP" onClick={() => handleNavigate('PVP')} />
-              <MenuCard src={`${ASSET_BASE}/cards/shop-card.png`} alt="Shop" onClick={() => handleNavigate('SHOP')} />
-            </div>
-
+          {/* Cards Row - Huge (45% of middle area) */}
+          <div style={{ height: '45%', width: '90%', display: 'flex', justifyContent: 'center', gap: '2vw' }}>
+            <MenuCard src={`${ASSET_BASE}/cards/armory-card.png`} alt="Armory" onClick={() => handleNavigate('WEAPON_SELECT')} />
+            <MenuCard src={`${ASSET_BASE}/cards/units-card.png`} alt="Units" onClick={() => handleNavigate('CHAR_SELECT')} />
+            <MenuCard src={`${ASSET_BASE}/cards/pvp-card.png`} alt="PVP" onClick={() => handleNavigate('PVP')} />
+            <MenuCard src={`${ASSET_BASE}/cards/shop-card.png`} alt="Shop" onClick={() => handleNavigate('SHOP')} />
           </div>
 
-          {/* Bottom Navigation */}
+        </div>
+
+        {/* BOTTOM NAV: STRICTLY 14% OF SCREEN HEIGHT */}
+        <div style={{ height: '14vh', minHeight: '50px', zIndex: 10 }}>
           <BottomNav onHome={() => handleNavigate('MENU')} onMissions={() => handleNavigate('LEVEL_SELECT')} onClans={() => handleNavigate('CLANS')} onLeaderboard={() => handleNavigate('LEADERBOARD')} />
         </div>
+
       </div>
 
       {showBank && <BankModal onClose={() => setShowBank(false)} />}
@@ -103,16 +104,16 @@ const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress
   const fiatValue = (currentPigs * CURRENT_PIG_PRICE_USD).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
   return (
-    <div style={{ height: '64px', zIndex: 3, display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)', flexShrink: 0 }}>
+    <div style={{ height: '100%', display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)' }}>
       
       {/* Player Info */}
-      <div style={{ flex: 1.2, ...topCellStyle, display: 'flex', alignItems: 'center', padding: '0 15px', gap: '10px' }}>
-        <img src={`${ASSET_BASE}/topbar/player-rank-badge.png`} alt="Rank" draggable={false} style={{ height: '40px', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      <div style={{ flex: 1.5, ...topCellStyle, display: 'flex', alignItems: 'center', padding: '0 2vw', gap: '1vw' }}>
+        <img src={`${ASSET_BASE}/topbar/player-rank-badge.png`} alt="Rank" draggable={false} style={{ height: '60%', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{username}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, color: '#f2ede0' }}>LVL {level}</div>
-            <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.12)', borderRadius: 999 }}>
+          <div style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{username}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+            <div style={{ fontSize: 'clamp(9px, 1vw, 12px)', fontWeight: 800, color: '#f2ede0' }}>LVL {level}</div>
+            <div style={{ flex: 1, height: '5px', background: 'rgba(255,255,255,0.12)', borderRadius: 999 }}>
               <div style={{ width: `${xpProgress}%`, height: '100%', background: 'linear-gradient(90deg, #ffb300 0%, #ff7e00 100%)', borderRadius: 999 }} />
             </div>
           </div>
@@ -120,27 +121,29 @@ const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress
       </div>
 
       {/* Currency Explicitly Labeled */}
-      <div style={{ flex: 1, ...topCellStyle, position: 'relative', padding: '6px' }}>
-        <img src={`${ASSET_BASE}/topbar/topbar-panel.png`} alt="" draggable={false} style={{ position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, width: 'calc(100% - 10px)', height: 'calc(100% - 10px)', objectFit: 'fill' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-        <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+      <div style={{ flex: 1.2, ...topCellStyle, position: 'relative', padding: '1vh 1vw' }}>
+        <img src={`${ASSET_BASE}/topbar/topbar-panel.png`} alt="" draggable={false} style={{ position: 'absolute', inset: '5%', width: '90%', height: '90%', objectFit: 'fill' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+        <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1vw' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <img src="/assets/sprites/pig-token.png" alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-              <span style={{ fontSize: '16px', fontWeight: 900, color: '#fff1c9', lineHeight: 1 }}>{currentPigs} $PIGS</span>
+              <img src="/assets/sprites/pig-token.png" alt="" style={{ width: 'clamp(14px, 2vw, 20px)', height: 'clamp(14px, 2vw, 20px)', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+              <span style={{ fontSize: 'clamp(12px, 1.8vw, 16px)', fontWeight: 900, color: '#fff1c9', lineHeight: 1 }}>{currentPigs} $PIGS</span>
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#4caf50', marginTop: 2 }}>≈ {fiatValue}</span>
+            <span style={{ fontSize: 'clamp(9px, 1.2vw, 12px)', fontWeight: 800, color: '#4caf50', marginTop: 2 }}>≈ {fiatValue}</span>
           </div>
         </div>
       </div>
 
-      {/* Wallet Button */}
-      <div style={{ flex: 0.8, ...iconCellStyle }}>
-        <WalletButton />
+      {/* Wallet Button - Fixed Scaling so it doesn't look massive */}
+      <div style={{ flex: 1, ...iconCellStyle }}>
+        <div style={{ transform: 'scale(0.8)', transformOrigin: 'center' }}>
+          <WalletButton />
+        </div>
       </div>
 
       {/* Settings (Also acts as Bank trigger now) */}
-      <button style={{ flex: 0.3, ...iconCellStyle }} type="button" onClick={onSettings}>
-        <img src={`${ASSET_BASE}/topbar/settings-icon.png`} alt="Settings" draggable={false} style={{ width: '24px', height: '24px', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      <button style={{ flex: 0.4, ...iconCellStyle }} type="button" onClick={onSettings}>
+        <img src={`${ASSET_BASE}/topbar/settings-icon.png`} alt="Settings" draggable={false} style={{ height: '40%', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
       </button>
     </div>
   );
@@ -153,7 +156,7 @@ const MenuCard: React.FC<{ src: string; alt: string; onClick: () => void }> = ({
 );
 
 const BottomNav: React.FC<{ onHome: () => void; onMissions: () => void; onClans: () => void; onLeaderboard: () => void; }> = ({ onHome, onMissions, onClans, onLeaderboard }) => (
-  <div style={{ width: '100%', height: '64px', position: 'relative', zIndex: 4, flexShrink: 0 }}>
+  <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 4 }}>
     <img src={`${ASSET_BASE}/nav/bottom-nav-bar.png`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.background = '#111'; }} />
     <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignItems: 'center', padding: '0 20px', maxWidth: 800, margin: '0 auto' }}>
       <NavItem src={`${ASSET_BASE}/nav/nav-home-active.png`} alt="Home" onClick={onHome} />
@@ -171,6 +174,6 @@ const NavItem: React.FC<{ src: string; alt: string; onClick: () => void }> = ({ 
 );
 
 const topCellStyle: React.CSSProperties = { borderRight: '1px solid rgba(255,255,255,0.08)', boxSizing: 'border-box' };
-const iconCellStyle: React.CSSProperties = { border: 'none', borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '0 10px' };
+const iconCellStyle: React.CSSProperties = { border: 'none', borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '0 1vw' };
 const btnStyle: React.CSSProperties = { padding: '12px', background: '#333', border: '1px solid #555', color: '#fff', cursor: 'pointer', borderRadius: 8, fontWeight: 'bold', fontSize: 14 };
-          
+                                                                                       
