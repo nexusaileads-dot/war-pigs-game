@@ -34,6 +34,7 @@ interface GameState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  isAuthenticating: boolean; // FIX: Separated from global isLoading
   isEquipPending: boolean;
   connectedWalletAddress: string | null;
   walletProviderName: string | null;
@@ -52,6 +53,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
   isLoading: true,
+  isAuthenticating: false,
   isEquipPending: false,
   connectedWalletAddress: localStorage.getItem('solanaWalletAddress'),
   walletProviderName: localStorage.getItem('solanaWalletProvider'),
@@ -66,19 +68,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         return;
       } catch (error: any) {
         console.error('[GameStore] Auth check failed:', error);
-        
-        // CRITICAL FIX:
-        // Only logout if status is 401 (Unauthorized) or 403 (Forbidden).
-        // Do NOT logout if status is 500 (Server Error), 502, 504, etc.
-        // This prevents login loops if Supabase/DB is temporarily down.
         const status = error?.response?.status;
         if (status === 401 || status === 403) {
           localStorage.removeItem('token');
+          sessionStorage.removeItem('currentRun');
           set({ user: null, token: null });
-        } else {
-          // Server error? Keep the token, let the user stay logged in (or show error screen)
-          // But for now, let's just stop loading and keep the token in localStorage
-          console.warn('[GameStore] Server error during auth check, keeping token.');
         }
       }
     }
@@ -88,28 +82,28 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   login: async (email, password) => {
     try {
-      set({ isLoading: true });
+      set({ isAuthenticating: true }); // FIX
       const { data } = await apiClient.post('/api/auth/login', { email, password });
       localStorage.setItem('token', data.token);
-      set({ user: data.user, token: data.token, isLoading: false });
+      set({ user: data.user, token: data.token, isAuthenticating: false });
       return { success: true };
     } catch (error: any) {
       const msg = error.response?.data?.error || 'Login failed';
-      set({ isLoading: false });
+      set({ isAuthenticating: false }); // FIX
       return { success: false, error: msg };
     }
   },
 
   register: async (email, password, username) => {
     try {
-      set({ isLoading: true });
+      set({ isAuthenticating: true }); // FIX
       const { data } = await apiClient.post('/api/auth/register', { email, password, username });
       localStorage.setItem('token', data.token);
-      set({ user: data.user, token: data.token, isLoading: false });
+      set({ user: data.user, token: data.token, isAuthenticating: false });
       return { success: true };
     } catch (error: any) {
       const msg = error.response?.data?.error || 'Registration failed';
-      set({ isLoading: false });
+      set({ isAuthenticating: false }); // FIX
       return { success: false, error: msg };
     }
   },
@@ -162,12 +156,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     localStorage.removeItem('token');
     localStorage.removeItem('solanaWalletAddress');
     localStorage.removeItem('solanaWalletProvider');
-    set({
-      user: null,
-      token: null,
-      isLoading: false,
-      connectedWalletAddress: null,
-      walletProviderName: null
-    });
+    sessionStorage.removeItem('currentRun');
+    set({ user: null, token: null, isLoading: false, connectedWalletAddress: null, walletProviderName: null });
   }
 }));
+
+// Global listener for API 401 Unauthorized token expirations
+if (typeof window !== 'undefined') {
+  window.addEventListener('AUTH_EXPIRED', () => {
+    useGameStore.getState().logout();
+  });
+}

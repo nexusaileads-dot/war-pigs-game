@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { apiClient } from '../api/client';
 
 export const AuthScene: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -9,7 +8,8 @@ export const AuthScene: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { login, register, isLoading } = useGameStore();
+  // FIX: Using isAuthenticating instead of global isLoading
+  const { login, register, isAuthenticating } = useGameStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,18 +25,6 @@ export const AuthScene: React.FC = () => {
       }
       const res = await register(email, password, username);
       if (!res.success) setError(res.error || 'Registration failed');
-    }
-  };
-
-  const handleDevLogin = async () => {
-    setError(null);
-    try {
-      const { data } = await apiClient.post('/api/auth/dev-login');
-      localStorage.setItem('token', data.token);
-      // Reload page to update store via initAuth in App.tsx
-      window.location.reload(); 
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Dev login failed. Is ENABLE_DEV_AUTH=true set on backend?');
     }
   };
 
@@ -57,6 +45,7 @@ export const AuthScene: React.FC = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 style={inputStyle}
                 placeholder="pig_destroyer_99"
+                disabled={isAuthenticating}
               />
             </div>
           )}
@@ -69,6 +58,7 @@ export const AuthScene: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               style={inputStyle}
               placeholder="you@example.com"
+              disabled={isAuthenticating}
             />
           </div>
 
@@ -80,17 +70,18 @@ export const AuthScene: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
               placeholder="••••••••"
+              disabled={isAuthenticating}
             />
           </div>
 
           {error && (
-            <div style={{ color: '#ff4d4f', fontSize: '13px', marginBottom: '16px', textAlign: 'center' }}>
+            <div style={{ color: '#ff4d4f', fontSize: '13px', marginBottom: '16px', textAlign: 'center', fontWeight: 'bold' }}>
               {error}
             </div>
           )}
 
-          <button type="submit" disabled={isLoading} style={buttonStyle(isLoading)}>
-            {isLoading ? 'PROCESSING...' : mode === 'login' ? 'LOGIN' : 'CREATE ACCOUNT'}
+          <button type="submit" disabled={isAuthenticating} style={buttonStyle(isAuthenticating)}>
+            {isAuthenticating ? 'PROCESSING...' : mode === 'login' ? 'LOGIN' : 'CREATE ACCOUNT'}
           </button>
         </form>
 
@@ -98,40 +89,18 @@ export const AuthScene: React.FC = () => {
           {mode === 'login' ? (
             <>
               Don't have an account?{' '}
-              <button onClick={() => { setMode('register'); setError(null); }} style={linkStyle}>
+              <button type="button" onClick={() => { setMode('register'); setError(null); }} style={linkStyle} disabled={isAuthenticating}>
                 Register
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => { setMode('login'); setError(null); }} style={linkStyle}>
+              <button type="button" onClick={() => { setMode('login'); setError(null); }} style={linkStyle} disabled={isAuthenticating}>
                 Login
               </button>
             </>
           )}
-        </div>
-
-        {/* DEV LOGIN BUTTON */}
-        <div style={{ marginTop: '30px', borderTop: '1px solid #333', paddingTop: '20px', textAlign: 'center' }}>
-          <button 
-            onClick={handleDevLogin}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: '#333',
-              border: '1px solid #555',
-              borderRadius: '8px',
-              color: '#fff',
-              fontWeight: 800,
-              cursor: 'pointer'
-            }}
-          >
-            DEV LOGIN (BYPASS)
-          </button>
-          <p style={{ fontSize: '10px', color: '#666', marginTop: '8px' }}>
-            Requires ENABLE_DEV_AUTH=true on server
-          </p>
         </div>
       </div>
     </div>
@@ -140,66 +109,17 @@ export const AuthScene: React.FC = () => {
 
 // Styles
 const containerStyle: React.CSSProperties = {
-  width: '100%',
-  height: '100vh',
-  background: '#0a0a0a',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#fff',
-  fontFamily: 'sans-serif'
+  width: '100%', height: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'sans-serif'
 };
-
 const cardStyle: React.CSSProperties = {
-  background: '#141414',
-  border: '2px solid #333',
-  borderRadius: '16px',
-  padding: '40px',
-  width: '100%',
-  maxWidth: '400px',
-  boxSizing: 'border-box'
+  background: '#141414', border: '2px solid #333', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '400px', boxSizing: 'border-box'
 };
-
-const inputGroupStyle: React.CSSProperties = {
-  marginBottom: '16px'
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: '6px',
-  fontSize: '12px',
-  color: '#888'
-};
-
+const inputGroupStyle: React.CSSProperties = { marginBottom: '16px' };
+const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '6px', fontSize: '12px', color: '#888' };
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px',
-  background: '#0a0a0a',
-  border: '1px solid #333',
-  borderRadius: '6px',
-  color: '#fff',
-  fontSize: '14px',
-  boxSizing: 'border-box'
+  width: '100%', padding: '12px', background: '#0a0a0a', border: '1px solid #333', borderRadius: '6px', color: '#fff', fontSize: '14px', boxSizing: 'border-box'
 };
-
 const buttonStyle = (loading: boolean): React.CSSProperties => ({
-  width: '100%',
-  padding: '14px',
-  background: '#ff6b35',
-  border: 'none',
-  borderRadius: '8px',
-  color: '#fff',
-  fontWeight: 800,
-  fontSize: '14px',
-  cursor: loading ? 'not-allowed' : 'pointer',
-  opacity: loading ? 0.6 : 1
+  width: '100%', padding: '14px', background: '#ff6b35', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1
 });
-
-const linkStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: '#ff6b35',
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  font: 'inherit'
-};
+const linkStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#ff6b35', cursor: 'pointer', textDecoration: 'underline', font: 'inherit' };

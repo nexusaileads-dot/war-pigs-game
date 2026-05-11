@@ -7,7 +7,6 @@ type GameCanvasProps = {
   onExit?: () => void | Promise<void>;
 };
 
-// Define a fixed landscape resolution for the game (16:9 aspect ratio)
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 
@@ -20,7 +19,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
   const [isBooting, setIsBooting] = useState(true);
 
   useEffect(() => {
-    if (!containerRef.current || gameRef.current) return;
+    if (!containerRef.current) return;
 
     const sessionData = sessionStorage.getItem('currentRun');
 
@@ -43,6 +42,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       return;
     }
 
+    // Ensure no existing game instance before booting a new one
+    if (gameRef.current) {
+      gameRef.current.destroy(true);
+      gameRef.current = null;
+    }
+
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: containerRef.current,
@@ -50,8 +55,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
       height: GAME_HEIGHT,
       backgroundColor: '#1a1a1a',
       scale: {
-        mode: Phaser.Scale.FIT,        // Fit the game within the screen, maintaining aspect ratio
-        autoCenter: Phaser.Scale.CENTER_BOTH, // Center it
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
         width: GAME_WIDTH,
         height: GAME_HEIGHT
       },
@@ -59,7 +64,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
         default: 'arcade',
         arcade: {
           gravity: { x: 0, y: 1850 },
-          debug: false
+          debug: false // Set to true temporarily if you need to see hitboxes later
         }
       },
       input: {
@@ -70,7 +75,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
 
     try {
       gameRef.current = new Phaser.Game(config);
-      setIsBooting(false);
+      // Let the Phaser scene handle dismissing the boot screen via events if needed, 
+      // but for now, we drop the loading screen once the engine starts.
+      setIsBooting(false); 
     } catch (err) {
       console.error('[GameCanvas] Failed to initialize Phaser:', err);
       setError(err instanceof Error ? err.message : 'Failed to initialize game engine.');
@@ -139,10 +146,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ onExit }) => {
     >
       <div
         ref={containerRef}
-        style={{
-          width: '100%',
-          height: '100%'
-        }}
+        style={{ width: '100%', height: '100%' }}
       />
 
       {isBooting && !error ? (
