@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { socket } from '../../api/socket';
 
-const WORLD_WIDTH = 1600; // Smaller arena for 1v1
+const WORLD_WIDTH = 1600; 
 const WORLD_HEIGHT = 720;
 const GROUND_Y = 640;
 
@@ -37,30 +37,20 @@ export class PvPScene extends Phaser.Scene {
     this.isPlayer1 = this.roomData.players[0].socketId === socket.id;
   }
 
-  preload() {
-    const asset = (path: string) => {
-      const base = import.meta.env.BASE_URL || '/';
-      return `${base.endsWith('/') ? base : base + '/'}${path}`;
-    };
-
-    // Load necessary assets directly in this scene so it's standalone
-    this.load.image('level1_bg_middle', asset('assets/backgrounds/level1-middle.png'));
-    this.load.image('bullet', asset('assets/sprites/Standard-Bullet.png'));
-    
-    // Load characters based on room data
-    this.roomData.players.forEach((p: any) => {
-      const charName = p.characterId.split('_').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join('-') + '.png';
-      this.load.image(p.characterId, asset(`assets/sprites/${charName}`));
-    });
-  }
-
   create() {
+    this.createFallbackTextures();
+
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
     // Background & Floor
     this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT/2, WORLD_WIDTH, WORLD_HEIGHT, 0x87CEEB).setDepth(-60);
-    this.add.image(0, 0, 'level1_bg_middle').setOrigin(0,0).setDepth(-55).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+    
+    // Safety check: Use background if it exists in cache
+    if (this.textures.exists('level1_bg_middle')) {
+      this.add.image(0, 0, 'level1_bg_middle').setOrigin(0,0).setDepth(-55).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+    }
+    
     this.platforms = this.physics.add.staticGroup();
     const floor = this.add.rectangle(WORLD_WIDTH/2, WORLD_HEIGHT - 50, WORLD_WIDTH, 100, 0x3c2b21, 1);
     this.physics.add.existing(floor, true);
@@ -69,7 +59,7 @@ export class PvPScene extends Phaser.Scene {
     this.localBullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 30 });
     this.opponentBullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 30 });
 
-    // Spawn Players (P1 left, P2 right)
+    // Extract Player Data
     const localData = this.isPlayer1 ? this.roomData.players[0] : this.roomData.players[1];
     const opponentData = this.isPlayer1 ? this.roomData.players[1] : this.roomData.players[0];
 
@@ -78,8 +68,13 @@ export class PvPScene extends Phaser.Scene {
     
     this.facing = this.isPlayer1 ? 1 : -1;
 
-    this.localPlayer = this.physics.add.sprite(localSpawnX, 300, localData.characterId).setDisplaySize(72, 72).setCollideWorldBounds(true);
-    this.opponentPlayer = this.physics.add.sprite(oppSpawnX, 300, opponentData.characterId).setDisplaySize(72, 72).setCollideWorldBounds(true);
+    // Resolve texture keys (BootScene already loaded these globally, fallback if missing)
+    const localCharKey = this.textures.exists(localData.characterId) ? localData.characterId : 'fallback_player';
+    const oppCharKey = this.textures.exists(opponentData.characterId) ? opponentData.characterId : 'fallback_player';
+
+    // Spawn Sprites
+    this.localPlayer = this.physics.add.sprite(localSpawnX, 300, localCharKey).setDisplaySize(72, 72).setCollideWorldBounds(true);
+    this.opponentPlayer = this.physics.add.sprite(oppSpawnX, 300, oppCharKey).setDisplaySize(72, 72).setCollideWorldBounds(true);
     
     this.opponentPlayer.setFlipX(!this.isPlayer1);
     this.localPlayer.setFlipX(this.isPlayer1 ? false : true);
@@ -87,7 +82,7 @@ export class PvPScene extends Phaser.Scene {
     this.physics.add.collider(this.localPlayer, this.platforms);
     this.physics.add.collider(this.opponentPlayer, this.platforms);
 
-    this.setupUI();
+    this.setupUI(localData, opponentData);
     this.setupInput();
     this.setupCollisions();
     this.setupSocketListeners();
@@ -136,7 +131,6 @@ export class PvPScene extends Phaser.Scene {
     (b.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     (b.body as Phaser.Physics.Arcade.Body).setVelocityX(this.facing * 1200);
 
-    // Tell opponent we shot
     socket.emit('player_shoot', {
       roomId: this.roomData.roomId,
       x: b.x,
@@ -150,7 +144,6 @@ export class PvPScene extends Phaser.Scene {
   private setupSocketListeners() {
     socket.on('opponent_action', (data: any) => {
       if (this.isGameOver) return;
-      // Smooth interpolation would go here, but absolute positioning works for MVP
       this.opponentPlayer.setPosition(data.x, data.y);
       this.opponentPlayer.setFlipX(data.flipX);
     });
@@ -167,7 +160,7 @@ export class PvPScene extends Phaser.Scene {
     });
 
     socket.on('opponent_disconnected', () => {
-      if (!this.isGameOver) this.endGame('OPPONENT DISCONNECTED. YOU WIN!');
+      if (!this.isGameOver) this.endGame('OPPONENT DISCONNECTED.\nYOU WIN!');
     });
   }
 
@@ -182,7 +175,6 @@ export class PvPScene extends Phaser.Scene {
   }
 
   private setupCollisions() {
-    // When opponent's bullet hits me
     this.physics.add.overlap(this.opponentBullets, this.localPlayer, (player, bullet) => {
       bullet.destroy();
       this.localHealth -= 10;
@@ -191,12 +183,10 @@ export class PvPScene extends Phaser.Scene {
       this.time.delayedCall(100, () => this.localPlayer.clearTint());
 
       if (this.localHealth <= 0) {
-        // I died! Send a message (can be handled via health sync later)
-        this.endGame('YOU DIED. DEFEAT!');
+        this.endGame('YOU DIED.\nDEFEAT!');
       }
     });
 
-    // When my bullet hits the opponent
     this.physics.add.overlap(this.localBullets, this.opponentPlayer, (opp, bullet) => {
       bullet.destroy();
       this.opponentHealth -= 10;
@@ -205,34 +195,53 @@ export class PvPScene extends Phaser.Scene {
       this.time.delayedCall(100, () => this.opponentPlayer.clearTint());
 
       if (this.opponentHealth <= 0) {
-        this.endGame('OPPONENT ELIMINATED. VICTORY!');
+        this.endGame('OPPONENT ELIMINATED.\nVICTORY!');
       }
     });
   }
 
-  private setupUI() {
+  private setupUI(localData: any, opponentData: any) {
     const camW = this.cameras.main.width;
     
-    this.add.text(20, 20, 'YOU', { fontSize: '18px', color: '#fff', fontWeight: 'bold' }).setScrollFactor(0);
+    // Local Player UI (Left side)
+    const localName = localData.username || 'PLAYER 1';
+    this.add.text(20, 20, localName, { fontSize: '20px', color: '#fff', fontWeight: '900', stroke: '#000', strokeThickness: 3 }).setScrollFactor(0);
     this.add.rectangle(20, 50, 200, 16, 0x333333).setOrigin(0, 0.5).setScrollFactor(0);
     this.localHealthBar = this.add.rectangle(20, 50, 200, 16, 0x4caf50).setOrigin(0, 0.5).setScrollFactor(0);
 
-    this.add.text(camW - 20, 20, 'ENEMY', { fontSize: '18px', color: '#ff4d4f', fontWeight: 'bold' }).setOrigin(1, 0).setScrollFactor(0);
+    // Opponent Player UI (Right side)
+    const oppName = opponentData.username || 'PLAYER 2';
+    this.add.text(camW - 20, 20, oppName, { fontSize: '20px', color: '#ff4d4f', fontWeight: '900', stroke: '#000', strokeThickness: 3 }).setOrigin(1, 0).setScrollFactor(0);
     this.add.rectangle(camW - 220, 50, 200, 16, 0x333333).setOrigin(0, 0.5).setScrollFactor(0);
     this.opponentHealthBar = this.add.rectangle(camW - 220, 50, 200, 16, 0xff4d4f).setOrigin(0, 0.5).setScrollFactor(0);
     
-    this.overlayText = this.add.text(camW/2, 200, '', { fontSize: '48px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setVisible(false);
+    this.overlayText = this.add.text(camW/2, WORLD_HEIGHT/2, '', { fontSize: '54px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 8, align: 'center' }).setOrigin(0.5).setVisible(false);
   }
 
   private endGame(message: string) {
     if (this.isGameOver) return;
     this.isGameOver = true;
     this.physics.pause();
-    this.overlayText.setText(message).setVisible(true);
+    
+    const camW = this.cameras.main.width;
+    this.add.rectangle(camW/2, WORLD_HEIGHT/2, camW, WORLD_HEIGHT, 0x000000, 0.8).setDepth(100);
+    this.overlayText.setText(message).setDepth(101).setVisible(true);
 
     this.time.delayedCall(3000, () => {
       window.dispatchEvent(new CustomEvent('WAR_PIGS_PVP_EVENT', { detail: { type: 'PVP_EXIT' } }));
     });
   }
+
+  // Backup in case the exact sprite string isn't found
+  private createFallbackTextures() { 
+    this.makeRectTexture('fallback_player', 64, 64, 0xb46a34, 0x3b1d0d); 
   }
-      
+  private makeRectTexture(k: string, w: number, h: number, f: number, s: number) { 
+    if(this.textures.exists(k)) return; 
+    const g = this.add.graphics(); 
+    g.fillStyle(f,1).fillRoundedRect(0,0,w,h,8); 
+    g.lineStyle(3,s,1).strokeRoundedRect(1.5,1.5,w-3,h-3,8); 
+    g.generateTexture(k,w,h); 
+    g.destroy(); 
+  }
+}
