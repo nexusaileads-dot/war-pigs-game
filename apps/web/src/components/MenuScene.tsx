@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { WalletButton } from './WalletButton';
 import { BankModal } from './BankModal';
+import { audioManager } from '../utils/audioManager';
 
 type Screen = 'MENU' | 'CHAR_SELECT' | 'WEAPON_SELECT' | 'LEVEL_SELECT' | 'SHOP' | 'PROFILE' | 'PVP' | 'CLANS' | 'LEADERBOARD' | 'GAME';
 interface Props { onNavigate: (screen: Screen) => void; }
@@ -13,20 +14,46 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showBank, setShowBank] = useState(false);
 
+  // Audio State for the Settings UI
+  const [musicOn, setMusicOn] = useState(audioManager.isMusicEnabled());
+  const [soundOn, setSoundOn] = useState(audioManager.isSoundEnabled());
+
+  // Start Lobby BGM on mount
+  useEffect(() => {
+    audioManager.playBGM('/assets/audio/lobby-bgm.mp3');
+  }, []);
+
   const level = user?.profile?.level || 1;
   const xp = user?.profile?.xp || 1460;
   
-  // FIX: Separate Off-Chain Game Coins vs On-Chain $PIGS
+  // Separate Off-Chain Game Coins vs On-Chain $PIGS
   const gameCoins = user?.profile?.currentPigs || 3000; 
-  const cryptoPigs = user?.wallet?.claimedRewards || 0; // Defaulting to 0
+  const cryptoPigs = user?.wallet?.claimedRewards || 0; 
 
   const username = user?.username || user?.firstName || 'Player';
   const xpTarget = Math.max(2500, level * 1250);
   const xpProgress = Math.max(0, Math.min(100, (xp / xpTarget) * 100));
 
   const handleNavigate = (screen: Screen) => {
+    audioManager.playSFX('/assets/audio/click.mp3');
     setShowSettings(false);
     onNavigate(screen);
+  };
+
+  const openBank = () => {
+    audioManager.playSFX('/assets/audio/click.mp3');
+    setShowSettings(false);
+    setShowBank(true);
+  };
+
+  const closeBank = () => {
+    audioManager.playSFX('/assets/audio/click.mp3');
+    setShowBank(false);
+  };
+
+  const openSettings = () => {
+    audioManager.playSFX('/assets/audio/click.mp3');
+    setShowSettings(true);
   };
 
   return (
@@ -37,7 +64,17 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
         {/* TOP BAR */}
         <div style={{ height: '15vh', minHeight: '60px', zIndex: 10 }}>
-          <TopBar level={level} xp={xp} xpTarget={xpTarget} xpProgress={xpProgress} gameCoins={gameCoins} cryptoPigs={cryptoPigs} username={username} onSettings={() => setShowSettings(true)} onBank={() => setShowBank(true)} />
+          <TopBar 
+            level={level} 
+            xp={xp} 
+            xpTarget={xpTarget} 
+            xpProgress={xpProgress} 
+            gameCoins={gameCoins} 
+            cryptoPigs={cryptoPigs} 
+            username={username} 
+            onSettings={openSettings} 
+            onBank={openBank} 
+          />
         </div>
 
         {/* MIDDLE AREA (Expanded since Bottom Nav is gone) */}
@@ -63,19 +100,34 @@ export const MenuScene: React.FC<Props> = ({ onNavigate }) => {
 
       </div>
 
-      {showBank && <BankModal onClose={() => setShowBank(false)} currentCryptoPigs={cryptoPigs} />}
+      {showBank && <BankModal onClose={closeBank} currentCryptoPigs={cryptoPigs} />}
 
       {/* Settings Modal */}
       {showSettings && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: '#111', padding: 30, borderRadius: 16, width: '90%', maxWidth: 350, border: '2px solid #ff6b35', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h3 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: 22, color: '#ff6b35', textTransform: 'uppercase' }}>Settings & Bank</h3>
-            <button onClick={() => { setShowSettings(false); setShowBank(true); }} style={{ ...btnStyle, background: '#4caf50', border: 'none' }}>🏦 DEPOSIT / WITHDRAW $PIGS</button>
+            
+            <button onClick={openBank} style={{ ...btnStyle, background: '#4caf50', border: 'none' }}>🏦 DEPOSIT / WITHDRAW $PIGS</button>
             <hr style={{ width: '100%', borderColor: '#333', margin: '5px 0' }} />
-            <button onClick={() => alert('Sound Toggled')} style={btnStyle}>🔊 SOUND: ON</button>
-            <button onClick={() => alert('Music Toggled')} style={btnStyle}>🎵 MUSIC: ON</button>
-            <button onClick={() => { logout(); setShowSettings(false); }} style={{ ...btnStyle, background: '#d92a17', border: 'none', marginTop: 10 }}>LOGOUT</button>
-            <button onClick={() => setShowSettings(false)} style={{ ...btnStyle, background: 'transparent', color: '#888', border: '1px solid #333' }}>CLOSE</button>
+            
+            <button 
+              onClick={() => { setSoundOn(audioManager.toggleSound()); audioManager.playSFX('/assets/audio/click.mp3'); }} 
+              style={btnStyle}
+            >
+              🔊 SOUND: {soundOn ? 'ON' : 'OFF'}
+            </button>
+            
+            <button 
+              onClick={() => { setMusicOn(audioManager.toggleMusic()); audioManager.playSFX('/assets/audio/click.mp3'); }} 
+              style={btnStyle}
+            >
+              🎵 MUSIC: {musicOn ? 'ON' : 'OFF'}
+            </button>
+            
+            <button onClick={() => { audioManager.playSFX('/assets/audio/click.mp3'); logout(); setShowSettings(false); }} style={{ ...btnStyle, background: '#d92a17', border: 'none', marginTop: 10 }}>LOGOUT</button>
+            
+            <button onClick={() => { audioManager.playSFX('/assets/audio/click.mp3'); setShowSettings(false); }} style={{ ...btnStyle, background: 'transparent', color: '#888', border: '1px solid #333' }}>CLOSE</button>
           </div>
         </div>
       )}
@@ -89,6 +141,7 @@ const TopBar: React.FC<{ level: number; xp: number; xpTarget: number; xpProgress
   return (
     <div style={{ height: '100%', display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(4px)' }}>
       
+      {/* Player Info */}
       <div style={{ flex: 1.5, ...topCellStyle, display: 'flex', alignItems: 'center', padding: '0 2vw', gap: '1vw' }}>
         <img src={`${ASSET_BASE}/topbar/player-rank-badge.png`} alt="Rank" draggable={false} style={{ height: '60%', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         <div style={{ minWidth: 0, flex: 1 }}>
